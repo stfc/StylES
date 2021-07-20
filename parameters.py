@@ -53,8 +53,8 @@ BATCH_SIZE     = 4
 IRESTART       = False
 G_SMOOTH       = 10.0
 GS_AVERAGE     = 10
-DATASET        = '../data/2D_HIT/'   #use small_foreign_4 to test on defects
-CHKP_DIR       = './checkpoints/'
+DATASET        = '../../data/2D_HIT/'   #use small_foreign_4 to test on defects
+CHKP_DIR       = '../checkpoints/'
 CHKP_PREFIX    = os.path.join(CHKP_DIR, 'ckpt')
 
 

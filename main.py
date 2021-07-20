@@ -27,7 +27,10 @@ from train import *
 
 # clean folders
 os.system("rm -rf logs/*")
-os.system("rm -rf images/*")
+if os.path.isdir("images"):
+    os.system("rm -rf images/*")
+else:    
+    os.system("mkdir images")
 
 current_time         = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
 dir_train_log        = 'logs/gradient_tape/' + current_time + '/train'
