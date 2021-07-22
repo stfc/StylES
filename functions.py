@@ -456,7 +456,10 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         img = predictions[RES_LOG2-2]         # take highest resolution
         img = convert_to_pil_image(img[i])
         axs[i].axis('off')
-        axs[i].imshow(img)
+        if (NUM_CHANNELS==1):
+            axs[i].imshow(img,cmap='gray')
+        else:
+            axs[i].imshow(img)
 
     fig.savefig('images/image_at_iteration_{:06d}.png'.format(iteration))
     plt.close('all')

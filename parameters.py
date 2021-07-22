@@ -16,7 +16,7 @@ import os
 TRAIN      = True
 
 # MSG-StyleGAN
-INPUT_DIM         = 256
+INPUT_DIM         = 128
 OUTPUT_DIM        = INPUT_DIM
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -27,7 +27,7 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 DTYPE             = "float32"        # Data type to use for activations and outputs.
-NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
+NUM_CHANNELS      = 1                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2* 2 - 2  # Numer of layers  
 GEN_LR            = 3.e-3
 DIS_LR            = 3.e-3
@@ -37,7 +37,7 @@ NEXAMPLES         = 4
 SEED              = tf.random.normal([NEXAMPLES, LATENT_SIZE])
 PROFILE           = False
 CONVERTTOTFRECORD = False
-USE_GPU           = False
+USE_GPU           = True
 SCALING_UP        = tf.math.exp( tf.dtypes.cast(64.0, tf.float32) * tf.dtypes.cast(tf.math.log(2.0), tf.float32) )
 SCALING_DOWN      = tf.math.exp(-tf.dtypes.cast(64.0, tf.float32) * tf.dtypes.cast(tf.math.log(2.0), tf.float32) )
 BUFFER_SIZE       = 100 #same size of the number of images in DATASET
@@ -53,7 +53,7 @@ BATCH_SIZE     = 4
 IRESTART       = False
 G_SMOOTH       = 10.0
 GS_AVERAGE     = 10
-DATASET        = '../../data/2D_HIT/'   #use small_foreign_4 to test on defects
+DATASET        = '../../data/2D_HIT_single/'   #use small_foreign_4 to test on defects
 CHKP_DIR       = '../checkpoints/'
 CHKP_PREFIX    = os.path.join(CHKP_DIR, 'ckpt')
 

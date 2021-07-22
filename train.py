@@ -33,23 +33,23 @@ def train_step(input, images):
         dlatents = mapping_ave(input, training = True)
         g_images = synthesis_ave(dlatents, training = True)
 
-        real_output = discriminator(images, training=True)
+        real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
         # find discriminator loss
+        loss_real  = tf.reduce_mean(tf.math.softplus(-real_output))
+        loss_fake  = tf.reduce_mean(tf.math.softplus(fake_output))
         r1_penalty = gradient_penalty(images, g_images)
-        loss_fake = tf.reduce_mean(tf.math.softplus(fake_output))
-        loss_real = tf.reduce_mean(tf.math.softplus(-real_output))
-        loss_disc = loss_real + loss_fake + r1_penalty * (10.0 * 0.5)  #10.0 is the gradient penalty weight
+        loss_disc  = loss_real + loss_fake + r1_penalty * (10.0 * 0.5)  #10.0 is the gradient penalty weight
 
         # find generator loss
         loss_gen  = tf.reduce_mean(tf.math.softplus(-fake_output))
 
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping_ave.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis_ave.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(loss_disc,   discriminator.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping_ave.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis_ave.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
     gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis ]

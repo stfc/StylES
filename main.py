@@ -23,8 +23,8 @@ from MSG_StyleGAN_tf2 import *
 from train import *
 
 
-#-------------------------------------prepare for run
 
+#-------------------------------------prepare for run
 # clean folders
 os.system("rm -rf logs/*")
 if os.path.isdir("images"):
@@ -51,11 +51,14 @@ if (not USE_GPU):
         # Invalid device or cannot modify virtual devices once initialized.
         pass
 
+
+
 #-------------------------------------define data augmentation
 # data_augmentation = tf.keras.Sequential([
 #     tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical"),
 #     tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
 # ])
+
 
 
 #-------------------------------------define dataset
@@ -74,7 +77,8 @@ def decode_img(img):
   img_out = []
   for res in range(2, RES_LOG2 + 1):
     r_img = tf.image.resize(img, [2**res, 2**res])
-    r_img = tf.transpose(r_img)
+    if (NUM_CHANNELS>1):
+        r_img = tf.transpose(r_img)
     img_out.append(r_img)
     
   return img_out
@@ -90,6 +94,8 @@ def process_path(file_path):
 labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
 
 
+
+#-------------------------------------prepare training dataset
 def prepare_for_training(ds, cache=True, batch_size=0, shuffle_buffer_size=BUFFER_SIZE, augment=True):
     #This is a small dataset, only load it once, and keep it in memory.
     #use `.cache(filename)` to cache preprocessing work for datasets that don't
@@ -118,15 +124,11 @@ def prepare_for_training(ds, cache=True, batch_size=0, shuffle_buffer_size=BUFFE
 
 
 
-#-------------------------------------prepare training dataset
-
-
-
-
-
-#-------------------------------------train the model
-if TRAIN:
+#-------------------------------------main: train the model
+def main():
     train_images = prepare_for_training(labeled_ds, batch_size=BATCH_SIZE)
     train(train_images, GEN_LR, DIS_LR, train_summary_writer)
-elif DETECT:
-    detect(labeled_ds)
+
+
+if __name__ == "__main__":
+    main()
