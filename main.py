@@ -77,8 +77,7 @@ def decode_img(img):
   img_out = []
   for res in range(2, RES_LOG2 + 1):
     r_img = tf.image.resize(img, [2**res, 2**res])
-    if (NUM_CHANNELS>1):
-        r_img = tf.transpose(r_img)
+    r_img = tf.transpose(r_img)
     img_out.append(r_img)
     
   return img_out
