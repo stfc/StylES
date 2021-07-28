@@ -16,10 +16,11 @@ For the GPU version, make sure you have the following requirements:
 
 
 # Testloop
-The following results are expected when running the solver after installing the conda enviroment as above and the following command lines
+#### 2D Homogeneous Isotropic Turbulence (2D-HIT) - single image
+This test consists into reproducing the same single 2D HIT image after training StyleLES. The following results are expected when running the solver after installing the conda enviroment as above and the following command lines
 
-python main.py
-python utilities.py
+- python main.py
+- python utilities.py
 
 ![image info](./testloop/Real_vs_fake.png)
 
