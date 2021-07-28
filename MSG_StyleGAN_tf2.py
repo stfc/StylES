@@ -334,7 +334,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                 discriminator=discriminator)
 
 
-def gradient_penalty(x, x_gen):
+def gradient_penalty(x):
     with tf.GradientTape() as t:
         t.watch(x)
         d_hat = discriminator(x, training=False)

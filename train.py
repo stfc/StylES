@@ -39,8 +39,8 @@ def train_step(input, images):
         # find discriminator loss
         loss_real  = tf.reduce_mean(tf.math.softplus(-real_output))
         loss_fake  = tf.reduce_mean(tf.math.softplus(fake_output))
-        r1_penalty = gradient_penalty(images, g_images)
-        loss_disc  = loss_real + loss_fake + r1_penalty * (10.0 * 0.5)  #10.0 is the gradient penalty weight
+        r1_penalty = gradient_penalty(images)
+        loss_disc  = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5)  #10.0 is the gradient penalty weight
 
         # find generator loss
         loss_gen  = tf.reduce_mean(tf.math.softplus(-fake_output))
@@ -73,8 +73,7 @@ def train_step(input, images):
             new_weight = old_weight[j] * Gs_beta + (1-Gs_beta) * up_weight[j]
             synthesis_ave.layers[i].weights[j] = new_weight
 
-    metrics = [tf.reduce_mean(real_output), tf.reduce_mean(fake_output), r1_penalty, 
-            loss_fake, loss_real, loss_disc, loss_gen]
+    metrics = [loss_disc, loss_gen, r1_penalty]
 
     return metrics
 
@@ -113,27 +112,25 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
         #print losses
         if it % PRINT_EVERY == 0:
             tend = time.time()
-            print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, r_score {3:6.1e}, ' \
-                'f_score {4:6.1e}, lr_g {5:6.1e}, lr_d {6:6.1e}' \
-                .format((tend-tstart)/3600, it, tend-tint, mtr[0], mtr[1], GEN_LR, DIS_LR))
+            print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
+                'loss_disc {3:6.1e}, '  \
+                'loss_gen {4:6.1e}, '   \
+                'r1_penalty {5:6.1e}, ' \
+                .format((tend-tstart)/3600, it, tend-tint, \
+                mtr[0], \
+                mtr[1], \
+                mtr[2]))
             tint = tend
 
             # write losses tensorboard
             with train_summary_writer.as_default():
-                tf.summary.scalar('real_score', mtr[0], step=it)
-                tf.summary.scalar('fake_score', mtr[1], step=it)
+                tf.summary.scalar('loss_disc',  mtr[0], step=it)
+                tf.summary.scalar('loss_gen',   mtr[1], step=it)
                 tf.summary.scalar('r1_penalty', mtr[2], step=it)
-                tf.summary.scalar('loss_fake',  mtr[3], step=it)
-                tf.summary.scalar('loss_real',  mtr[4], step=it)
-                tf.summary.scalar('loss_disc',  mtr[5], step=it)
-                tf.summary.scalar('loss_gen',   mtr[6], step=it)
 
         #print images
         if (it+1) % IMAGES_EVERY == 0:    
             generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
-            # generate_and_save_images2(mapping_ave, synthesis_ave, image_batch, 0)
-            # generate_and_save_images3(mapping_ave, synthesis_ave, image_batch, 1)
-            # generate_and_save_images(mapping_ave, synthesis_ave,  input_batch, 2)
 
         #save the model
         if (it+1) % SAVE_EVERY == 0:    

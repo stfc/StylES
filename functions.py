@@ -445,64 +445,27 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
     dlatents    = mapping_ave(input, training=False)
     predictions = synthetic_ave(dlatents, training=False)
 
-    nr = np.int(np.sqrt(NEXAMPLES))
-    nc = np.int(NEXAMPLES/nr)
-    ninc = 10*nc/4
-    ninr = 10*nr/4
-    fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96)
-    plt.subplots_adjust(wspace=0.01, hspace=0.01)
-    axs = axs.ravel()
-    for i in range(NEXAMPLES):
-        img = predictions[RES_LOG2-2]         # take highest resolution
-        img = convert_to_pil_image(img[i])
-        axs[i].axis('off')
-        if (NUM_CHANNELS==1):
-            axs[i].imshow(img,cmap='gray')
-        else:
-            axs[i].imshow(img)
+    for res in range(RES_LOG2-1):
+        pow2 = 2**(res+2)
+        nr = np.int(np.sqrt(NEXAMPLES))
+        nc = np.int(NEXAMPLES/nr)
+        ninc = 10*nc/4
+        ninr = 10*nr/4
+        fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96, squeeze=False)
+        plt.subplots_adjust(wspace=0.01, hspace=0.01)
+        axs = axs.ravel()
+        for i in range(NEXAMPLES):
+            img = predictions[res]
+            img = convert_to_pil_image(img[i])
+            axs[i].axis('off')
+            if (NUM_CHANNELS==1):
+                axs[i].imshow(img,cmap='gray')
+            else:
+                axs[i].imshow(img)
 
-    fig.savefig('images/image_at_iteration_{:06d}.png'.format(iteration))
-    plt.close('all')
+        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration))
+        plt.close('all')
 
-
-def generate_and_save_images2(mapping_ave, synthetic_ave, input, iteration):
-    predictions = input
-
-    nr = np.int(np.sqrt(NEXAMPLES))
-    nc = np.int(NEXAMPLES/nr)
-    ninc = 10*nc/4
-    ninr = 10*nr/4
-    fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96)
-    plt.subplots_adjust(wspace=0.01, hspace=0.01)
-    axs = axs.ravel()
-    for i in range(NEXAMPLES):
-        img = predictions[RES_LOG2-2]         # take highest resolution
-        img = convert_to_pil_image(img[i])
-        axs[i].axis('off')
-        axs[i].imshow(img)
-
-    fig.savefig('image_at_iteration_{:06d}.png'.format(iteration))
-    plt.close('all')
-
-
-def generate_and_save_images3(mapping_ave, synthetic_ave, input, iteration):
-    predictions = input
-
-    nr = np.int(np.sqrt(NEXAMPLES))
-    nc = np.int(NEXAMPLES/nr)
-    ninc = 10*nc/4
-    ninr = 10*nr/4
-    fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96)
-    plt.subplots_adjust(wspace=0.01, hspace=0.01)
-    axs = axs.ravel()
-    for i in range(NEXAMPLES):
-        img = predictions[RES_LOG2-2]*tf_mask         # take highest resolution
-        img = convert_to_pil_image(img[i])
-        axs[i].axis('off')
-        axs[i].imshow(img)
-
-    fig.savefig('image_at_iteration_{:06d}.png'.format(iteration))
-    plt.close('all')
 
 
 
