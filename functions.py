@@ -460,7 +460,8 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     return tf.nn.conv2d(x, w, strides=strides, padding="VALID", data_format="NCHW")
 
 
-#-------------convert to python image
+
+#-----------------------functions for visualization
 def convert_to_pil_image(image, drange=[0, 1]):
     assert image.ndim == 2 or image.ndim == 3
     if image.ndim == 3:
@@ -476,7 +477,6 @@ def convert_to_pil_image(image, drange=[0, 1]):
     return image
 
 
-#-------------adjust dynamically range in images
 def adjust_dynamic_range(data, drange_in, drange_out):
     if drange_in != drange_out:
         scale = (np.float32(drange_out[1]) - np.float32(drange_out[0])) / (
@@ -486,46 +486,6 @@ def adjust_dynamic_range(data, drange_in, drange_out):
         data = data * scale + bias
     return data    
 
-
-#-------------Gram matrix per layer
-def gram_matrix(x):
-    assert isinstance(x, tf.Tensor)
-    b, h, w, ch = x.get_shape().as_list()
-    features = tf.reshape(x, [b, h*w, ch])
-    # gram = tf.batch_matmul(features, features, adj_x=True)/tf.constant(ch*w*h, tf.float32)
-    gram = tf.matmul(features, features, adjoint_a=True)/tf.constant(ch*w*h, tf.float32)
-    return gram
-
-
-#-------------total variation denoising
-def total_variation_regularization(x, beta=1):
-    assert isinstance(x, tf.Tensor)
-    wh = tf.constant([[[[ 1], [ 1], [ 1]]], [[[-1], [-1], [-1]]]], tf.float32)
-    ww = tf.constant([[[[ 1], [ 1], [ 1]], [[-1], [-1], [-1]]]], tf.float32)
-    tvh = lambda x: conv2d(x, wh, p='SAME')
-    tvw = lambda x: conv2d(x, ww, p='SAME')
-    dh = tvh(x)
-    dw = tvw(x)
-    tv = (tf.add(tf.reduce_sum(dh**2, [1, 2, 3]), tf.reduce_sum(dw**2, [1, 2, 3]))) ** (beta / 2.)
-    return tv
-
-
-#-------------------------------------utility to visualize
-def save_one_image(path, img, it):
-    img = convert_to_pil_image(img)
-    img = tf.io.encode_jpeg(img)
-    tf.io.write_file(path + 'image_{:06d}.jpg'.format(it), img)
-
-def save_one_image_bw(path, img, it, drange=[0, 1]):
-    max = tf.math.reduce_max(img)
-    min = tf.math.reduce_min(img)
-    img = (img - min)/(max-min)*255
-    img = tf.image.resize(img, [OUTPUT_DIM, OUTPUT_DIM])
-    img = tf.math.rint(img)
-    img = tf.clip_by_value(img, 0, 255)
-    img = tf.cast(img, tf.uint8)
-    img = tf.io.encode_jpeg(img, format='grayscale')
-    tf.io.write_file(path + 'image_{:06d}.jpg'.format(it), img)
 
 
 def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
@@ -555,42 +515,24 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
 
 
 
+#-------------------------extras pieces----------------------------------
+# #--- use the following definition if running on ScafellPike
 
-#--- use the following definition if running on ScafellPike
+# def generate_and_save_images_scf(mapping_ave, synthetic_ave, input, latent_input, iteration):
+#     dlatents = mapping_ave(input, training=False)
+#     predictions = synthetic_ave(dlatents, training=False)
 
-def generate_and_save_images_scf(mapping_ave, synthetic_ave, input, latent_input, iteration):
-    dlatents = mapping_ave(input, training=False)
-    predictions = synthetic_ave(dlatents, training=False)
+#     for i in range(1):
+#         #plt.subplot(int(np.sqrt(NEXAMPLES)), int(np.sqrt(NEXAMPLES)), i+1)
+#         img = predictions[RES_LOG2-2]         # take highest resolution
+#         img = tf.transpose(img[i, :, :, :])
+#         img = adjust_dynamic_range(img, [1, 0], [0, 255])
+#         #img = img*127.5 + 127.5               # re-scale
+#         img = np.uint8(img)                   # convert to uint8
+#         #if (NUM_CHANNELS>1):
+#         #    plt.imshow(img)
+#         #else:
+#         #    plt.imshow(img[:,:,0],cmap='gray')
+#         #plt.axis('off')
 
-    for i in range(1):
-        #plt.subplot(int(np.sqrt(NEXAMPLES)), int(np.sqrt(NEXAMPLES)), i+1)
-        img = predictions[RES_LOG2-2]         # take highest resolution
-        img = tf.transpose(img[i, :, :, :])
-        img = adjust_dynamic_range(img, [1, 0], [0, 255])
-        #img = img*127.5 + 127.5               # re-scale
-        img = np.uint8(img)                   # convert to uint8
-        #if (NUM_CHANNELS>1):
-        #    plt.imshow(img)
-        #else:
-        #    plt.imshow(img[:,:,0],cmap='gray')
-        #plt.axis('off')
-
-    plt.imsave('image_at_iteration_{:06d}.png'.format(iteration), img)
-
-
-#---------------- Encoder functions
-def upsample_add(x, y):
-    x = layers.UpSampling2D(size=(4, 4))(x)
-    return x + y
-
-def map2style(x, res):
-    for i in range(res):
-        x = layers.Conv2D(512, 3, padding='same', strides=2)(x)
-        x = layers.LeakyReLU()(x)
-    # dense = layer_dense(x, 512, gain=1)
-    # x    = dense(x)
-    # bias = layer_bias(x)
-    # x    = bias(x)
-    x = tf.clip_by_value(x, -1, 1)
-    return x
-
+#     plt.imsave('image_at_iteration_{:06d}.png'.format(iteration), img)
