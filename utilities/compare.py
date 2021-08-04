@@ -14,14 +14,18 @@
 # 1) Plot differences between two images (from https://www.pyimagesearch.com/2014/09/15/python-compare-two-images/)
 
 # import the necessary packages
+import matplotlib.pyplot as plt
+import numpy as np
+import sys
+import importlib
+
+sys.path.insert(0, '../')
+
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from matplotlib import gridspec
 from parameters import *
 
-import matplotlib
-import matplotlib.pyplot as plt
-import numpy as np
 
 NIMG = 10              # number of images to use for statistical values
 CONVERT_TO_BW = True
@@ -89,7 +93,7 @@ def trim(im):
 
 
 # load the images -- the orig, the orig + fake
-orig = Image.open("./testloop/data/2D_HIT.png")
+orig = Image.open("./../testloop/data/2D_HIT.png")
 
 # convert to black and white
 orig = orig.convert("L") 
@@ -103,7 +107,7 @@ orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
 #load fake images
 for i in range(NIMG, 0, -1):
     val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
-    filename = "./images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
+    filename = "./../images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
     temp = Image.open(filename)
     temp = temp.convert("L")
     temp = trim(temp)
@@ -120,4 +124,4 @@ if (NIMG>0):
     fake = fake.convert("L") 
 
 # compare the images
-compare_images(orig, fake, "./testloop/Real_vs_fake.png")
+compare_images(orig, fake, "./../testloop/Real_vs_fake.png")

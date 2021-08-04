@@ -19,6 +19,41 @@ from tensorflow.keras import layers
 
 #---------------------functions to build StyleGAN network--------------------
 
+# define periodic padding
+def periodic_padding_flexible(tensor, axis, padding=1):
+    """
+        add periodic padding to a tensor for specified axis
+        tensor: input tensor
+        axis: on or multiple axis to pad along, int or tuple
+        padding: number of cells to pad, int or tuple
+
+        return: padded tensor
+    """
+
+    if isinstance(axis,int):
+        axis = (axis,)
+
+    if isinstance(padding,int):
+        padding = (padding,)
+
+    ndim = len(tensor.shape)
+
+    if (padding[0][0]>0):
+        for ax,p in zip(axis,padding):
+            # create a slice object that selects everything from all axes,
+            # except only 0:p for the specified for right, and -p: for left
+
+            ind_right = [slice(-p[0],None) if i == ax else slice(None) for i in range(ndim)]
+            ind_left  = [slice(0, p[1])    if i == ax else slice(None) for i in range(ndim)]
+
+            right     = tensor[ind_right]
+            left      = tensor[ind_left]
+            middle    = tensor
+            tensor    = tf.concat([right,middle,left], axis=ax)
+
+    return tensor
+
+
 #-------------Pixel normalization
 def pixel_norm(x, epsilon=1e-8):
     epsilon = tf.constant(epsilon, dtype=x.dtype)
@@ -203,6 +238,25 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     x = tf.cast(x, tf.float32)  # tf.nn.depthwise_conv2d() doesn't support fp16
     f = tf.constant(f, dtype=x.dtype, name="filter")
     strides = [1, 1, stride, stride]
+
+    # if (f.shape[0] % 2 == 0):
+    #     pleft   = np.int((f.shape[0]-1)/2)
+    #     pright  = np.int(f.shape[0]/2)
+    # else:
+    #     pleft   = np.int((f.shape[0]-1)/2)
+    #     pright  = pleft
+
+    # if (f.shape[1] % 2 == 0):
+    #     ptop    = np.int((f.shape[1]-1)/2)
+    #     pbottom = np.int(f.shape[1]/2)
+    # else:
+    #     ptop    = np.int((f.shape[1]-1)/2)
+    #     pbottom = ptop
+
+    # x2 = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
+    # x2 = tf.nn.depthwise_conv2d(x2, f, strides=strides, padding="VALID", data_format="NCHW")
+    # x2 = tf.cast(x2, orig_dtype)
+
     x = tf.nn.depthwise_conv2d(
         x, f, strides=strides, padding="SAME", data_format="NCHW"
     )
@@ -267,7 +321,24 @@ def conv2d(x, fmaps, kernel, **kwargs):
     get_weight = layer_get_Weight([kernel, kernel, x.shape[1], fmaps], **kwargs)
     w = get_weight(x)
     w = tf.cast(w, x.dtype)
-    return tf.nn.conv2d(x, w, strides=[1, 1, 1, 1], padding="SAME", data_format="NCHW")
+    strides=[1, 1, 1, 1]
+
+    if (w.shape[0] % 2 == 0):
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = np.int(w.shape[0]/2)
+    else:
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = pleft
+
+    if (w.shape[1] % 2 == 0):
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = np.int(w.shape[1]/2)
+    else:
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = ptop
+
+    x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
+    return tf.nn.conv2d(x, w, strides=strides, padding="VALID", data_format="NCHW")
 
 
 #-------------Upscale conv2d
@@ -369,8 +440,24 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     w = tf.pad(w, [[1, 1], [1, 1], [0, 0], [0, 0]], mode="CONSTANT")
     w = tf.add_n([w[1:, 1:], w[:-1, 1:], w[1:, :-1], w[:-1, :-1]]) * 0.25
     w = tf.cast(w, x.dtype)
+    strides=[1, 1, 2, 2]
 
-    return tf.nn.conv2d(x, w, strides=[1, 1, 2, 2], padding="SAME", data_format="NCHW")
+    if (w.shape[0] % 2 == 0):
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = np.int(w.shape[0]/2)
+    else:
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = pleft
+
+    if (w.shape[1] % 2 == 0):
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = np.int(w.shape[1]/2)
+    else:
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = ptop
+
+    x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
+    return tf.nn.conv2d(x, w, strides=strides, padding="VALID", data_format="NCHW")
 
 
 #-------------convert to python image

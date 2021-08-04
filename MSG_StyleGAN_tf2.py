@@ -98,7 +98,7 @@ def make_synthesis_model():
     use_styles        = True         # Enable style inputs                             
     blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
                                      # None = no filtering.
-    fused_scale="auto"               # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+    fused_scale=False               # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
 
 
     # Inputs
@@ -220,7 +220,7 @@ def make_discriminator_model():
     mbstd_num_features = 1    # Number of features for the minibatch standard deviation layer.
     blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
                               # None = no filtering.
-    fused_scale="auto"        # True = fused convolution + scaling, 
+    fused_scale=False        # True = fused convolution + scaling, 
                               # False = separate ops, 'auto' = decide automatically.
 
     def blur(in_x):
