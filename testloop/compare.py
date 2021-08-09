@@ -93,13 +93,13 @@ def trim(im):
 
 
 # load the images -- the orig, the orig + fake
-orig = Image.open("./../testloop/data/2D_HIT.png")
+orig = Image.open("./../testloop/data/CASE/test_01.png")
 
 # convert to black and white
 orig = orig.convert("L") 
 
 # remove white spaces
-orig = trim(orig)
+#orig = trim(orig)
 
 # resize images
 orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
@@ -124,4 +124,4 @@ if (NIMG>0):
     fake = fake.convert("L") 
 
 # compare the images
-compare_images(orig, fake, "./../testloop/Real_vs_fake.png")
+compare_images(orig, fake, "./../testloop/result_CASE.png")

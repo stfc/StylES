@@ -33,7 +33,7 @@ for res in range(2,RES_LOG2+1):
     os.system(cmd)
 
 current_time         = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")
-dir_train_log        = 'logs/gradient_tape/' + current_time + '/train'
+dir_train_log        = 'logs/' + current_time + '/train'
 train_summary_writer = tf.summary.create_file_writer(dir_train_log)
 
 if (PROFILE):

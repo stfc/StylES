@@ -16,11 +16,30 @@ For the GPU version, make sure you have the following requirements:
 
 
 # Testloop
+To run the testloop:
+
+- python testloop/testloop.py
+
+We have 2 tests:
+
 #### 2D Homogeneous Isotropic Turbulence (2D-HIT) - single image
-The test consists into reproducing a single 2D HIT image. The following results are expected when running the solver after installing the conda enviroment as above and the following command lines
+The test consists into reproducing a single 2D HIT image. The following results are expected:
 
-- python main.py
-- python utilities/compare.py
+![image info](./testloop/result_2D_HIT.png)
 
-![image info](./testloop/Real_vs_fake.png)
+#### Verify divergency
+The test consists into reproducing a divergence-free flow 2D image. The following results are expected when opening the tensorboard (Crtl+Shift+p => Launch Tensorboard)
+
+Divergence of 4x4:      7.861078e-03
+Divergence of 8x8:      1.127832e-01
+Divergence of 16x16:    2.354507e-01
+Divergence of 32x32:    3.068304e-01
+Divergence of 64x64:    1.681149e-03
+Divergence of 128x128:  4.639959e-02
+
+![image info](./testloop/result_divergence.png)
+![image info](./testloop/result_divergence_tb.png)
+
+
+
 

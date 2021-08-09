@@ -124,13 +124,18 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
 
             # write losses tensorboard
             with train_summary_writer.as_default():
-                tf.summary.scalar('loss_disc',  mtr[0], step=it)
-                tf.summary.scalar('loss_gen',   mtr[1], step=it)
-                tf.summary.scalar('r1_penalty', mtr[2], step=it)
+                tf.summary.scalar('loss/disc',       mtr[0], step=it)
+                tf.summary.scalar('loss/gen',        mtr[1], step=it)
+                tf.summary.scalar('loss/r1_penalty', mtr[2], step=it)
 
         #print images
         if (it+1) % IMAGES_EVERY == 0:    
-            generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
+            div = generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
+            with train_summary_writer.as_default():
+                for res in range(RES_LOG2-1):
+                    pow = 2**(res+2)
+                    var_name = "divergency/" + str(pow) + "x" + str(pow)
+                    tf.summary.scalar(var_name, div[res], step=it)
 
         #save the model
         if (it+1) % SAVE_EVERY == 0:    
@@ -143,6 +148,11 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
                 GEN_LR = GEN_LR*1.0e-1
                 DIS_LR = GEN_LR
 
+    print("Total divergencies for each resolution are:")
+    for res in range(RES_LOG2-1):
+        pow2 = 2**(res+2)
+        print("{:d}x{:d}_{:03e}   ".format(pow2,pow2,div[res]))
+    print("\n")
 
     if (PROFILE):
         tf.summary.trace_export(name="Train", step=it,profiler_outdir='./logs_profile/train')

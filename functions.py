@@ -492,6 +492,7 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
     dlatents    = mapping_ave(input, training=False)
     predictions = synthetic_ave(dlatents, training=False)
 
+    div = np.zeros(RES_LOG2-1)
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
         nr = np.int(np.sqrt(NEXAMPLES))
@@ -503,6 +504,25 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         axs = axs.ravel()
         for i in range(NEXAMPLES):
             img = predictions[res]
+            velx = periodic_padding_flexible(img[0,0,:,:], axis=(0,1), padding=([1,1],[1,1]))
+            vely = periodic_padding_flexible(img[0,1,:,:], axis=(0,1), padding=([1,1],[1,1]))
+            div[res] = 0
+            nc=velx.shape[0]
+            nr=velx.shape[1]
+            totDiv_e = 0.
+            totDiv_o = 0.
+            cont=0
+            for ii in range(1,nc-1):
+                for jj in range(1,nr-1):
+                    pdiv = (velx[ii+1][jj] - velx[ii-1][jj]) + (vely[ii][jj+1] - vely[ii][jj-1])
+                    if ((cont/2)%2 == 0):
+                        totDiv_o = totDiv_o + pdiv
+                    else:
+                        totDiv_e = totDiv_e + pdiv
+                    cont=cont+1
+
+            div[res] = abs(totDiv_o) + abs(totDiv_e)
+
             img = convert_to_pil_image(img[i])
             axs[i].axis('off')
             if (NUM_CHANNELS==1):
@@ -513,7 +533,7 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration))
         plt.close('all')
 
-
+    return div
 
 #-------------------------extras pieces----------------------------------
 # #--- use the following definition if running on ScafellPike
