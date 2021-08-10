@@ -151,7 +151,7 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
     print("Total divergencies for each resolution are:")
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
-        print("{:d}x{:d}_{:03e}   ".format(pow2,pow2,div[res]))
+        print("{:d}x{:d}:   {:03e}".format(pow2,pow2,div[res]))
     print("\n")
 
     if (PROFILE):
