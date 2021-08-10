@@ -134,7 +134,7 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
                     pow = 2**(res+2)
-                    var_name = "divergency/" + str(pow) + "x" + str(pow)
+                    var_name = "divergence/" + str(pow) + "x" + str(pow)
                     tf.summary.scalar(var_name, div[res], step=it)
 
         #save the model

@@ -27,7 +27,7 @@ The test consists into reproducing a single 2D HIT image. The following results 
 
 ![image info](./testloop/result_2D_HIT.png)
 
-#### Verify divergency
+#### Verify divergence
 The test consists into reproducing a divergence-free flow 2D image. The following results are expected when opening the tensorboard (Crtl+Shift+p => Launch Tensorboard)
 
 Divergence of 4x4:      7.861078e-03
