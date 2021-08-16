@@ -37,7 +37,7 @@ def make_mapping_model():
     # Setup variables.
     v_init = tf.zeros_initializer()
     dlatent_avg = tf.Variable(
-        initial_value=v_init(shape=[LATENT_SIZE], dtype="float32"),
+        initial_value=v_init(shape=[LATENT_SIZE], dtype=DTYPE),
         trainable=False,
         name="dlatent_avg",
     )
@@ -74,8 +74,8 @@ def make_mapping_model():
 
     if truncation_psi is not None and truncation_cutoff is not None:
         layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
-        ones = np.ones(layer_idx.shape, dtype=np.float32)
-        coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), tf.float32)
+        ones = np.ones(layer_idx.shape, dtype=DTYPE)
+        coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
         dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
 
 
@@ -120,10 +120,10 @@ def make_synthesis_model():
         if use_noise:
             if noise_inputs[ldx] is None or randomize_noise:
                 rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
-                                          dtype=in_x.dtype,
+                                          dtype=DTYPE,
                                           name="random_noise%d" % ldx)
             else:
-                rnoise = tf.cast(noise_inputs[ldx], in_x.dtype)
+                rnoise = tf.cast(noise_inputs[ldx], DTYPE)
 
             noise = apply_noise(in_x,
                                 noise_inputs[ldx],
@@ -340,7 +340,7 @@ def gradient_penalty(x):
         d_hat = discriminator(x, training=False)
         d_hat = d_hat * SCALING_UP   #loss scaling. Important for mixed precision training
     gradients = t.gradient(d_hat, x)
-    return tf.reduce_mean([tf.reduce_sum(tf.square(grad*SCALING_DOWN), axis=[1, 2, 3]) for grad in gradients])
+    return tf.reduce_mean([tf.reduce_sum(tf.square(tf.cast(grad, DTYPE)*SCALING_DOWN), axis=[1, 2, 3]) for grad in gradients])
 
 
 
@@ -354,7 +354,7 @@ def gradient_penalty(x):
 #---take one image only
 # image_in = Image.open(image_in)
 # image_in = np.array(image_in)
-# image_in = tf.image.convert_image_dtype(image_in, tf.float32)
+# image_in = tf.image.convert_image_dtype(image_in, DTYPE)
 # image = []
 # for res in range(2, RES_LOG2 + 1):
 #     r_img = tf.image.resize(image_in, [2**res, 2**res])
@@ -381,7 +381,7 @@ def gradient_penalty(x):
 #---open a file
 # image_in = Image.open('./data/defects_clean/defects5_clean.jpg')
 # image_in = np.array(image_in)
-# image_in = tf.image.convert_image_dtype(image_in, tf.float32)
+# image_in = tf.image.convert_image_dtype(image_in, DTYPE)
 
 
 #---set trainable variables

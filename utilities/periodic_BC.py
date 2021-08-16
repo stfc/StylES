@@ -44,9 +44,9 @@ x_in[:,:,-1, :] = 0
 x_in[:,:, :, 1] = 0
 x_in[:,:, 1, :] = 0
 
-x = tf.constant(x_in, dtype=tf.float32)
+x = tf.constant(x_in, dtype=DTYPE)
 
-w = tf.constant(1.0, shape=[4, 4, 1, 1], dtype=tf.float32)
+w = tf.constant(1.0, shape=[4, 4, 1, 1], dtype=DTYPE)
 y1 = tf.nn.conv2d(x, filters=w, strides=[1, 1, 2, 2], padding="SAME", data_format="NCHW")
 
 

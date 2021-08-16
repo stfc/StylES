@@ -71,7 +71,7 @@ def decode_img(img):
     img = tf.image.rgb_to_grayscale(img)
   
   #Use `convert_image_dtype` to convert to floats in the [0,1] range.
-  img = tf.image.convert_image_dtype(img, tf.float32)
+  img = tf.image.convert_image_dtype(img, DTYPE)
   
   #resize the image to the desired size.
   img_out = []

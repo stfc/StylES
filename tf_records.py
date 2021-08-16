@@ -33,7 +33,7 @@ def decode_img(img):
         img = tf.image.rgb_to_grayscale(img)
     
     #Use `convert_image_dtype` to convert to floats in the [0,1] range.
-    img = tf.image.convert_image_dtype(img, tf.float32)
+    img = tf.image.convert_image_dtype(img, DTYPE)
     
     #resize the image to the desired size.
     img_out = []
@@ -82,7 +82,7 @@ def write_tf_records():
             img = tf.image.decode_jpeg(img, channels=3)
             if (NUM_CHANNELS==1):
                 img = tf.image.rgb_to_grayscale(img)
-            img = tf.image.convert_image_dtype(img, tf.float32)
+            img = tf.image.convert_image_dtype(img, DTYPE)
             img_out = []
             for res in range(2, RES_LOG2 + 1):
                 r_img = tf.image.resize(img, [2**res, 2**res])
@@ -114,7 +114,7 @@ def read_tfrecord(data_record):
     for res in range(2, RES_LOG2 + 1):
         dim = 2**res
         rec_name = 'image_' + str(dim)
-        image = tf.io.parse_tensor(record[rec_name],  out_type = tf.float32)
+        image = tf.io.parse_tensor(record[rec_name],  out_type = DTYPE)
         image = tf.reshape(image, [3, dim, dim])
         images_out.append(image)
 

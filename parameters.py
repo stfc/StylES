@@ -12,8 +12,16 @@ import tensorflow as tf
 import numpy as np
 import os
 
-# Selector
+
+# Mode
 TRAIN      = True
+
+
+# Precision
+DTYPE = "float32"        # Data type to use for activations and outputs.
+if (DTYPE=="float64"):
+    tf.keras.backend.set_floatx('float64')
+
 
 # Network hyper-parameters
 OUTPUT_DIM        = 128
@@ -25,12 +33,10 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-DTYPE             = "float32"        # Data type to use for activations and outputs.
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2* 2 - 2  # Numer of layers  
-SCALING_UP        = tf.math.exp( tf.dtypes.cast(64.0, tf.float32) * tf.dtypes.cast(tf.math.log(2.0), tf.float32) )
-SCALING_DOWN      = tf.math.exp(-tf.dtypes.cast(64.0, tf.float32) * tf.dtypes.cast(tf.math.log(2.0), tf.float32) )
-
+SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
+SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 
 
 # Training hyper-parameters
@@ -47,7 +53,7 @@ CHKP_DIR       = './checkpoints/'
 CHKP_PREFIX    = os.path.join(CHKP_DIR, 'ckpt')
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:
-    Gs_beta = 0.5**tf.math.divide(tf.cast(BATCH_SIZE, tf.float32), G_SMOOTH * 1000.0)
+    Gs_beta = 0.5**tf.math.divide(tf.cast(BATCH_SIZE, DTYPE), G_SMOOTH * 1000.0)
 else:
     Gs_beta = 0.0
 PROFILE           = False
