@@ -30,8 +30,8 @@ from tensorflow.keras.models import Model
 @tf.function
 def train_step(input, images):
     with tf.GradientTape() as map_tape, tf.GradientTape() as syn_tape, tf.GradientTape() as disc_tape:
-        dlatents = mapping_ave(input, training = True)
-        g_images = synthesis_ave(dlatents, training = True)
+        dlatents = mapping(input, training = True)
+        g_images = synthesis(dlatents, training = True)
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -47,8 +47,8 @@ def train_step(input, images):
 
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping_ave.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis_ave.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
@@ -100,7 +100,12 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
 
 
     #save first images
-    generate_and_save_images(mapping_ave, synthesis_ave, input_latent, 0)
+    div = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, 0)
+    with train_summary_writer.as_default():
+        for res in range(RES_LOG2-1):
+            pow = 2**(res+2)
+            var_name = "divergence/" + str(pow) + "x" + str(pow)
+            tf.summary.scalar(var_name, div[res], step=0)
 
     tstart = time.time()
     tint   = tstart
@@ -109,17 +114,24 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
         image_batch = next(iter(dataset))
         mtr = train_step(input_batch, image_batch)
 
+        config = lr_gen_schedule.get_config()
+        if config["staircase"]:
+            p = tf.floor(it/config["decay_steps"])
+            lr_gen = tf.multiply(config["initial_learning_rate"], tf.pow(config["decay_rate"], p))
+
         #print losses
         if it % PRINT_EVERY == 0:
             tend = time.time()
             print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
-                'loss_disc {3:6.1e}, '  \
-                'loss_gen {4:6.1e}, '   \
+                'loss_disc {3:6.1e}, ' \
+                'loss_gen {4:6.1e}, ' \
                 'r1_penalty {5:6.1e}, ' \
+                'lr_gen {6:6.1e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
-                mtr[2]))
+                mtr[2], \
+                lr_gen))
             tint = tend
 
             # write losses tensorboard
@@ -141,12 +153,6 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
         if (it+1) % SAVE_EVERY == 0:    
             checkpoint.save(file_prefix = CHKP_PREFIX)
 
-        #reduce learning rate
-        if (it+1) % REDUCE_EVERY == 0:    
-            # reduce learning rate
-            if (GEN_LR>LR_THRS):
-                GEN_LR = GEN_LR*1.0e-1
-                DIS_LR = GEN_LR
 
     print("Total divergencies for each resolution are:")
     for res in range(RES_LOG2-1):

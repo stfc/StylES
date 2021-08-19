@@ -68,15 +68,16 @@ def make_mapping_model():
     # Update moving average of W.
     if dlatent_avg_beta is not None:
         batch_avg = tf.reduce_mean(dlatents[:, 0], axis=0)
-        update_op = dlatent_avg, batch_avg - (dlatent_avg - batch_avg)*dlatent_avg_beta
+        update_op = tf.compat.v1.assign(dlatent_avg, lerp(batch_avg, dlatent_avg, dlatent_avg_beta))
         with tf.control_dependencies([update_op]):
             dlatents = tf.identity(dlatents)
 
-    if truncation_psi is not None and truncation_cutoff is not None:
-        layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
-        ones = np.ones(layer_idx.shape, dtype=DTYPE)
-        coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
-        dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
+    if (not TRAIN):
+        if truncation_psi is not None and truncation_cutoff is not None:
+            layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
+            ones = np.ones(layer_idx.shape, dtype=DTYPE)
+            coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
+            dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
 
 
     mapping_model     = Model(inputs=latents_in, outputs=dlatents)
@@ -92,7 +93,7 @@ def make_synthesis_model():
     use_pixel_norm    = False        # Disable pixelwise feature vector normalization
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
-    use_noise         = True         # Enable noise inputs
+    use_noise         = False         # Enable noise inputs
     randomize_noise   = False         # True = randomize noise inputs every time (non-deterministic),
                                      # False = read noise inputs from variables.
     use_styles        = True         # Enable style inputs                             
@@ -314,8 +315,20 @@ def make_discriminator_model():
 
 
 #-------------------------------------define optimizer and loss functions
-generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=GEN_LR, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
-discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=DIS_LR, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+lr_gen_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=GEN_LR,
+    decay_steps=DECAY_STEPS,
+    decay_rate=DECAY_RATE,
+    staircase=STAIRCASE)
+
+lr_dis_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=DIS_LR,
+    decay_steps=DECAY_STEPS,
+    decay_rate=DECAY_RATE,
+    staircase=STAIRCASE)
+
+generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_gen_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_dis_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
 
 
 #-------------------------------------create an instance of the generator and discriminator

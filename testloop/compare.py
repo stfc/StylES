@@ -79,7 +79,7 @@ def compare_images(imgA, imgB, title):
     plt.clim(minDiff,maxDiff)
     plt.suptitle("Statistical differences MSE: %.4f, SSIM: %.4f" % (m, s))
 
-    fig.savefig(title)
+    fig.savefig(title, bbox_inches='tight', pad_inches=0)
 
 
 def trim(im):
@@ -93,7 +93,7 @@ def trim(im):
 
 
 # load the images -- the orig, the orig + fake
-orig = Image.open("./../testloop/data/CASE/test_01.png")
+orig = Image.open("./../testloop/data/CASE_NAME/test_01.png")
 
 # convert to black and white
 orig = orig.convert("L") 
@@ -110,7 +110,7 @@ for i in range(NIMG, 0, -1):
     filename = "./../images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
     temp = Image.open(filename)
     temp = temp.convert("L")
-    temp = trim(temp)
+    #temp = trim(temp)
     temp = temp.resize((OUTPUT_DIM,OUTPUT_DIM))
     atemp = np.asarray(temp, dtype=np.float32)    
     if (i==NIMG):
@@ -124,4 +124,4 @@ if (NIMG>0):
     fake = fake.convert("L") 
 
 # compare the images
-compare_images(orig, fake, "./../testloop/result_CASE.png")
+compare_images(orig, fake, "./../testloop/result_CASE_NAME.png")

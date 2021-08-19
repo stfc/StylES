@@ -15,6 +15,13 @@ import matplotlib.pyplot as plt
 
 from parameters import *
 from tensorflow.keras import layers
+from typing import Union
+
+#A type that represents a valid Tensorflow expression
+TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
+
+#A type that can be converted to a valid Tensorflow expression
+TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
 
 
 #---------------------functions to build StyleGAN network--------------------
@@ -53,6 +60,11 @@ def periodic_padding_flexible(tensor, axis, padding=1):
 
     return tensor
 
+#-------------linear interpolation
+def lerp(a: TfExpressionEx, b: TfExpressionEx, t: TfExpressionEx) -> TfExpressionEx:
+    with tf.name_scope("Lerp"):
+        return a + (b - a) * t
+    
 
 #-------------Pixel normalization
 def pixel_norm(x, epsilon=1e-8):
@@ -497,9 +509,11 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         pow2 = 2**(res+2)
         nr = np.int(np.sqrt(NEXAMPLES))
         nc = np.int(NEXAMPLES/nr)
-        ninc = 10*nc/4
-        ninr = 10*nr/4
-        fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96, squeeze=False)
+        # to maintain a fixed figure size
+        # ninc = 10*nc/4
+        # ninr = 10*nr/4
+        # fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96, squeeze=False)
+        fig, axs = plt.subplots(nr,nc, squeeze=False)
         plt.subplots_adjust(wspace=0.01, hspace=0.01)
         axs = axs.ravel()
         for i in range(NEXAMPLES):
@@ -530,7 +544,7 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
             else:
                 axs[i].imshow(img)
 
-        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration))
+        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
     return div

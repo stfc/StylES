@@ -13,14 +13,19 @@ import numpy as np
 import os
 
 
-# Mode
-TRAIN      = True
-
-
-# Precision
+# General parameters
 DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
+TRAIN             = True
+DATASET           = './testloop/data/CASE_NAME/'
+CHKP_DIR          = './checkpoints/'
+CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
+PROFILE           = False
+CONVERTTOTFRECORD = False
+USE_GPU           = True
+AUTOTUNE          = tf.data.experimental.AUTOTUNE
+NEXAMPLES         = 1
 
 
 # Network hyper-parameters
@@ -37,6 +42,7 @@ NUM_CHANNELS      = 3                # Number of input color channels. Overridde
 G_LAYERS          = RES_LOG2* 2 - 2  # Numer of layers  
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
+R1_GAMMA          = 10  # Gradient penalty coefficient
 
 
 # Training hyper-parameters
@@ -47,10 +53,11 @@ SAVE_EVERY     = 100000
 REDUCE_EVERY   = 100000
 BATCH_SIZE     = 1
 IRESTART       = False
-R1_GAMMA       = 10  # Gradient penalty coefficient
-DATASET        = './testloop/data/CASE/'
-CHKP_DIR       = './checkpoints/'
-CHKP_PREFIX    = os.path.join(CHKP_DIR, 'ckpt')
+GEN_LR         = 3.0e-3
+DIS_LR         = 3.0e-3
+DECAY_STEPS    = TOT_ITERATIONS/5
+DECAY_RATE     = CASE_DECAY_RATE
+STAIRCASE      = True
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:
     Gs_beta = 0.5**tf.math.divide(tf.cast(BATCH_SIZE, DTYPE), G_SMOOTH * 1000.0)
