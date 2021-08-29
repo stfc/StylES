@@ -5,21 +5,22 @@ hf    = 0.5e0
 one   = 1.0e0
 
 # define runtime parameters
-TEST_CASE = "Poiseuielle_x"
+PATH      = "./"
 DTYPE     = "float64"
+maxIt     = 100
+maxItPc   = 100
+toll      = 1.0e-6    #tollerance for convergence of SIMPLE
+tollPc    = 1.0e-6    #tollerance for convergence of Pressure correction
+alphaP    = 0.1       # pressure relaxation factor
+alphaUV   = 0.1       # velocity relaxation factor
+
+
+# define case parameters
+TEST_CASE = "Poiseuielle_x"
 totSteps  = 101
-delt      = 1.0
-maxIt     = 1000001
+delt      = 0.01
 print_res = 10
 print_img = 10
-alphaP    = 1.0   # pressure relaxation factor
-alphaU    = 1.0   # x-velocity relaxation factor
-alphaV    = 1.0   # y-velocity relaxation factor
-PATH      = "./"
-toll      = 1.0e-6    #tollerance for convergence
-
-
-# define physical parameters
 rhoRef    = 1.225e0     # density (air)                     [kg/m3]
 nuRef     = 1.81e-5     # viscosity (air)                   [Pa*s]
 
@@ -35,8 +36,14 @@ if (TEST_CASE == "Poiseuielle_y"):
     Nx = 18         # number of points in x-direction   [-]
     Ny = 38         # number of points in y-direction   [-]
 
-delta     = Lx/Nx       # we assume same delta in x,y       [m]
-A         = delta       # Area                              [m2] 
-pRef      = 101325.0e0  # reference pressure (1 atm)
-D         = nuRef/delta # diffusion conductance term
+deltaX    = Lx/Nx          #                                   [m]
+deltaY    = Ly/Ny          #                                   [m]
+A         = deltaX*deltaY  # Area                              [m2] 
+pRef      = 101325.0e0     # reference pressure (1 atm)
+DX        = nuRef/deltaX   # diffusion conductance term in x
+DY        = nuRef/deltaY   # diffusion conductance term in y
 rA        = rhoRef*A
+rX        = rhoRef*deltaX            
+rY        = rhoRef*deltaY
+rXX       = rhoRef*deltaX*deltaX
+rYY       = rhoRef*deltaY*deltaY
