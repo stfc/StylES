@@ -18,7 +18,7 @@ alphaUV   = 0.1       # velocity relaxation factor
 # define case parameters
 TEST_CASE = "Poiseuielle_x"
 totSteps  = 101
-delt      = 0.01
+CNum      = 0.5
 print_res = 10
 print_img = 10
 rhoRef    = 1.225e0     # density (air)                     [kg/m3]
@@ -29,12 +29,14 @@ if (TEST_CASE == "Poiseuielle_x"):
     Ly = 0.18e0     # system dimension in y-direction   [m]
     Nx = 38         # number of points in x-direction   [-]
     Ny = 18         # number of points in y-direction   [-]
+    delt = 0.001    # initial guess for delt
 
 if (TEST_CASE == "Poiseuielle_y"):
     Lx = 0.18e0     # system dimension in x-direction   [m]
     Ly = 0.38e0     # system dimension in y-direction   [m]
     Nx = 18         # number of points in x-direction   [-]
     Ny = 38         # number of points in y-direction   [-]
+    delt = 0.001    # initial guess for delt
 
 deltaX    = Lx/Nx          #                                   [m]
 deltaY    = Ly/Ny          #                                   [m]
@@ -47,3 +49,4 @@ rX        = rhoRef*deltaX
 rY        = rhoRef*deltaY
 rXX       = rhoRef*deltaX*deltaX
 rYY       = rhoRef*deltaY*deltaY
+

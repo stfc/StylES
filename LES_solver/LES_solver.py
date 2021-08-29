@@ -3,9 +3,8 @@ import os
 
 from PIL import Image
 from LES_parameters import *
-from boundary_conditions import *
-from plot import *
-from matrix_solvers import *
+from LES_BC import *
+from LES_plot import *
 
 
 
@@ -124,7 +123,21 @@ while (tstep<totSteps):
 
         #---------------------------- solve momentum equations
         for i in range(1,Nx+1):
+            ww = one
+            ee = one
+            if (BCs[0]==1 and i==1):
+                ww = zero
+            if (BCs[1]==1 and i==Nx):
+                ee = zero
+
             for j in range(1,Ny+1):
+                ss = one
+                nn = one
+                if (BCs[2]==1 and j==1):
+                    ss = zero
+                if (BCs[3]==1 and j==Ny):
+                    nn = zero
+
                 Fw = rhoRef*hf*Ue[i-1][j  ]
                 Fe = rhoRef*hf*Ue[i  ][j  ]
                 Fs = rhoRef*hf*Vn[i  ][j-1]
@@ -141,13 +154,17 @@ while (tstep<totSteps):
                 # x-direction
                 rhs = (Ao - (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn)))*Uo[i][j]    \
                     + Aw*Uo[i-1][j] + Ae*Uo[i+1][j] + As*Uo[i][j-1] + An*Uo[i][j+1] \
-                    - hf*(Po[i+1,j] - Po[i-1,j])*deltaX + hf*(B[i+1,j]+B[i-1,j]) + DeltaPresX
+                    - hf*( ee*Po[i+1,j] + (one-ee)*Po[i,j]          \
+                          -ww*Po[i-1,j] - (one-ww)*Po[i,j])*deltaX  \
+                    + hf*(B[i+1,j]+B[i-1,j]) + DeltaPresX
                 U[i][j] = rhs/Ao
 
                 # y-direction
                 rhs = (Ao - (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn)))*Vo[i][j]     \
                     +  Aw*Vo[i-1][j] + Ae*Vo[i+1][j] + As*Vo[i][j-1] + An*Vo[i][j+1] \
-                    - hf*(Po[i,j+1] - Po[i,j-1])*deltaY + hf*(B[i,j+1]+B[i,j-1]) + DeltaPresY
+                    - hf*( nn*Po[i,j+1] + (one-nn)*Po[i,j]           \
+                          -ss*Po[i,j-1] - (one-ss)*Po[i,j])*deltaY   \
+                    + hf*(B[i,j+1]+B[i,j-1]) + DeltaPresY
                 V[i][j] = rhs/Ao
 
         apply_BCs(U, True, BCs)
@@ -235,13 +252,16 @@ while (tstep<totSteps):
         print("Attention: SIMPLE solver not converged!!!")
 
     if (tstep%print_res == 0):
-        print("Step {0:3d}   time {1:3f}   iterations {2:3d}   residuals {3:3e}".format(tstep, time, it, res))
+        print("Step {0:3d}   time {1:3f}   delt {2:3f}   iterations {3:3d}   residuals {4:3e}"
+        .format(tstep, time, delt, it, res))
 
     if (tstep%print_img == 0):
         save_fields(U, V, P, tstep, dir)
 
-    tstep=tstep+1
+    # find new delt based on Courant number
+    delt = min(CNum*deltaX/(np.max(U)+small), CNum*deltaY/(np.max(V)+small))
     time = time + delt
+    tstep = tstep+1
 
 
 
