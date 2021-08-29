@@ -32,36 +32,12 @@ B   = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # body force
 #---------------------------- set flow pressure, velocity fields and BCs
 os.system("rm *fields.png")
 
-if (TEST_CASE=="Poiseuielle_x"):
-
-    dir = 0
-    BCs = [0, 0, 1, 1]    # w-periodic, e-periodic, s-wall, n-wall
-
-    DeltaPresX = 1.0e-4    # apply a constant pressure gradient along x-direction
-    DeltaPresY = zero
-
-    # initial flow
-    for i in range(Nx+2):
-        for j in range(Ny+2):
-            U[i][j] = zero
-            V[i][j] = zero
-            P[i][j] = pRef
-
-
-if (TEST_CASE=="Poiseuielle_y"):
-    
-    dir = 1
-    BCs = [1, 1, 0, 0]    # w-periodic, e-periodic, s-wall, n-wall
-
-    DeltaPresX = zero     # apply a constant pressure gradient along x-direction
-    DeltaPresY = 1.0e-4
-
-    # initial flow
-    for i in range(Nx+2):
-        for j in range(Ny+2):
-            U[i][j] = zero
-            V[i][j] = zero
-            P[i][j] = pRef
+# initial flow
+for i in range(Nx+2):
+    for j in range(Ny+2):
+        U[i][j] = zero
+        V[i][j] = zero
+        P[i][j] = pRef
 
 
 apply_BCs(U, True, BCs)
