@@ -1,18 +1,20 @@
 import os
 
+from LES_constants import *
+
 # define runtime parameters
 PATH      = "./"
 DTYPE     = "float64"
-maxIt     = 100
-maxItPc   = 100
+maxIt     = 1000
+maxItPc   = 1000
 toll      = 1.0e-6    #tollerance for convergence of SIMPLE
-tollPc    = 1.0e-6    #tollerance for convergence of Pressure correction
+tollPc    = 1.0e-6     #tollerance for convergence of Pressure correction
 alphaP    = 0.1       # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 
 
 # define test case parameters
-TEST_CASE = "testcases/Poiseuielle_y.py"
+TEST_CASE = "testcases/Poiseuielle_x.py"
 cmd = "cp " + TEST_CASE + " input.py"
 os.system(cmd)
 
