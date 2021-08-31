@@ -5,8 +5,8 @@ from LES_constants import *
 # define runtime parameters
 PATH      = "./"
 DTYPE     = "float64"
-maxIt     = 1000
-maxItPc   = 1000
+maxIt     = 100000
+maxItPc   = 100000
 toll      = 1.0e-6    #tollerance for convergence of SIMPLE
 tollPc    = 1.0e-6     #tollerance for convergence of Pressure correction
 alphaP    = 0.1       # pressure relaxation factor

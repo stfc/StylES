@@ -23,27 +23,20 @@ def apply_BCs(U, V, P, Ue, Vn, BCs, Uin, Vin, Pin, Pout):
 
     elif (BCs[0] == 2):              # fixed inlet velocity
         for j in range(Ny+2):
-            U[0][j] = Uin
-            V[0][j] = Vin
-            P[0][j] = P[1][j]
             Ue[0][j] = Uin
             Vn[0][j] = Vin
 
     elif (BCs[0] == 3):              # fixed inlet pressure
         for j in range(Ny+2):
-            U[0][j] = U[1][j]
-            V[0][j] = V[1][j]
             P[0][j] = Pin
-            Ue[0][j] = Ue[1][j]
-            Vn[0][j] = Vn[1][j]
+            Ue[0][j] = U[1][j]       # first order approximation Uw=Uo
+            Vn[0][j] = V[1][j]       # first order approximation Vw=Vo
 
     elif (BCs[0] == 4):              # fixed outlet pressure
         for j in range(Ny+2):
-            U[0][j] = U[1][j]
-            V[0][j] = V[1][j]
             P[0][j] = Pout
-            Ue[0][j] = Ue[1][j]
-            Vn[0][j] = Vn[1][j]
+            Ue[0][j] = U[1][j]       # first order approximation Uw=Uo
+            Vn[0][j] = V[1][j]       # first order approximation Vw=Vo
 
 
     #------------------------- east side
@@ -60,32 +53,25 @@ def apply_BCs(U, V, P, Ue, Vn, BCs, Uin, Vin, Pin, Pout):
             U[Nx+1][j] = zero
             V[Nx+1][j] = zero
             P[Nx+1][j] = P[Nx][j]
-            Ue[Nx+1][j] = zero
-            Vn[Nx+1][j] = zero
+            Ue[Nx][j] = zero
+            Vn[Nx][j] = zero
 
     elif (BCs[1] == 2):              # fixed inlet velocity
         for j in range(Ny+2):
-            U[Nx+1][j] = Uin
-            V[Nx+1][j] = Vin
-            P[Nx+1][j] = P[Nx][j]
             Ue[Nx+1][j] = Uin
             Vn[Nx+1][j] = Vin
 
     elif (BCs[1] == 3):              # fixed inlet pressure
         for j in range(Ny+2):
-            U[Nx+1][j] = U[Nx][j]
-            V[Nx+1][j] = V[Nx][j]
             P[Nx+1][j] = Pin
-            Ue[Nx+1][j] = Ue[Nx][j]
-            Vn[Nx+1][j] = Vn[Nx][j]
+            Ue[Nx][j] = U[Nx][j]   # first order approximation Ue=Uo
+            Vn[Nx][j] = V[Nx][j]   # first order approximation Ve=Vo
 
     elif (BCs[1] == 4):              # fixed outlet pressure
         for j in range(Ny+2):
-            U[Nx+1][j] = U[Nx][j]
-            V[Nx+1][j] = V[Nx][j]
             P[Nx+1][j] = Pout
-            Ue[Nx+1][j] = Ue[Nx][j]
-            Vn[Nx+1][j] = Vn[Nx][j]
+            Ue[Nx][j] = Ue[Nx][j]   # first order approximation Ue=Uo
+            Vn[Nx][j] = Vn[Nx][j]   # first order approximation Ve=Vo
 
 
 
@@ -108,27 +94,20 @@ def apply_BCs(U, V, P, Ue, Vn, BCs, Uin, Vin, Pin, Pout):
 
     elif (BCs[2] == 2):              # fixed inlet velocity
         for i in range(Nx+2):
-            U[i][0] = Uin
-            V[i][0] = Vin
-            P[i][0] = P[i][1]
             Ue[i][0] = Uin
             Vn[i][0] = Vin
 
     elif (BCs[2] == 3):              # fixed inlet pressure
         for i in range(Nx+2):
-            U[i][0] = U[i][1]
-            V[i][0] = V[i][1]
-            P[i][0] = P[i][1]
-            Ue[i][0] = Ue[i][1]
-            Vn[i][0] = Vn[i][1]
+            P[i][0] = Pin
+            Ue[i][0] = U[i][1]       # first order approximation Us=Uo
+            Vn[i][0] = V[i][1]       # first order approximation Vs=Vo
 
     elif (BCs[2] == 4):              # fixed outlet pressure
         for i in range(Nx+2):
-            U[i][0] = U[i][1]
-            V[i][0] = V[i][1]
             P[i][0] = Pout
-            Ue[i][0] = Ue[i][1]
-            Vn[i][0] = Vn[i][1]
+            Ue[i][0] = Ue[i][1]       # first order approximation Us=Uo
+            Vn[i][0] = Vn[i][1]       # first order approximation Vs=Vo
 
 
 
@@ -147,32 +126,25 @@ def apply_BCs(U, V, P, Ue, Vn, BCs, Uin, Vin, Pin, Pout):
             U[i][Ny+1] = zero
             V[i][Ny+1] = zero
             P[i][Ny+1] = P[i][Ny]
-            Ue[i][Ny+1] = zero
-            Vn[i][Ny+1] = zero
+            Ue[i][Ny] = zero
+            Vn[i][Ny] = zero
 
     elif (BCs[3] == 2):              # fixed inlet velocity
         for i in range(Nx+2):
-            U[i][Ny+1] = Uin
-            V[i][Ny+1] = Vin
-            P[i][Ny+1] = P[i][Ny]
             Ue[i][Ny+1] = Uin
             Vn[i][Ny+1] = Vin
 
     elif (BCs[3] == 3):              # fixed inlet pressure
         for i in range(Nx+2):
-            U[i][Ny+1] = U[i][Ny]
-            V[i][Ny+1] = V[i][Ny]
             P[i][Ny+1] = Pin
-            Ue[i][Ny+1] = Ue[i][Ny]
-            Vn[i][Ny+1] = Vn[i][Ny]
+            Ue[i][Ny] = U[i][Ny]       # first order approximation Un=Uo
+            Vn[i][Ny] = V[i][Ny]       # first order approximation Vn=Vo
 
     elif (BCs[3] == 4):              # fixed outlet pressure
         for i in range(Nx+2):
-            U[i][Ny+1] = U[i][Ny]
-            V[i][Ny+1] = V[i][Ny]
             P[i][Ny+1] = Pout
-            Ue[i][Ny+1] = Ue[i][Ny]
-            Vn[i][Ny+1] = Vn[i][Ny]
+            Ue[i][Ny] = Ue[i][Ny]       # first order approximation Un=Uo
+            Vn[i][Ny] = Vn[i][Ny]       # first order approximation Vn=Vo
 
 
 
