@@ -2,19 +2,20 @@ import math
 from LES_constants import *
 
 TEST_CASE = "Pulse"
-totSteps  = 10000
-print_res = 100
-print_img = 1000
+totSteps  = 1000
+print_res = 10
+print_img = 100
 rhoRef    = 1000.0e0       # density (water)    [kg/m3]
-nuRef     = 1.0016e-1      # viscosity (water)  [Pa*s]
+nuRef     = 1.0016e-3      # viscosity (water)  [Pa*s]
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 
-Lx   = 1.0e0     # system dimension in x-direction   [m]
-Ly   = 1.0e0     # system dimension in y-direction   [m]
-Nx   = 11         # number of points in x-direction   [-]
-Ny   = 11         # number of points in y-direction   [-]
+Lx   = 0.01e0     # system dimension in x-direction   [m]
+Ly   = 0.01e0     # system dimension in y-direction   [m]
+Nx   = 51         # number of points in x-direction   [-]
+Ny   = 51         # number of points in y-direction   [-]
 CNum = 0.5        # Courant number 
-delt = 1.e-4    # initial guess for delt
+delt = 1.e-6    # initial guess for delt
+maxDelt= 1.e-6
 
 BCs        = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
 Uin        = 0.0             # inlet x-velocity. Set to -1 if not specified
@@ -26,7 +27,7 @@ DeltaPresY = zero            # apply a constant pressure gradient along y-direct
 dir        = 0               # cross direction for plotting results
 puA        = 1.0e0           # amplitude pulse
 puC        = Lx/2            # peak center
-puS        = 1.0e0          # standard deviation
+puS        = 0.01e0          # standard deviation
 Umean      = zero          # mean flow in x
 Vmean      = zero           # mean flow in y
 

@@ -5,6 +5,7 @@ from PIL import Image
 from LES_parameters import *
 from LES_BC import *
 from LES_plot import *
+from LES_lAlg import *
 
 
 
@@ -27,6 +28,12 @@ pc  = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # pressure correction
 nPc = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # pressure correction at new iteration
 
 B   = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # body force
+
+aa = np.zeros([Ny], dtype=DTYPE)  # aw coefficient for TDMA
+bb = np.zeros([Ny], dtype=DTYPE)  # ap coefficient for TDMA
+cc = np.zeros([Ny], dtype=DTYPE)  # ae coefficient for TDMA
+dd = np.zeros([Ny], dtype=DTYPE)  # S  coefficient for TDMA
+Cn = np.zeros([Nx,Ny], dtype=DTYPE)  # solution of TDMA
 
 
 
@@ -109,7 +116,7 @@ while (tstep<totSteps):
 
                     apply_BCs(U, V, P, C, pc, Ue, Vn)
                     if (DEBUG):
-                        save_fields(U, V, P, 0, dir)
+                        save_fields(U, V, P, C, tstep, dir)
 
 
 
@@ -148,7 +155,7 @@ while (tstep<totSteps):
 
         apply_BCs(U, V, P, C, pc, Ue, Vn)
         if (DEBUG):
-            save_fields(U, V, P, 0, dir)
+            save_fields(U, V, P, C, 0, dir)
 
 
 
@@ -177,7 +184,7 @@ while (tstep<totSteps):
 
                 apply_BCs(U, V, P, C, pc, Ue, Vn)
                 if (DEBUG):
-                    save_fields(U, V, P, 0, dir)
+                    save_fields(U, V, P, C, tstep, dir)
             else:
                 # give warning if solution of the pressure correction is not achieved
                 print("Attention: pressure correction solver not converged!!!")
@@ -212,33 +219,133 @@ while (tstep<totSteps):
 
         apply_BCs(U, V, P, C, pc, Ue, Vn)
         if (DEBUG):
-            save_fields(U, V, P, 0, dir)
+            save_fields(U, V, P, C, tstep, dir)
 
         it = it+1
         #print("Iterations {0:3d}   residuals {1:3e}".format(it, res))
 
 
-
         #---------------------------- solve transport equation for passive scalar
-        for i in range(1,Nx+1):
-            for j in range(1,Ny+1):
+        itC  = 0
+        resC = one
+        while (resC>tollTDMA and itC<maxItC):
+            if (it%2 == 0):
+                for i in range(1,Nx+1):
+                    for j in range(1,Ny+1):
+        
+                        Fw = rhoRef*hf*U[i-1][j  ]
+                        Fe = rhoRef*hf*U[i  ][j  ]
+                        Fs = rhoRef*hf*V[i  ][j-1]
+                        Fn = rhoRef*hf*V[i  ][j  ]
 
-                Fw = rhoRef*hf*Ue[i-1][j  ]
-                Fe = rhoRef*hf*Ue[i  ][j  ]
-                Fs = rhoRef*hf*Vn[i  ][j-1]
-                Fn = rhoRef*hf*Vn[i  ][j  ]
+                        Aw = DX + max(Fw,    zero)
+                        Ae = DX + max(zero, -Fe)
+                        As = DY + max(Fs,    zero)
+                        An = DY + max(zero, -Fn)
+                        Ao = rA/delt
 
-                Aw = DX + max(Fw,    zero)
-                Ae = DX + max(zero, -Fe)
-                As = DY + max(Fs,    zero)
-                An = DY + max(zero, -Fn)
-                Ao = rA/delt
+                        ww = one
+                        ee = one
+                        ss = one
+                        nn = one
 
-                iAp[i][j] = one/Ao
+                        if (i==1):
+                            ww = zero
+                        if (i==Nx):
+                            ee = zero
+                        if (j==1):
+                            ss = zero
+                        if (j==Ny):
+                            nn = zero
 
-                rhs = (Ao - (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn)))*Co[i][j]    \
-                    + Aw*Co[i-1][j] + Ae*Co[i+1][j] + As*Co[i][j-1] + An*Co[i][j+1]
-                C[i][j] = rhs/Ao
+                        if (j==1):
+                            aa[j-1] = zero
+                            bb[j-1] = Ao + (ww*Aw + ee*Ae + nn*An + (Fe-Fw) + (Fs-Fn))
+                            cc[j-1] = -nn*An
+                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j] + ss*As*C[i][j-1]
+                        elif (j==Ny):
+                            aa[j-1] = -ss*As
+                            bb[j-1] = Ao + (ww*Aw + ee*Ae + ss*As + (Fe-Fw) + (Fs-Fn))
+                            cc[j-1] = zero
+                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j] + nn*An*C[i][j+1]
+                        else:
+                            aa[j-1] = -ss*As
+                            bb[j-1] = Ao + (ww*Aw + ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
+                            cc[j-1] = -nn*An
+                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j]
+
+                    Cn[i-1][:] = TDMAsolver(aa, bb, cc, dd, Ny)
+
+            else:
+
+                for j in range(1,Ny+1):
+                    for i in range(1,Nx+1):
+        
+                        Fw = rhoRef*hf*U[i-1][j  ]
+                        Fe = rhoRef*hf*U[i  ][j  ]
+                        Fs = rhoRef*hf*V[i  ][j-1]
+                        Fn = rhoRef*hf*V[i  ][j  ]
+
+                        Aw = DX + max(Fw,    zero)
+                        Ae = DX + max(zero, -Fe)
+                        As = DY + max(Fs,    zero)
+                        An = DY + max(zero, -Fn)
+                        Ao = rA/delt
+
+                        ww = one
+                        ee = one
+                        ss = one
+                        nn = one
+
+                        if (i==1):
+                            ww = zero
+                        if (i==Nx):
+                            ee = zero
+                        if (j==1):
+                            ss = zero
+                        if (j==Ny):
+                            nn = zero
+
+                        if (i==1):
+                            aa[i-1] = zero
+                            bb[i-1] = Ao + (ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
+                            cc[i-1] = -ee*Ae
+                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1] + ww*Aw*C[i-1][j]
+                        elif (i==Nx):
+                            aa[i-1] = -ww*Aw
+                            bb[i-1] = Ao + (ww*Aw + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
+                            cc[i-1] = zero
+                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1] + ee*Ae*C[i+1][j]
+                        else:
+                            aa[i-1] = -ww*Aw
+                            bb[i-1] = Ao + (ww*Aw + ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
+                            cc[i-1] = -ee*Ae
+                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1]
+
+                    Cn[:][j-1] = TDMAsolver(aa, bb, cc, dd, Ny)
+
+            resC = zero
+            for i in range(1,Nx+1):
+                for j in range(1,Ny+1):
+                    resC = resC + abs(Cn[i-1][j-1] - C[i][j])
+                    C[i][j] = Cn[i-1][j-1]
+
+            apply_BCs(U, V, P, C, pc, Ue, Vn)
+
+            itC = itC+1
+            #print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC))
+            if (DEBUG):
+                save_fields(U, V, P, C, tstep, dir)
+
+
+
+    # find integral of passive scalar
+    totSca=zero
+    for i in range(1,Nx+1):
+        for j in range(1,Ny+1):
+            totSca = totSca + C[i][j]
+    print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, np.max(C)))
+
 
 
     #---------------------------- print update and save fields
@@ -249,7 +356,7 @@ while (tstep<totSteps):
     else:
         # find new delt based on Courant number
         delt = min(CNum*deltaX/(abs(np.max(U))+small), CNum*deltaY/(abs(np.max(V))+small))
-        delt = min(CNum*deltaX/(abs(np.max(C))+small), delt)
+        delt = min(CNum*deltaX/(abs(np.max(C)*nuRef)+small), delt)
         delt = min(delt,maxDelt)
         time = time + delt
         tstep = tstep+1

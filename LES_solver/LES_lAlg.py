@@ -1,25 +1,22 @@
+import numpy as np
+
 from LES_parameters import toll, maxIt, Nx, Ny
 
 
-def TDMAsolver(a, b, c, d):
-    #TDMA solver, a b c d can be NumPy array type or Python list type.
-    #refer to http://en.wikipedia.org/wiki/Tridiagonal_matrix_algorithm
-    #and to http://www.cfd-online.com/Wiki/Tridiagonal_matrix_algorithm_-_TDMA_(Thomas_algorithm)
+def TDMAsolver(a, b, c, d, N):
 
-    nf = len(d) # number of equations
-    ac, bc, cc, dc = map(np.array, (a, b, c, d)) # copy arrays
-    for it in xrange(1, nf):
-        mc = ac[it-1]/bc[it-1]
-        bc[it] = bc[it] - mc*cc[it-1] 
-        dc[it] = dc[it] - mc*dc[it-1]
+    for i in range(1, N):
+        m = a[i]/b[i-1]
+        b[i] = b[i] - m*c[i-1] 
+        d[i] = d[i] - m*d[i-1]
         	    
-    xc = bc
-    xc[-1] = dc[-1]/bc[-1]
+    x = b
+    x[N-1] = d[N-1]/b[N-1]
 
-    for il in xrange(nf-2, -1, -1):
-        xc[il] = (dc[il]-cc[il]*xc[il+1])/bc[il]
+    for i in range(N-2, -1, -1):
+        x[i] = (d[i]-c[i]*x[i+1])/b[i]
 
-    return xc
+    return x
 
 
 def solve_2D(phi, Aw, Ae, As, An, Ap, b):
