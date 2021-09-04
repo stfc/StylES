@@ -2,7 +2,7 @@ import math
 from LES_constants import *
 
 TEST_CASE = "Pulse"
-totSteps  = 13
+totSteps  = 15
 print_res = 1
 print_img = 1
 rhoRef    = 1000.0e0       # density (water)    [kg/m3]

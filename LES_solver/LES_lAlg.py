@@ -1,9 +1,17 @@
 import numpy as np
 
-from LES_parameters import toll, maxIt, Nx, Ny
+from LES_parameters import DTYPE, toll, maxIt, Nx, Ny
+from LES_constants import *
 
 
-def TDMAsolver(a, b, c, d, N):
+def solver_TDMA(a, bb, c, dd, N):
+
+    b = np.zeros([N], dtype=DTYPE)  # aw coefficient for TDMA
+    d = np.zeros([N], dtype=DTYPE)  # aw coefficient for TDMA
+
+    for i in range(N):
+        b[i] = bb[i]
+        d[i] = dd[i]
 
     for i in range(1, N):
         m = a[i]/b[i-1]
@@ -19,45 +27,43 @@ def TDMAsolver(a, b, c, d, N):
     return x
 
 
-def solve_2D(phi, Aw, Ae, As, An, Ap, b):
-     
-    # solve full system as sequence of tridiagonal matrixs
-    for i in range(Nx):
-        for j in range(Ny):
-            prevPhi[i][j] = phi[i][j]
 
-    it=0
-    res=0.0e0
-    while (res>toll and it<maxIt):
+def solver_TDMAcyclic(a, b, c, r, n):
+    
+    bb = np.zeros([n], dtype=DTYPE)  # aw coefficient for TDMA
+    u  = np.zeros([n], dtype=DTYPE)  # aw coefficient for TDMA
 
-        #  alternate according to the iteration
-        if (it%2 == 0):
-            for i in range(Nx):
-                newPhi[i][:] = TDMA(As[i][:], Ap[i][:], An[i][:], b[i][:])
-        else:
-            for j in range(Ny):
-                newPhi[:][j] = TDMA(Aw[:][j], Ap[:][j], Ae[:][j], b[:][j])
+    alpha = c[n-1]
+    beta  = a[0]
+
+    gamma = -b[0]   # avoid substraction error in forming bb[0]
+    bb[0] = b[0] - gamma   # set up diagonal of the modified tridiagonal system
+    bb[n-1] = b[n-1] - alpha*beta/gamma
+    for i in range(1, n-1):
+        bb[i] = b[i]
+
+    # solve A*x = r
+    x = solver_TDMA(a, bb, c, r, n)
+
+    # setup vector u
+    u[0] = gamma
+    u[n-1] = alpha
+    for i in range(1, n-1):
+        u[i] = zero
+
+    # solve A*z = u
+    z = solver_TDMA(a, bb, c, u, n)
+
+    # form v*x/(1+v*z)
+    fact = (x[0]+beta*x[n-1]/gamma)/(one + z[0] + beta*z[n-1]/gamma)
+
+    # get solution x
+    for i in range(n):
+        x[i] = x[i] - fact*z[i]
+
+    return x
 
 
-        # calculate residuals
-        res=0.0e0
-        for i in range(Nx):
-            for j in range(Ny):
-                res = res + abs(newPhi[i][j] - prevPhi[i][j])
-                prevPhi[i][j] = newPhi[i][j]
 
 
-        # adjust boundary source terms for next iteration
-        if (BCs[0] == 0):   #periodicity in x-direction
-            for j in range(Ny):
-                b[0 ][j] = b[0 ][j] - Aw[0 ][j]*prevPhi[Nx][j] + Aw[0 ][j]*newPhi[Nx][j]
-                b[Nx][j] = b[Nx][j] - Aw[Nx][j]*prevPhi[0 ][j] + Aw[Nx][j]*newPhi[0 ][j]
 
-        if (BCs[2] == 0):   #periodicity in y-direction
-            for i in range(Nx):
-                b[i][0 ] = b[i][0 ] - Aw[i][0 ]*prevPhi[i][Ny] + Aw[i][0 ]*newPhi[i][Ny]
-                b[i][Ny] = b[i][Ny] - Aw[i][Ny]*prevPhi[i][0 ] + Aw[i][Ny]*newPhi[i][0 ]
-
-        it = it+1
-
-    return newPhi

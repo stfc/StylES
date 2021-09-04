@@ -229,103 +229,29 @@ while (tstep<totSteps):
         itC  = 0
         resC = one
         while (resC>tollTDMA and itC<maxItC):
-            if (it%2 == 0):
-                for i in range(1,Nx+1):
-                    for j in range(1,Ny+1):
-        
-                        Fw = rhoRef*hf*U[i-1][j  ]
-                        Fe = rhoRef*hf*U[i  ][j  ]
-                        Fs = rhoRef*hf*V[i  ][j-1]
-                        Fn = rhoRef*hf*V[i  ][j  ]
-
-                        Aw = DX + max(Fw,    zero)
-                        Ae = DX + max(zero, -Fe)
-                        As = DY + max(Fs,    zero)
-                        An = DY + max(zero, -Fn)
-                        Ao = rA/delt
-
-                        ww = one
-                        ee = one
-                        ss = one
-                        nn = one
-
-                        if (i==1):
-                            ww = zero
-                        if (i==Nx):
-                            ee = zero
-                        if (j==1):
-                            ss = zero
-                        if (j==Ny):
-                            nn = zero
-
-                        if (j==1):
-                            aa[j-1] = zero
-                            bb[j-1] = Ao + (ww*Aw + ee*Ae + nn*An + (Fe-Fw) + (Fs-Fn))
-                            cc[j-1] = -nn*An
-                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j] + ss*As*C[i][j-1]
-                        elif (j==Ny):
-                            aa[j-1] = -ss*As
-                            bb[j-1] = Ao + (ww*Aw + ee*Ae + ss*As + (Fe-Fw) + (Fs-Fn))
-                            cc[j-1] = zero
-                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j] + nn*An*C[i][j+1]
-                        else:
-                            aa[j-1] = -ss*As
-                            bb[j-1] = Ao + (ww*Aw + ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
-                            cc[j-1] = -nn*An
-                            dd[j-1] = Ao*Co[i][j] + ww*Aw*C[i-1][j] + ee*Ae*C[i+1][j]
-
-                    Cn[i-1][:] = TDMAsolver(aa, bb, cc, dd, Ny)
-
-            else:
-
-                for j in range(1,Ny+1):
-                    for i in range(1,Nx+1):
-        
-                        Fw = rhoRef*hf*U[i-1][j  ]
-                        Fe = rhoRef*hf*U[i  ][j  ]
-                        Fs = rhoRef*hf*V[i  ][j-1]
-                        Fn = rhoRef*hf*V[i  ][j  ]
-
-                        Aw = DX + max(Fw,    zero)
-                        Ae = DX + max(zero, -Fe)
-                        As = DY + max(Fs,    zero)
-                        An = DY + max(zero, -Fn)
-                        Ao = rA/delt
-
-                        ww = one
-                        ee = one
-                        ss = one
-                        nn = one
-
-                        if (i==1):
-                            ww = zero
-                        if (i==Nx):
-                            ee = zero
-                        if (j==1):
-                            ss = zero
-                        if (j==Ny):
-                            nn = zero
-
-                        if (i==1):
-                            aa[i-1] = zero
-                            bb[i-1] = Ao + (ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
-                            cc[i-1] = -ee*Ae
-                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1] + ww*Aw*C[i-1][j]
-                        elif (i==Nx):
-                            aa[i-1] = -ww*Aw
-                            bb[i-1] = Ao + (ww*Aw + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
-                            cc[i-1] = zero
-                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1] + ee*Ae*C[i+1][j]
-                        else:
-                            aa[i-1] = -ww*Aw
-                            bb[i-1] = Ao + (ww*Aw + ee*Ae + ss*As + nn*An + (Fe-Fw) + (Fs-Fn))
-                            cc[i-1] = -ee*Ae
-                            dd[i-1] = Ao*Co[i][j] + ss*As*C[i][j-1] + nn*An*C[i][j+1]
-
-                    Cn[:][j-1] = TDMAsolver(aa, bb, cc, dd, Ny)
 
             resC = zero
-            for i in range(1,Nx+1):
+            for i in range(1, Nx+1):
+                for j in range(1, Ny+1):
+    
+                    Fw = rhoRef*hf*U[i-1][j  ]
+                    Fe = rhoRef*hf*U[i  ][j  ]
+                    Fs = rhoRef*hf*V[i  ][j-1]
+                    Fn = rhoRef*hf*V[i  ][j  ]
+
+                    Aw = DX + max(Fw,    zero)
+                    Ae = DX + max(zero, -Fe)
+                    As = DY + max(Fs,    zero)
+                    An = DY + max(zero, -Fn)
+                    Ao = rA/delt
+
+                    aa[j-1] = -As
+                    bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+                    cc[j-1] = -An
+                    dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
+
+                Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
                 for j in range(1,Ny+1):
                     resC = resC + abs(Cn[i-1][j-1] - C[i][j])
                     C[i][j] = Cn[i-1][j-1]
@@ -334,8 +260,10 @@ while (tstep<totSteps):
 
             itC = itC+1
             #print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC))
-            if (DEBUG):
-                save_fields(U, V, P, C, tstep, dir)
+            #save_fields(U, V, P, C, tstep, dir)
+
+            # if (DEBUG):
+            #     save_fields(U, V, P, C, tstep, dir)
 
 
 
@@ -356,15 +284,91 @@ while (tstep<totSteps):
     else:
         # find new delt based on Courant number
         delt = min(CNum*deltaX/(abs(np.max(U))+small), CNum*deltaY/(abs(np.max(V))+small))
-        delt = min(CNum*deltaX/(abs(np.max(C)*nuRef)+small), delt)
+        delt = min(CNum*deltaX/(abs(np.max(C))+small), delt)
         delt = min(delt,maxDelt)
         time = time + delt
         tstep = tstep+1
 
         if (tstep%print_res == 0):
-            print("Step {0:3d}   time {1:3f}   delt {2:3f}   iterations {3:3d}   residuals {4:3e}"
+            print("Step {0:3d}   time {1:3e}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}"
             .format(tstep, time, delt, it, res))
 
         if (tstep%print_img == 0):
             save_fields(U, V, P, C, tstep, dir)
+
+
+
+
+#------------------------------extra pieces
+#
+#   aternate directions
+            # if (itC >= 0):
+            #     resC = zero
+
+            #     for i in range(1, Nx+1):
+            #         for j in range(1, Ny+1):
+        
+            #             Fw = rhoRef*hf*U[i-1][j  ]
+            #             Fe = rhoRef*hf*U[i  ][j  ]
+            #             Fs = rhoRef*hf*V[i  ][j-1]
+            #             Fn = rhoRef*hf*V[i  ][j  ]
+
+            #             Aw = DX + max(Fw,    zero)
+            #             Ae = DX + max(zero, -Fe)
+            #             As = DY + max(Fs,    zero)
+            #             An = DY + max(zero, -Fn)
+            #             Ao = rA/delt
+
+            #             aa[j-1] = -As
+            #             bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+            #             cc[j-1] = -An
+            #             dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
+
+            #         Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+            #         for j in range(1,Ny+1):
+            #             resC = resC + abs(Cn[i-1][j-1] - C[i][j])
+            #             C[i][j] = Cn[i-1][j-1]
+
+            #         #C[i][0] = C[i][Ny]
+            #         #C[i][Ny+1] = C[i][1]
+            # else:
+        
+            #     resC = zero
+            #     if ((itC-1)%4 == 0):
+            #         ijs = 1
+            #         ijf = Nx+1
+            #         iji = 1
+            #     else:
+            #         ijs = Nx
+            #         ijf = 0
+            #         iji = -1
+
+            #     for j in range(ijs, ijf, iji):
+            #         for i in range(ijs, ijf, iji):
+        
+            #             Fw = rhoRef*hf*U[i-1][j  ]
+            #             Fe = rhoRef*hf*U[i  ][j  ]
+            #             Fs = rhoRef*hf*V[i  ][j-1]
+            #             Fn = rhoRef*hf*V[i  ][j  ]
+
+            #             Aw = DX + max(Fw,    zero)
+            #             Ae = DX + max(zero, -Fe)
+            #             As = DY + max(Fs,    zero)
+            #             An = DY + max(zero, -Fn)
+            #             Ao = rA/delt
+
+            #             aa[i-1] = -Aw
+            #             bb[i-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+            #             cc[i-1] = -Ae
+            #             dd[i-1] = Ao*Co[i][j] + As*C[i][j-1] + An*C[i][j+1]
+
+            #         Cn[:][j-1] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+            #         for i in range(1,Nx+1):
+            #             resC = resC + abs(Cn[i-1][j-1] - C[i][j])
+            #             C[i][j] = Cn[i-1][j-1]
+
+            #         #C[0][j] = C[Nx][j]
+            #         #C[Nx+1][j] = C[1][j]
 
