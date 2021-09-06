@@ -1,4 +1,4 @@
-StyleLES is a Large Eddy Simulation (LES) based solver for Computational Fluid Dynamic (CFD) simulations.
+StylelES is a Style Eddy Simulation based solver for Computational Fluid Dynamic (CFD) simulations.
 It is based on traditional LES solvers, like OpenFOAM, and Generative Adverserial Networks (GANs), mainly [SyleGAN](https://github.com/NVlabs/stylegan) and [MSG-Style GANs](https://github.com/akanimax/msg-stylegan-tf).
 
 # Description
