@@ -53,6 +53,7 @@ Cn = np.zeros([Nx,Ny], dtype=DTYPE)  # solution of TDMA
 
 #---------------------------- set flow pressure, velocity fields and BCs
 os.system("rm *fields.png")
+os.system("rm Energy_spectrum.png")
 
 # initial flow
 init_flow(U, V, P, C)
@@ -137,9 +138,7 @@ while (tstep<totSteps):
                     if (DEBUG):
                         save_fields(Ue, Vn, P, C, tstep, dir)
                     
-            #if (tstep==1):
-            #    save_fields(Ue, Vn, P, C, tstep+10, dir)
-                
+               
 
 
         #---------------------------- solve momentum equations
@@ -211,10 +210,6 @@ while (tstep<totSteps):
                     Ao = -(Aw+Ae+As+An)
                     So = -(rY*(Ue[i][j]-Ue[i-1][j]) + rX*(Vn[i][j]-Vn[i][j-1]))
 
-                    # nPc[i][j] = (So - Aw*pc[i-1][j] - Ae*pc[i+1][j] - As*pc[i][j-1] - An*pc[i][j+1])/Ao
-                    # resPc = resPc + abs(nPc[i][j] - pc[i][j])
-                    # pc[i][j] = nPc[i][j]
-
                     aa[j-1] = As
                     bb[j-1] = Ao
                     cc[j-1] = An
@@ -229,15 +224,10 @@ while (tstep<totSteps):
 
             if (itPc<maxItPc-1):
                 #print("Pressure correction iterations {0:3d}   residuals {1:3e}".format(itPc, resPc))
-                #for i in range(1,Nx+1):
-                #    for j in range(1,Ny+1):
-                #        pc[i][j] = nPc[i][j]
 
                 apply_BCs(U, V, P, C, pc, Ue, Vn)
-                #if (DEBUG):
-                #    save_fields(U, V, P, C, tstep, dir)
-                #if (tstep==1):
-                #    save_fields(U, V, pc, C, tstep+30+itPc, dir)
+                if (DEBUG):
+                    save_fields(U, V, P, C, tstep, dir)
 
             else:
                 # give warning if solution of the pressure correction is not achieved
@@ -315,10 +305,9 @@ while (tstep<totSteps):
 
                 itC = itC+1
                 #print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC))
-                #save_fields(U, V, P, C, tstep, dir)
 
-                # if (DEBUG):
-                #     save_fields(U, V, P, C, tstep, dir)
+                if (DEBUG):
+                    save_fields(U, V, P, C, tstep, dir)
 
 
 

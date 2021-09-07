@@ -10,7 +10,7 @@ totSteps  = 10
 print_res = 1
 print_img = 1
 rhoRef    = 1.0e0          # density (water)    [kg/m3]
-nuRef     = 1.0e-5         # viscosity (water)  [Pa*s]
+nuRef     = 1.0e-10         # viscosity (water)  [Pa*s]
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 
 Lx   = 0.1e0     # system dimension in x-direction   [m]
@@ -18,7 +18,7 @@ Ly   = 0.1e0     # system dimension in y-direction   [m]
 Nx   = 32         # number of points in x-direction   [-]
 Ny   = 32        # number of points in y-direction   [-]
 CNum = 0.5        # Courant number 
-delt = 1.e-3    # initial guess for delt
+delt = 1.e-6    # initial guess for delt
 
 BCs        = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
 Uin        = 0.0             # inlet x-velocity. Set to -1 if not specified
@@ -55,25 +55,28 @@ def init_flow(U, V, P, C):
     # find k and E
     for m in range(M):
         k[m] = k0 + (kmax-k0)/M*m
-        E[m] = Q*k[m]**8*math.exp(-4*(k[m]/kp)**2) + 1.0e-100
+        E[m] = Q*k[m]**8*np.exp(-4*(k[m]/kp)**2) + 1.0e-100
 
     plt.plot(k/(two*np.pi), E)
     plt.xscale("log")
     plt.yscale("log")
-    plt.grid(True, which='minor')
-    plt.savefig("Energy_stectrum.png")
+    plt.grid(True, which='both')
+    plt.savefig("Energy_spectrum.png")
     
     np.random.seed(0)
 
     # find velocity components u and v
     for i in range(0,Nx+2):
+
+        print("Find velocity component for i: ", i)
+
         for j in range(0,Ny+2):
             P[i][j] = pRef
             U[i][j] = zero
             V[i][j] = zero
     
             for m in range(M-1):
-                qm = math.sqrt(E[m]*(k[m+1]-k[m]))
+                qm = np.sqrt(E[m]*(k[m+1]-k[m]))
 
                 # compute km vectors
                 thetaM  = np.random.uniform()
@@ -81,26 +84,26 @@ def init_flow(U, V, P, C):
                 theta2M = np.random.uniform()
                 phi2M   = np.random.uniform()
 
-                kxm = math.sin(thetaM)*math.cos(phiM)
-                kym = math.sin(thetaM)*math.sin(phiM)
-                kzm = math.cos(thetaM)
+                kxm = np.sin(thetaM)*np.cos(phiM)
+                kym = np.sin(thetaM)*np.sin(phiM)
+                kzm = np.cos(thetaM)
 
                 # compute tilde km
-                kxt = two/deltaX*math.sin(hf*kxm*deltaX)
-                kyt = two/deltaY*math.sin(hf*kym*deltaY)
-                kzt = two/deltaZ*math.sin(hf*kzm*deltaZ)
+                kxt = two/deltaX*np.sin(hf*kxm*deltaX)
+                kyt = two/deltaY*np.sin(hf*kym*deltaY)
+                kzt = two/deltaZ*np.sin(hf*kzm*deltaZ)
 
                 # set z component to zero
-                zetax = math.sin(theta2M)*math.cos(phi2M)
+                zetax = np.sin(theta2M)*np.cos(phi2M)
                 zetay = zetax*kyt/kxt
-                zetaz = math.cos(theta2M)
+                zetaz = np.cos(theta2M)
 
                 # compute the unit vectors
                 sigmax =  zetay*kzt - zetaz*kyt
                 sigmay = -(zetax*kzt - zetaz*kxt)
                 sigmaz =  zetax*kyt - zetay*kxt
 
-                sigma = math.sqrt(sigmax*sigmax + sigmay*sigmay + sigmaz*sigmaz)
+                sigma = np.sqrt(sigmax*sigmax + sigmay*sigmay + sigmaz*sigmaz)
 
                 sigmax =  sigmax/sigma
                 sigmay =  sigmay/sigma
@@ -117,8 +120,8 @@ def init_flow(U, V, P, C):
 
                 KX = kxm*x + kym*y + kzm*z 
 
-                U[i][j] = U[i][j] + two*qm*math.cos(KX + phiM)*sigmax
-                V[i][j] = V[i][j] + two*qm*math.cos(KX + phiM)*sigmay
+                U[i][j] = U[i][j] + two*qm*np.cos(KX + phiM)*sigmax
+                V[i][j] = V[i][j] + two*qm*np.cos(KX + phiM)*sigmay
 
 
 
