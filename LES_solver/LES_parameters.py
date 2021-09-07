@@ -1,28 +1,27 @@
 import os
+import importlib
+import sys
 
 from LES_constants import *
+from testcases.HIT_2D import *
+
 
 # define runtime parameters
 DEBUG     = False
+PASSIVE   = False
 PATH      = "./"
-DTYPE     = "float64"
 maxIt     = 100000
 maxItPc   = 100000
 maxItC    = 100000
-maxDelt   = 1.0e0
+maxDelt   = 1.0e-6
 toll      = 1.0e-6    # tollerance for convergence of SIMPLE
 tollPc    = 1.0e-6    # tollerance for convergence of Pressure correction
-tollTDMA  = 1.0e-12    # tollerance for convergence of TDMA
+tollTDMA  = 1.0e-6    # tollerance for convergence of TDMA
 alphaP    = 0.1       # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 
 
 # define test case parameters
-TEST_CASE = "testcases/Pulse.py"
-cmd = "cp " + TEST_CASE + " input.py"
-os.system(cmd)
-
-from input import *
 
 
 # find case dependent parameters

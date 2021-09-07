@@ -13,7 +13,7 @@ from LES_lAlg import *
 U  = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # x-velocity
 V  = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # y-velocity 
 P  = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # pressure field
-C   = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
+C  = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # passive scalar
 
 Uo = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # old x-velocity
 Vo = np.zeros([Nx+2,Ny+2], dtype=DTYPE)   # old y-velocity
@@ -43,8 +43,6 @@ Cn = np.zeros([Nx,Ny], dtype=DTYPE)  # solution of TDMA
 os.system("rm *fields.png")
 
 # initial flow
-from input import init_flow
-
 init_flow(U, V, P, C)
 
 apply_BCs(U, V, P, C, pc, Ue, Vn)
@@ -116,9 +114,11 @@ while (tstep<totSteps):
 
                     apply_BCs(U, V, P, C, pc, Ue, Vn)
                     if (DEBUG):
-                        save_fields(U, V, P, C, tstep, dir)
-
-
+                        save_fields(Ue, Vn, P, C, tstep, dir)
+                    
+            #if (tstep==1):
+            #    save_fields(Ue, Vn, P, C, tstep+10, dir)
+                
 
 
         #---------------------------- solve momentum equations
@@ -155,8 +155,11 @@ while (tstep<totSteps):
 
         apply_BCs(U, V, P, C, pc, Ue, Vn)
         if (DEBUG):
-            save_fields(U, V, P, C, 0, dir)
+            save_fields(U, V, P, C, tstep, dir)
 
+        #if (tstep==1):
+        #    save_fields(U, V, P, C, tstep+20, dir)
+            
 
 
         #---------------------------- solve pressure correction equation
@@ -164,27 +167,43 @@ while (tstep<totSteps):
         resPc = large
         while (resPc>tollPc and itPc<maxItPc):
             resPc = 0.e0
-            for j in range(1,Ny+1):
-                Aw = -hf*rYY*(iAp[i-1][j  ] + iAp[i][j])
-                Ae = -hf*rYY*(iAp[i+1][j  ] + iAp[i][j])
-                As = -hf*rXX*(iAp[i  ][j-1] + iAp[i][j])
-                An = -hf*rXX*(iAp[i  ][j+1] + iAp[i][j])
-                Ao = -(Aw+Ae+As+An)
-                So = -(rY*(Ue[i][j]-Ue[i-1][j]) + rX*(Vn[i][j]-Vn[i][j-1]))
+            for i in range(1,Nx+1):
+                for j in range(1,Ny+1):
+                    Aw = -hf*rYY*(iAp[i-1][j  ] + iAp[i][j])
+                    Ae = -hf*rYY*(iAp[i+1][j  ] + iAp[i][j])
+                    As = -hf*rXX*(iAp[i  ][j-1] + iAp[i][j])
+                    An = -hf*rXX*(iAp[i  ][j+1] + iAp[i][j])
+                    Ao = -(Aw+Ae+As+An)
+                    So = -(rY*(Ue[i][j]-Ue[i-1][j]) + rX*(Vn[i][j]-Vn[i][j-1]))
 
-                nPc[i][j] = (So - Aw*pc[i-1][j] - Ae*pc[i+1][j] - As*pc[i][j-1] - An*pc[i][j+1])/Ao
-                resPc = resPc + abs(nPc[i][j] - pc[i][j])
-                pc[i][j] = nPc[i][j]
+                    # nPc[i][j] = (So - Aw*pc[i-1][j] - Ae*pc[i+1][j] - As*pc[i][j-1] - An*pc[i][j+1])/Ao
+                    # resPc = resPc + abs(nPc[i][j] - pc[i][j])
+                    # pc[i][j] = nPc[i][j]
+
+                    aa[j-1] = As
+                    bb[j-1] = Ao
+                    cc[j-1] = An
+                    dd[j-1] = So - Aw*pc[i-1][j] - Ae*pc[i+1][j]
+
+                Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+                for j in range(1,Ny+1):
+                    resPc = resPc + abs(Cn[i-1][j-1] - pc[i][j])
+                    pc[i][j] = Cn[i-1][j-1]
+
 
             if (itPc<maxItPc-1):
                 #print("Iterations {0:3d}   residuals {1:3e}".format(itPc, resPc))
-                for i in range(1,Nx+1):
-                    for j in range(1,Ny+1):
-                        pc[i][j] = nPc[i][j]
+                #for i in range(1,Nx+1):
+                #    for j in range(1,Ny+1):
+                #        pc[i][j] = nPc[i][j]
 
                 apply_BCs(U, V, P, C, pc, Ue, Vn)
-                if (DEBUG):
-                    save_fields(U, V, P, C, tstep, dir)
+                #if (DEBUG):
+                #    save_fields(U, V, P, C, tstep, dir)
+                #if (tstep==1):
+                #    save_fields(U, V, pc, C, tstep+30+itPc, dir)
+
             else:
                 # give warning if solution of the pressure correction is not achieved
                 print("Attention: pressure correction solver not converged!!!")
@@ -222,48 +241,49 @@ while (tstep<totSteps):
             save_fields(U, V, P, C, tstep, dir)
 
         it = it+1
-        #print("Iterations {0:3d}   residuals {1:3e}".format(it, res))
+        print("Iterations {0:3d}   residuals {1:3e}".format(it, res))
 
 
         #---------------------------- solve transport equation for passive scalar
-        itC  = 0
-        resC = one
-        while (resC>tollTDMA and itC<maxItC):
+        if (PASSIVE):
+            itC  = 0
+            resC = one
+            while (resC>tollTDMA and itC<maxItC):
 
-            resC = zero
-            for i in range(1, Nx+1):
-                for j in range(1, Ny+1):
-    
-                    Fw = rhoRef*hf*U[i-1][j  ]
-                    Fe = rhoRef*hf*U[i  ][j  ]
-                    Fs = rhoRef*hf*V[i  ][j-1]
-                    Fn = rhoRef*hf*V[i  ][j  ]
+                resC = zero
+                for i in range(1, Nx+1):
+                    for j in range(1, Ny+1):
+        
+                        Fw = rhoRef*hf*U[i-1][j  ]
+                        Fe = rhoRef*hf*U[i  ][j  ]
+                        Fs = rhoRef*hf*V[i  ][j-1]
+                        Fn = rhoRef*hf*V[i  ][j  ]
 
-                    Aw = DX + max(Fw,    zero)
-                    Ae = DX + max(zero, -Fe)
-                    As = DY + max(Fs,    zero)
-                    An = DY + max(zero, -Fn)
-                    Ao = rA/delt
+                        Aw = DX + max(Fw,    zero)
+                        Ae = DX + max(zero, -Fe)
+                        As = DY + max(Fs,    zero)
+                        An = DY + max(zero, -Fn)
+                        Ao = rA/delt
 
-                    aa[j-1] = -As
-                    bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
-                    cc[j-1] = -An
-                    dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
+                        aa[j-1] = -As
+                        bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+                        cc[j-1] = -An
+                        dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
 
-                Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+                    Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-                for j in range(1,Ny+1):
-                    resC = resC + abs(Cn[i-1][j-1] - C[i][j])
-                    C[i][j] = Cn[i-1][j-1]
+                    for j in range(1,Ny+1):
+                        resC = resC + abs(Cn[i-1][j-1] - C[i][j])
+                        C[i][j] = Cn[i-1][j-1]
 
-            apply_BCs(U, V, P, C, pc, Ue, Vn)
+                apply_BCs(U, V, P, C, pc, Ue, Vn)
 
-            itC = itC+1
-            #print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC))
-            #save_fields(U, V, P, C, tstep, dir)
+                itC = itC+1
+                #print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC))
+                #save_fields(U, V, P, C, tstep, dir)
 
-            # if (DEBUG):
-            #     save_fields(U, V, P, C, tstep, dir)
+                # if (DEBUG):
+                #     save_fields(U, V, P, C, tstep, dir)
 
 
 

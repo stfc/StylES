@@ -5,9 +5,12 @@ from LES_parameters import *
 
 def save_fields(U, V, P, C, it, dir=0):
 
+    W = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
+
+
     # plot surfaces
-    fig, axs = plt.subplots(2, 4, figsize=(20,5))
-    fig.subplots_adjust(hspace=1)
+    fig, axs = plt.subplots(2, 4, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0][0]
     ax2 = axs[0][1]
@@ -17,6 +20,18 @@ def save_fields(U, V, P, C, it, dir=0):
     ax6 = axs[1][1]
     ax7 = axs[1][2]
     ax8 = axs[1][3]
+
+    for i in range(1,Nx+1):
+        for j in range(1,Ny+1):
+            W[i][j] = (V[i+1][j] - V[i-1][j])/deltaX - (U[i][j+1] - U[i][j-1])/deltaY
+    for i in range(1,Nx+1):
+        W[i][0]    = W[i][Ny]
+        W[i][Ny+1] = W[i][1]
+
+    for j in range(1,Ny+1):
+        W[0][j]    = W[Nx][j]
+        W[Nx+1][j] = W[1][j]
+
 
     U = np.transpose(U)
     velx = ax1.pcolor(U, cmap='Blues', edgecolors='k', linewidths=0.1)
@@ -36,11 +51,18 @@ def save_fields(U, V, P, C, it, dir=0):
     ax3.title.set_text('pressure')
     ax3.set_aspect(1)
 
-    C = np.transpose(C)
-    scal = ax4.pcolor(C, cmap='BuPu', edgecolors='k', linewidths=0.1)
-    fig.colorbar(scal, ax=ax4)
-    ax4.title.set_text('scalar')
+    # C = np.transpose(C)
+    # scal = ax4.pcolor(C, cmap='BuPu', edgecolors='k', linewidths=0.1)
+    # fig.colorbar(scal, ax=ax4)
+    # ax4.title.set_text('scalar')
+    # ax4.set_aspect(1)
+
+    W = np.transpose(W)
+    vort = ax4.pcolor(W, cmap='hot', edgecolors='k', linewidths=0.1)
+    fig.colorbar(vort, ax=ax4)
+    ax4.title.set_text('vorticity')
     ax4.set_aspect(1)
+
 
 
     # plot centerlines
@@ -48,6 +70,7 @@ def save_fields(U, V, P, C, it, dir=0):
     V = np.transpose(V)
     P = np.transpose(P)
     C = np.transpose(C)
+    W = np.transpose(W)
 
     if (dir==0):    # x-direction
         x = list(range(-1, Ny+1))
@@ -56,6 +79,7 @@ def save_fields(U, V, P, C, it, dir=0):
         yV = V[hdim,:]
         yP = P[hdim,:]
         yC = C[hdim,:]
+        yW = W[hdim,:]
     elif (dir==1):  # y-direction 
         x = list(range(-1, Nx+1))
         hdim = int((Ny+2)/2)
@@ -63,6 +87,7 @@ def save_fields(U, V, P, C, it, dir=0):
         yV = V[:,hdim]
         yP = P[:,hdim]
         yC = C[:,hdim]
+        yW = W[:,hdim]
 
     velx = ax5.plot(x,yU)
     ax5.title.set_text('X-vel')
@@ -73,10 +98,12 @@ def save_fields(U, V, P, C, it, dir=0):
     pres = ax7.plot(x,yP)
     ax7.title.set_text('pressure')
 
-    scal = ax8.plot(x,yC)
-    ax8.title.set_text('scalar')
+    # scal = ax8.plot(x,yC)
+    # ax8.title.set_text('scalar')
 
+    vort = ax8.plot(x,yW)
+    ax8.title.set_text('vorticity')
 
     # save images
     plt.show()
-    plt.savefig("it_{0:d}_fields.png".format(it))
+    plt.savefig("it_{0:d}_fields.png".format(it), bbox_inches='tight', pad_inches=0)

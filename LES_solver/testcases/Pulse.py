@@ -14,7 +14,7 @@ Ly   = 0.01e0     # system dimension in y-direction   [m]
 Nx   = 21         # number of points in x-direction   [-]
 Ny   = 21         # number of points in y-direction   [-]
 CNum = 0.5        # Courant number 
-delt = 1.e-3    # initial guess for delt
+delt = 1.e-5    # initial guess for delt
 
 
 BCs        = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity

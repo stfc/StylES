@@ -1,6 +1,5 @@
 from LES_constants import *
 from LES_parameters import *
-from input import BCs, Uin, Vin, Pin, Pout
 
 
 
