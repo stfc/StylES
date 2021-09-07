@@ -1,11 +1,17 @@
 import numpy as np
 import os
 
+from time import time
 from PIL import Image
+from math import sqrt
 from LES_parameters import *
 from LES_BC import *
 from LES_plot import *
 from LES_lAlg import *
+
+
+# start timing
+tstart = time()
 
 
 
@@ -32,7 +38,13 @@ B   = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # body force
 aa = np.zeros([Ny], dtype=DTYPE)  # aw coefficient for TDMA
 bb = np.zeros([Ny], dtype=DTYPE)  # ap coefficient for TDMA
 cc = np.zeros([Ny], dtype=DTYPE)  # ae coefficient for TDMA
-dd = np.zeros([Ny], dtype=DTYPE)  # S  coefficient for TDMA
+dd = np.zeros([Ny], dtype=DTYPE)  # SU coefficient for TDMA
+
+ee = np.zeros([Ny], dtype=DTYPE)  # SV coefficient for TDMA
+ff = np.zeros([Ny], dtype=DTYPE)  # SV coefficient for TDMA
+gg = np.zeros([Ny], dtype=DTYPE)  # SV coefficient for TDMA
+hh = np.zeros([Ny], dtype=DTYPE)  # SV coefficient for TDMA
+
 Cn = np.zeros([Nx,Ny], dtype=DTYPE)  # solution of TDMA
 
 
@@ -63,11 +75,20 @@ save_fields(U, V, P, C, 0, dir)
 
 
 #---------------------------- main time step loop
-tstep=0
-time=0.0e0
+tstep   = 0
+totTime = zero
 
-print("Step {0:3d}   time {1:3f}   delt {2:3f}   iterations {3:3d}   residuals {4:3e}"
-    .format(tstep, time, delt, 0, zero))
+# check divergence
+div = zero
+for i in range(1,Nx+1):
+    for j in range(1,Ny+1):
+        div = div + (Ue[i][j] - Ue[i-1][j])*deltaY + (Vn[i][j] - Vn[i-1][j])*deltaY     
+
+tend = time()
+if (tstep%print_res == 0):
+    print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
+    .format((tend-tstart)/3600.0, tstep, delt, 0, zero, div))
+
 
 while (tstep<totSteps):
 
@@ -122,43 +143,57 @@ while (tstep<totSteps):
 
 
         #---------------------------- solve momentum equations
-        for i in range(1,Nx+1):
-            for j in range(1,Ny+1):
+        itMom  = 0
+        resMom = one
+        while (resMom>tollMom and itMom<maxItMom):
+            resMom = zero
+            for i in range(1,Nx+1):
+                for j in range(1,Ny+1):
 
-                Fw = rhoRef*hf*Ue[i-1][j  ]
-                Fe = rhoRef*hf*Ue[i  ][j  ]
-                Fs = rhoRef*hf*Vn[i  ][j-1]
-                Fn = rhoRef*hf*Vn[i  ][j  ]
+                    Fw = rhoRef*hf*Ue[i-1][j  ]
+                    Fe = rhoRef*hf*Ue[i  ][j  ]
+                    Fs = rhoRef*hf*Vn[i  ][j-1]
+                    Fn = rhoRef*hf*Vn[i  ][j  ]
 
-                Aw = DX + max(Fw,    zero)
-                Ae = DX + max(zero, -Fe)
-                As = DY + max(Fs,    zero)
-                An = DY + max(zero, -Fn)
-                Ao = rA/delt
+                    Aw = DX + max(Fw,    zero)
+                    Ae = DX + max(zero, -Fe)
+                    As = DY + max(Fs,    zero)
+                    An = DY + max(zero, -Fn)
+                    Ao = rA/delt
 
-                iAp[i][j] = one/Ao
+                    iAp[i][j] = one/Ao
 
-                # x-direction
-                rhsU = (Ao - (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn)))*Uo[i][j]    \
-                    + Aw*Uo[i-1][j] + Ae*Uo[i+1][j] + As*Uo[i][j-1] + An*Uo[i][j+1]      \
-                    - hf*(Po[i+1,j] - Po[i-1,j])*deltaY                            \
-                    + hf*(B[i+1,j]+B[i-1,j]) + DeltaPresX
-                U[i][j] = rhsU/Ao
+                    aa[j-1] = -As
+                    bb[j-1] = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
+                    cc[j-1] = -An
+                    dd[j-1] = Ao - hf*(P[i+1,j] - P[i-1,j])*deltaY  \
+                            + hf*(B[i+1,j]+B[i-1,j])                \
+                            + Aw*U[i-1][j] + Ae*U[i+1][j]
 
-                # y-direction
-                rhsV = (Ao - (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn)))*Vo[i][j]    \
-                    +  Aw*Vo[i-1][j] + Ae*Vo[i+1][j] + As*Vo[i][j-1] + An*Vo[i][j+1]     \
-                    - hf*(Po[i,j+1] - Po[i,j-1])*deltaX                            \
-                    + hf*(B[i,j+1]+B[i,j-1]) + DeltaPresY
-                V[i][j] = rhsV/Ao
+                    ee[j-1] = -As
+                    ff[j-1] = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
+                    gg[j-1] = -An
+                    hh[j-1] = Ao - hf*(P[i,j+1] - P[i,j-1])*deltaX  \
+                            + hf*(B[i,j+1]+B[i,j-1])                \
+                            + Aw*V[i-1][j] + Ae*V[i+1][j]
 
+                Cn[i-1][:] = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+                for j in range(1,Ny+1):
+                    resMom = resMom + abs(Cn[i-1][j-1] - U[i][j])
+                    U[i][j] = Cn[i-1][j-1]
+
+                Cn[i-1][:] = solver_TDMAcyclic(ee, ff, gg, hh, Ny)
+                for j in range(1,Ny+1):
+                    resMom = resMom + abs(Cn[i-1][j-1] - V[i][j])
+                    V[i][j] = Cn[i-1][j-1]
+
+            itMom = itMom+1
+            #print("Momemtum iterations {0:3d}   residuals {1:3e}".format(itMom, resMom))
 
         apply_BCs(U, V, P, C, pc, Ue, Vn)
         if (DEBUG):
             save_fields(U, V, P, C, tstep, dir)
 
-        #if (tstep==1):
-        #    save_fields(U, V, P, C, tstep+20, dir)
             
 
 
@@ -193,7 +228,7 @@ while (tstep<totSteps):
 
 
             if (itPc<maxItPc-1):
-                #print("Iterations {0:3d}   residuals {1:3e}".format(itPc, resPc))
+                #print("Pressure correction iterations {0:3d}   residuals {1:3e}".format(itPc, resPc))
                 #for i in range(1,Nx+1):
                 #    for j in range(1,Ny+1):
                 #        pc[i][j] = nPc[i][j]
@@ -241,7 +276,7 @@ while (tstep<totSteps):
             save_fields(U, V, P, C, tstep, dir)
 
         it = it+1
-        print("Iterations {0:3d}   residuals {1:3e}".format(it, res))
+        print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res))
 
 
         #---------------------------- solve transport equation for passive scalar
@@ -266,7 +301,7 @@ while (tstep<totSteps):
                         Ao = rA/delt
 
                         aa[j-1] = -As
-                        bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+                        bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
                         cc[j-1] = -An
                         dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
 
@@ -287,12 +322,12 @@ while (tstep<totSteps):
 
 
 
-    # find integral of passive scalar
-    totSca=zero
-    for i in range(1,Nx+1):
-        for j in range(1,Ny+1):
-            totSca = totSca + C[i][j]
-    print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, np.max(C)))
+            # find integral of passive scalar
+            totSca=zero
+            for i in range(1,Nx+1):
+                for j in range(1,Ny+1):
+                    totSca = totSca + C[i][j]
+            print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, np.max(C)))
 
 
 
@@ -303,18 +338,30 @@ while (tstep<totSteps):
 
     else:
         # find new delt based on Courant number
-        delt = min(CNum*deltaX/(abs(np.max(U))+small), CNum*deltaY/(abs(np.max(V))+small))
-        delt = min(CNum*deltaX/(abs(np.max(C))+small), delt)
-        delt = min(delt,maxDelt)
-        time = time + delt
+        delt = CNum*deltaX/(sqrt(np.max(U)*np.max(U) + np.max(V)*np.max(V))+small)
+        delt = min(delt, maxDelt)
+        totTime = totTime + delt
         tstep = tstep+1
 
+        # check divergence
+        div = zero
+        for i in range(1,Nx+1):
+            for j in range(1,Ny+1):
+                div = div + (Ue[i][j] - Ue[i-1][j])*deltaY + (Vn[i][j] - Vn[i-1][j])*deltaY     
+
+        tend = time()
         if (tstep%print_res == 0):
-            print("Step {0:3d}   time {1:3e}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}"
-            .format(tstep, time, delt, it, res))
+            print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
+            .format((tend-tstart)/3600., tstep, delt, it, res, div))
 
         if (tstep%print_img == 0):
             save_fields(U, V, P, C, tstep, dir)
+
+
+
+
+
+
 
 
 
@@ -340,7 +387,7 @@ while (tstep<totSteps):
             #             Ao = rA/delt
 
             #             aa[j-1] = -As
-            #             bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+            #             bb[j-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
             #             cc[j-1] = -An
             #             dd[j-1] = Ao*Co[i][j] + Aw*C[i-1][j] + Ae*C[i+1][j]
 
@@ -379,7 +426,7 @@ while (tstep<totSteps):
             #             Ao = rA/delt
 
             #             aa[i-1] = -Aw
-            #             bb[i-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fs-Fn))
+            #             bb[i-1] = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
             #             cc[i-1] = -Ae
             #             dd[i-1] = Ao*Co[i][j] + As*C[i][j-1] + An*C[i][j+1]
 

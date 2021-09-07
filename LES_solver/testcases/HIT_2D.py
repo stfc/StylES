@@ -6,19 +6,19 @@ from LES_constants import *
 
 
 TEST_CASE = "2D_HIT"
-totSteps  = 13
+totSteps  = 10
 print_res = 1
 print_img = 1
 rhoRef    = 1.0e0          # density (water)    [kg/m3]
-nuRef     = 1.0016e-5      # viscosity (water)  [Pa*s]
+nuRef     = 1.0e-5         # viscosity (water)  [Pa*s]
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 
-Lx   = 0.05e0     # system dimension in x-direction   [m]
-Ly   = 0.05e0     # system dimension in y-direction   [m]
-Nx   = 10         # number of points in x-direction   [-]
-Ny   = 10         # number of points in y-direction   [-]
+Lx   = 0.1e0     # system dimension in x-direction   [m]
+Ly   = 0.1e0     # system dimension in y-direction   [m]
+Nx   = 32         # number of points in x-direction   [-]
+Ny   = 32        # number of points in y-direction   [-]
 CNum = 0.5        # Courant number 
-delt = 1.e-6    # initial guess for delt
+delt = 1.e-3    # initial guess for delt
 
 BCs        = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
 Uin        = 0.0             # inlet x-velocity. Set to -1 if not specified
@@ -117,8 +117,8 @@ def init_flow(U, V, P, C):
 
                 KX = kxm*x + kym*y + kzm*z 
 
-                U[i][j] = U[i][j] + 1.e-5*two*qm*math.cos(KX + phiM)*sigmax
-                V[i][j] = V[i][j] + 1.e-5*two*qm*math.cos(KX + phiM)*sigmay
+                U[i][j] = U[i][j] + two*qm*math.cos(KX + phiM)*sigmax
+                V[i][j] = V[i][j] + two*qm*math.cos(KX + phiM)*sigmay
 
 
 
