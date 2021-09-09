@@ -10,7 +10,6 @@ from tkespec import *
 from cudaturbo import *
 
 from LES_constants import *
-from LES_spectrum import *
 
 
 
