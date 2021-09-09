@@ -34,31 +34,31 @@ def save_fields(U, V, P, C, it, dir=0):
 
 
     U = np.transpose(U)
-    velx = ax1.pcolor(U, cmap='Blues', edgecolors='k', linewidths=0.1)
+    velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(velx, ax=ax1)
     ax1.title.set_text('X-vel')
     ax1.set_aspect(1)
 
     V = np.transpose(V)
-    vely = ax2.pcolor(V, cmap='Reds_r', edgecolors='k', linewidths=0.1)
+    vely = ax2.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(vely, ax=ax2)
     ax2.title.set_text('Y-vel')
     ax2.set_aspect(1)
 
     P = np.transpose(P)
-    pres = ax3.pcolor(P, cmap='RdBu', edgecolors='k', linewidths=0.1)
+    pres = ax3.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(pres, ax=ax3)
     ax3.title.set_text('pressure')
     ax3.set_aspect(1)
 
     # C = np.transpose(C)
-    # scal = ax4.pcolor(C, cmap='BuPu', edgecolors='k', linewidths=0.1)
+    # scal = ax4.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud')
     # fig.colorbar(scal, ax=ax4)
     # ax4.title.set_text('scalar')
     # ax4.set_aspect(1)
 
     W = np.transpose(W)
-    vort = ax4.pcolor(W, cmap='hot', edgecolors='k', linewidths=0.1)
+    vort = ax4.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(vort, ax=ax4)
     ax4.title.set_text('vorticity')
     ax4.set_aspect(1)

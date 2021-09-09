@@ -27,8 +27,6 @@ alphaUV   = 0.1       # velocity relaxation factor
 
 
 # find case dependent parameters
-deltaX    = Lx/Nx          #                                   [m]
-deltaY    = Ly/Ny          #                                   [m]
 A         = deltaX*deltaY  # Area                              [m2] 
 DX        = nuRef/deltaX   # diffusion conductance term in x
 DY        = nuRef/deltaY   # diffusion conductance term in y

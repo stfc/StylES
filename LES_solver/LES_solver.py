@@ -4,6 +4,7 @@ import os
 from time import time
 from PIL import Image
 from math import sqrt
+
 from LES_parameters import *
 from LES_BC import *
 from LES_plot import *
@@ -71,8 +72,6 @@ for i in range(1,Nx+1):
         Vn[i][j] = hf*(V[i][j+1] + V[i][j])
 
 apply_BCs(U, V, P, C, pc, Ue, Vn)
-save_fields(U, V, P, C, 0, dir)
-
 
 
 #---------------------------- main time step loop
@@ -135,8 +134,6 @@ while (tstep<totSteps):
                              + hf*deltpY3*(iAp[i][j+1] + iAp[i][j])*deltaX
 
                     apply_BCs(U, V, P, C, pc, Ue, Vn)
-                    if (DEBUG):
-                        save_fields(Ue, Vn, P, C, tstep, dir)
                     
                
 
@@ -193,7 +190,7 @@ while (tstep<totSteps):
         if (DEBUG):
             save_fields(U, V, P, C, tstep, dir)
 
-            
+
 
 
         #---------------------------- solve pressure correction equation
@@ -239,6 +236,7 @@ while (tstep<totSteps):
 
 
 
+
         #---------------------------- update values using under relaxation factors
         res = zero
         for i in range(1,Nx+1):
@@ -267,6 +265,8 @@ while (tstep<totSteps):
 
         it = it+1
         print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res))
+
+
 
 
         #---------------------------- solve transport equation for passive scalar
@@ -317,6 +317,7 @@ while (tstep<totSteps):
                 for j in range(1,Ny+1):
                     totSca = totSca + C[i][j]
             print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, np.max(C)))
+
 
 
 
