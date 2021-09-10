@@ -60,8 +60,7 @@ os.system("rm Energy_spectrum.png")
 init_flow(U, V, P, C)
 
 apply_BCs(U, V, P, C, pc, Ue, Vn)
-if (DEBUG):
-    save_fields(U, V, P, C, 0, dir)
+save_fields(U, V, P, C, 0, dir)
 
 
 
