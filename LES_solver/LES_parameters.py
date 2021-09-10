@@ -3,12 +3,11 @@ import importlib
 import sys
 
 from LES_constants import *
-from testcases.HIT_2D import *
+from testcases.Pulse import *
 
 
 # define runtime parameters
 DEBUG     = False
-PASSIVE   = False
 PATH      = "./"
 maxIt     = 100000
 maxItMom  = 100000
@@ -18,7 +17,7 @@ maxDelt   = 1.0e-6
 toll      = 1.0e-6    # tollerance for convergence of SIMPLE
 tollMom   = 1.0e-6    # tollerance for convergence of Pressure correction
 tollPc    = 1.0e-6    # tollerance for convergence of Pressure correction
-tollTDMA  = 1.0e-6    # tollerance for convergence of TDMA
+tollC     = 1.0e-12    # tollerance for convergence of TDMA
 alphaP    = 0.1       # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 

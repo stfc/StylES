@@ -19,7 +19,7 @@ def periodic_padding_flexible(tensor, axis, padding=1):
 
     ndim = len(tensor.shape)
 
-    if (padding[0][0]>0):
+    if (padding[0,0]>0):
         for ax,p in zip(axis,padding):
             # create a slice object that selects everything from all axes,
             # except only 0:p for the specified for right, and -p: for left

@@ -45,7 +45,7 @@ def periodic_padding_flexible(tensor, axis, padding=1):
 
     ndim = len(tensor.shape)
 
-    if (padding[0][0]>0):
+    if (padding[0,0]>0):
         for ax,p in zip(axis,padding):
             # create a slice object that selects everything from all axes,
             # except only 0:p for the specified for right, and -p: for left
@@ -528,7 +528,7 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
             cont=0
             for ii in range(1,nc-1):
                 for jj in range(1,nr-1):
-                    pdiv = (velx[ii+1][jj] - velx[ii-1][jj]) + (vely[ii][jj+1] - vely[ii][jj-1])
+                    pdiv = (velx[ii+1,jj] - velx[ii-1,jj]) + (vely[ii,jj+1] - vely[ii,jj-1])
                     if ((cont/2)%2 == 0):
                         totDiv_o = totDiv_o + pdiv
                     else:

@@ -14,6 +14,7 @@ from LES_constants import *
 
 
 TEST_CASE = "2D_HIT"
+PASSIVE   = False
 totSteps  = 10
 print_res = 1
 print_img = 1
@@ -21,8 +22,8 @@ print_img = 1
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
-Nx        = 256         # number of points in x-direction   [-]
-Ny        = 256        # number of points in y-direction   [-]
+Nx        = 32         # number of points in x-direction   [-]
+Ny        = 32        # number of points in y-direction   [-]
 deltaX    = Lx/Nx
 deltaY    = Ly/Ny
 CNum      = 0.5        # Courant number 

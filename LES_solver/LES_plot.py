@@ -12,25 +12,25 @@ def save_fields(U, V, P, C, it, dir=0):
     fig, axs = plt.subplots(2, 4, figsize=(20,10))
     fig.subplots_adjust(hspace=0.25)
 
-    ax1 = axs[0][0]
-    ax2 = axs[0][1]
-    ax3 = axs[0][2]
-    ax4 = axs[0][3]
-    ax5 = axs[1][0]
-    ax6 = axs[1][1]
-    ax7 = axs[1][2]
-    ax8 = axs[1][3]
+    ax1 = axs[0,0]
+    ax2 = axs[0,1]
+    ax3 = axs[0,2]
+    ax4 = axs[0,3]
+    ax5 = axs[1,0]
+    ax6 = axs[1,1]
+    ax7 = axs[1,2]
+    ax8 = axs[1,3]
 
     for i in range(1,Nx+1):
         for j in range(1,Ny+1):
-            W[i][j] = (V[i+1][j] - V[i-1][j])/deltaX - (U[i][j+1] - U[i][j-1])/deltaY
+            W[i,j] = (V[i+1,j] - V[i-1,j])/deltaX - (U[i,j+1] - U[i,j-1])/deltaY
     for i in range(1,Nx+1):
-        W[i][0]    = W[i][Ny]
-        W[i][Ny+1] = W[i][1]
+        W[i,0]    = W[i,Ny]
+        W[i,Ny+1] = W[i,1]
 
     for j in range(1,Ny+1):
-        W[0][j]    = W[Nx][j]
-        W[Nx+1][j] = W[1][j]
+        W[0,j]    = W[Nx,j]
+        W[Nx+1,j] = W[1,j]
 
 
     U = np.transpose(U)
@@ -51,17 +51,18 @@ def save_fields(U, V, P, C, it, dir=0):
     ax3.title.set_text('pressure')
     ax3.set_aspect(1)
 
-    # C = np.transpose(C)
-    # scal = ax4.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud')
-    # fig.colorbar(scal, ax=ax4)
-    # ax4.title.set_text('scalar')
-    # ax4.set_aspect(1)
-
-    W = np.transpose(W)
-    vort = ax4.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
-    fig.colorbar(vort, ax=ax4)
-    ax4.title.set_text('vorticity')
-    ax4.set_aspect(1)
+    if (PASSIVE):
+        C = np.transpose(C)
+        scal = ax4.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud')
+        fig.colorbar(scal, ax=ax4)
+        ax4.title.set_text('scalar')
+        ax4.set_aspect(1)
+    else:
+        W = np.transpose(W)
+        vort = ax4.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
+        fig.colorbar(vort, ax=ax4)
+        ax4.title.set_text('vorticity')
+        ax4.set_aspect(1)
 
 
 
@@ -98,11 +99,12 @@ def save_fields(U, V, P, C, it, dir=0):
     pres = ax7.plot(x,yP)
     ax7.title.set_text('pressure')
 
-    # scal = ax8.plot(x,yC)
-    # ax8.title.set_text('scalar')
-
-    vort = ax8.plot(x,yW)
-    ax8.title.set_text('vorticity')
+    if (PASSIVE):
+        scal = ax8.plot(x,yC)
+        ax8.title.set_text('scalar')
+    else:
+        vort = ax8.plot(x,yW)
+        ax8.title.set_text('vorticity')
 
     # save images
     plt.show()

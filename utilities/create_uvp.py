@@ -90,7 +90,7 @@ if (CORRECT_DIV):
             ip=i+1
             if (i==0):
                 im=nc-1
-            velx[ip][j] = velx[im][j] - (vely[i][jp] - vely[i][jm])
+            velx[ip,j] = velx[im,j] - (vely[i,jp] - vely[i,jm])
 
     for j in range(1,nr,2):
         jm=j-1
@@ -104,7 +104,7 @@ if (CORRECT_DIV):
             ip=i+1
             if (i==0):
                 im=nc-1
-            velx[ip][j] = velx[im][j] - (vely[i][jp] - vely[i][jm])
+            velx[ip,j] = velx[im,j] - (vely[i,jp] - vely[i,jm])
 
 
 
@@ -115,11 +115,11 @@ totDiv_e=0
 div = np.zeros([nc,nr])
 for j in range(1,nr-1):
     for i in range(1,nc-1):
-        div[i][j] = (velx[i+1][j] - velx[i-1][j]) + (vely[i][j+1] - vely[i][j-1])
+        div[i,j] = (velx[i+1,j] - velx[i-1,j]) + (vely[i,j+1] - vely[i,j-1])
         if ((cont/2) % 2 == 0):
-            totDiv_o = totDiv_o + div[i][j]
+            totDiv_o = totDiv_o + div[i,j]
         else:
-            totDiv_e = totDiv_e + div[i][j]
+            totDiv_e = totDiv_e + div[i,j]
         cont=cont+1
 
 minDiv = np.min(div)
@@ -138,7 +138,7 @@ print("Minx and max divergencies are:      ", minDiv, maxDiv)
 vor = np.zeros([nc,nr])
 for j in range(1,nr-1):
     for i in range(1,nc-1):
-        vor[i][j] = (velx[i][j+1] - velx[i][j-1]) - (vely[i+1][j] - vely[i-1][j])
+        vor[i,j] = (velx[i,j+1] - velx[i,j-1]) - (vely[i+1,j] - vely[i-1,j])
 
 vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
 vor = Image.fromarray(np.uint8(cm.gist_earth(vor)*255))
@@ -168,20 +168,20 @@ for jj in range(0,nr):
         if (ii==nc-1):
             ip = 0
 
-        momx[i][j] = -velx[i][j]*0.5e0*(velx[ip][j] - velx[im][j])   \
-                     -vely[i][j]*0.5e0*(velx[i][jp] - velx[i][jm])   \
-                     -0.5e0*(pres[ip][j]-pres[im][j])                \
-                     +(velx[ip][j] - 2.0e0*velx[i][j] + velx[im][j]) \
-                     +(velx[i][jp] - 2.0e0*velx[i][j] + velx[i][jm])
+        momx[i,j] = -velx[i,j]*0.5e0*(velx[ip,j] - velx[im,j])   \
+                     -vely[i,j]*0.5e0*(velx[i,jp] - velx[i,jm])   \
+                     -0.5e0*(pres[ip,j]-pres[im,j])                \
+                     +(velx[ip,j] - 2.0e0*velx[i,j] + velx[im,j]) \
+                     +(velx[i,jp] - 2.0e0*velx[i,j] + velx[i,jm])
 
-        momy[i][j] = -velx[i][j]*0.5e0*(vely[ip][j] - vely[im][j])   \
-                     -vely[i][j]*0.5e0*(vely[i][jp] - vely[i][jm])   \
-                     -0.5e0*(pres[i][jp]-pres[i][jm])                \
-                     +(vely[ip][j] - 2.0e0*vely[i][j] + vely[im][j]) \
-                     +(vely[i][jp] - 2.0e0*vely[i][j] + vely[i][jm])
+        momy[i,j] = -velx[i,j]*0.5e0*(vely[ip,j] - vely[im,j])   \
+                     -vely[i,j]*0.5e0*(vely[i,jp] - vely[i,jm])   \
+                     -0.5e0*(pres[i,jp]-pres[i,jm])                \
+                     +(vely[ip,j] - 2.0e0*vely[i,j] + vely[im,j]) \
+                     +(vely[i,jp] - 2.0e0*vely[i,j] + vely[i,jm])
 
-        totMomx = totMomx + momx[i][j]
-        totMomy = totMomy + momy[i][j]
+        totMomx = totMomx + momx[i,j]
+        totMomy = totMomy + momy[i,j]
 
 print("")
 print("Total momentum in x-direction is ", totMomx)
