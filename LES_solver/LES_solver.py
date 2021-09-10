@@ -125,14 +125,14 @@ while (tstep<totSteps):
                     deltpY3 = hf*(P[i,j  ] - P[i,j+1])
 
                     Ue[i,j] = hf*(U[i+1,j] + U[i,j])       \
-                             + hf*deltpX1*iAp[i+1,j]*deltaY  \
-                             + hf*deltpX2*iAp[i  ,j]*deltaY    \
-                             + hf*deltpX3*(iAp[i+1,j] + iAp[i,j])*deltaY
+                            + hf*deltpX1*iAp[i+1,j]*deltaY  \
+                            + hf*deltpX2*iAp[i  ,j]*deltaY    \
+                            + hf*deltpX3*(iAp[i+1,j] + iAp[i,j])*deltaY
 
                     Vn[i,j] = hf*(V[i,j+1] + V[i,j])       \
-                             + hf*deltpY1*iAp[i,j+1]*deltaX  \
-                             + hf*deltpY2*iAp[i,j  ]*deltaX  \
-                             + hf*deltpY3*(iAp[i,j+1] + iAp[i,j])*deltaX
+                            + hf*deltpY1*iAp[i,j+1]*deltaX  \
+                            + hf*deltpY2*iAp[i,j  ]*deltaX  \
+                            + hf*deltpY3*(iAp[i,j+1] + iAp[i,j])*deltaX
 
                     apply_BCs(U, V, P, C, pc, Ue, Vn)
                     
