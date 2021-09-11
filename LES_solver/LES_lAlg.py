@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as cp
 
 from LES_parameters import DTYPE, toll, maxIt, Nx, Ny
 from LES_constants import *
@@ -6,23 +6,23 @@ from LES_constants import *
 
 def solver_TDMA(a, bb, c, dd, N):
 
-    b = np.zeros([N], dtype=DTYPE)  # aw coefficient for TDMA
-    d = np.zeros([N], dtype=DTYPE)  # aw coefficient for TDMA
+    b = cp.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
+    d = cp.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
 
     for i in range(N):
-        b[i] = bb[i]
-        d[i] = dd[i]
+        b[:,i] = bb[:,i]
+        d[:,i] = dd[:,i]
 
     for i in range(1, N):
-        m = a[i]/b[i-1]
-        b[i] = b[i] - m*c[i-1] 
-        d[i] = d[i] - m*d[i-1]
+        m = a[:,i]/b[:,i-1]
+        b[:,i] = b[:,i] - m*c[:,i-1] 
+        d[:,i] = d[:,i] - m*d[:,i-1]
         	    
     x = b
-    x[N-1] = d[N-1]/b[N-1]
+    x[:,N-1] = d[:,N-1]/b[:,N-1]
 
     for i in range(N-2, -1, -1):
-        x[i] = (d[i]-c[i]*x[i+1])/b[i]
+        x[:,i] = (d[:,i]-c[:,i]*x[:,i+1])/b[:,i]
 
     return x
 
@@ -30,36 +30,36 @@ def solver_TDMA(a, bb, c, dd, N):
 
 def solver_TDMAcyclic(a, b, c, r, n):
     
-    bb = np.zeros([n], dtype=DTYPE)  # aw coefficient for TDMA
-    u  = np.zeros([n], dtype=DTYPE)  # aw coefficient for TDMA
+    bb = cp.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
+    u  = cp.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
 
-    alpha = c[n-1]
-    beta  = a[0]
+    alpha = c[:,n-1]
+    beta  = a[:,0]
 
-    gamma = -b[0]   # avoid substraction error in forming bb[0]
-    bb[0] = b[0] - gamma   # set up diagonal of the modified tridiagonal system
-    bb[n-1] = b[n-1] - alpha*beta/gamma
+    gamma = -b[:,0]   # avoid substraction error in forming bb[0]
+    bb[:,0] = b[:,0] - gamma   # set up diagonal of the modified tridiagonal system
+    bb[:,n-1] = b[:,n-1] - alpha*beta/gamma
     for i in range(1, n-1):
-        bb[i] = b[i]
+        bb[:,i] = b[:,i]
 
     # solve A*x = r
     x = solver_TDMA(a, bb, c, r, n)
 
     # setup vector u
-    u[0] = gamma
-    u[n-1] = alpha
+    u[:,0] = gamma
+    u[:,n-1] = alpha
     for i in range(1, n-1):
-        u[i] = zero
+        u[:,i] = zero
 
     # solve A*z = u
     z = solver_TDMA(a, bb, c, u, n)
 
     # form v*x/(1+v*z)
-    fact = (x[0]+beta*x[n-1]/gamma)/(one + z[0] + beta*z[n-1]/gamma)
+    fact = (x[:,0]+beta*x[:,n-1]/gamma)/(one + z[:,0] + beta*z[:,n-1]/gamma)
 
     # get solution x
     for i in range(n):
-        x[i] = x[i] - fact*z[i]
+        x[:,i] = x[:,i] - fact*z[:,i]
 
     return x
 

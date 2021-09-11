@@ -73,7 +73,7 @@ tstep   = 0
 totTime = zero
 
 # check divergence
-div = cp.sum( (Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY )
+div = cp.sum((Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY)
 div_cpu = cp.asnumpy(div)
 
 
@@ -138,30 +138,47 @@ while (tstep<totSteps):
         An = DY + hf*(abs(Fn) - Fn)
         Ao = rA/delt
 
-        iAp = one/(Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
+        Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
+        iAp = one/Ap
 
         while (resMom>tollMom and itMom<maxItMom):
-            resMom = zero
 
             # x-direction
-            rhs = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1)  \
-                - hf*(cr(P, 1, 0) - cr(P, -1, 0))*deltaY                                       \
-                + hf*(cr(B, 1, 0) + cr(B, -1, 0))
-            nU = rhs*iAp
+            # rhs = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1)  \
+            #     - hf*(cr(P, 1, 0) - cr(P, -1, 0))*deltaY                                       \
+            #     + hf*(cr(B, 1, 0) + cr(B, -1, 0))
+            # nU = rhs*iAp
 
-            resMom = cp.sum(abs(U - nU))
+            aa = -As
+            bb = Ap
+            cc = -An
+            dd = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0)   \
+               - hf*(cr(P, 1, 0) - cr(P, -1, 0))*deltaY     \
+               + hf*(cr(B, 1, 0) + cr(B, -1, 0))
+            nU = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+            resMom = cp.sum(cp.abs(Ap*U - dd - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
 
             # # y-direction
-            rhs = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1)  \
+            # rhs = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1)  \
+            #     - hf*(cr(P, 0, 1) - cr(P, 0, -1))*deltaX                                   \
+            #     + hf*(cr(B, 0, 1) + cr(B, 0, -1))
+            # nV = rhs*iAp
+
+            aa = -As
+            bb = Ap
+            cc = -An
+            dd = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0)   \
                 - hf*(cr(P, 0, 1) - cr(P, 0, -1))*deltaX                                   \
                 + hf*(cr(B, 0, 1) + cr(B, 0, -1))
-            nV = rhs*iAp
+            nV = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-            resMom = resMom + cp.sum(abs(V-nV))/(2*Nx*Ny)
-
+            resMom = resMom + cp.sum(cp.abs(Ap*V - dd - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
+            resMom = resMom/(2*Nx*Ny)
             itMom = itMom+1
-            resMom_cpu = cp.asnumpy(resMom)
-            #print("Momemtum iterations {0:3d}   residuals {1:3e}".format(itMom, resMom_cpu))
+            if (itMom%1000 == 0):
+                resMom_cpu = cp.asnumpy(resMom)
+                print("Momemtum iterations {0:3d}   residuals {1:3e}".format(itMom, resMom_cpu))
 
             U = nU
             V = nV
@@ -175,31 +192,42 @@ while (tstep<totSteps):
         Ae = hf*rYY*(cr(iAp,  1,  0) + iAp)
         As = hf*rXX*(cr(iAp,  0, -1) + iAp)
         An = hf*rXX*(cr(iAp,  0,  1) + iAp)
-        Ao = Aw+Ae+As+An
+
+        Ap = Aw+Ae+As+An
         So = -rY*(Ue-cr(Ue, -1, 0)) - rX*(Vn-cr(Vn, 0, -1))
         pc = Z
-        while (resPc>tollPc and itPc<maxItPc):
-            rhs = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0) + As*cr(pc, 0, -1) + An*cr(pc, 0, 1)
-            npc = rhs/Ao
-            resPc = cp.sum(abs(pc-npc))/(Nx*Ny)
 
-            if (itPc<maxItPc-1):
-                resPc_cpu = cp.asnumpy(resPc)
-                #print("Pressure correction iterations {0:3d}   residuals {1:3e}".format(itPc, resPc_cpu))
+        while (resPc>tollPc and itPc<maxItPc):
+
+            # rhs = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0) + As*cr(pc, 0, -1) + An*cr(pc, 0, 1)
+            # npc = rhs/Ao
+
+            aa = -As
+            bb = Ap
+            cc = -An
+            dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
+            npc = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+            resPc = cp.sum(cp.abs(Ap*pc - dd - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))/(Nx*Ny)
+
+            itPc = itPc+1
+
+            if (itPc<maxItPc):
+                if (itPc%1000 == 0):
+                    resPc_cpu = cp.asnumpy(resPc)
+                    print("Pressure correction iterations {0:3d}   residuals {1:3e}".format(itPc, resPc_cpu))
             else:
                 # give warning if solution of the pressure correction is not achieved
                 print("Attention: pressure correction solver not converged!!!")
                 save_fields(U, V, pc, C, tstep, dir)
                 exit()
 
-            itPc = itPc+1
             pc = npc
 
 
 
 
         #---------------------------- update values using under relaxation factors
-        res = zero
         deltpX1 = cr(pc, -1, 0) - cr(pc, 1, 0)
         deltpX2 = pc            - cr(pc, 1, 0)
 
@@ -210,7 +238,8 @@ while (tstep<totSteps):
         nV  = alphaUV*hf*deltaX*iAp*deltpY1
         nPc = alphaP*pc
 
-        res = cp.sum(abs(nU) + abs(nV) + abs(nPc))/(Nx*Ny)
+        res_cpu = zero
+        res = cp.sum(cp.abs(So))/(Nx*Ny)
 
         U  = U + nU
         V  = V + nV
@@ -219,7 +248,7 @@ while (tstep<totSteps):
         Vn = Vn + alphaUV*hf*deltaX*(cr(iAp, 0, 1) + iAp)*deltpY2
 
         it = it+1
-        if (it%10 == 0):
+        if (it%1000 == 0):
             res_cpu = cp.asnumpy(res)
             print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
 
@@ -244,18 +273,27 @@ while (tstep<totSteps):
             An = DY + hf*(abs(Fn) - Fn)
             Ao = rA/delt
 
+            Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
+
             while (resC>tollC and itC<maxItC):
 
-                resC = zero
-                rhs = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1)
-                nC = rhs/(Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)))
+                # resC = zero
+                # rhs = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1)
+                # nC = rhs/Ap
 
-                resC = cp.sum(nC - C)
+                aa = -As
+                bb = Ap
+                cc = -An
+                dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
+                nC = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+
+                resC = cp.sum(cp.abs(Ap*C - dd - As*cr(C, 0, -1) - Ae*cr(C, 0, 1)))/(Nx*Ny)
                 C = nC
 
                 itC = itC+1
-                resC_cpu = cp.asnumpy(resC)
-                print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC_cpu))
+                if (itC%100 == 0):
+                    resC_cpu = cp.asnumpy(resC)
+                    print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC_cpu))
 
             # find integral of passive scalar
             totSca = cp.asnumpy(cp.sum(C))
@@ -278,11 +316,12 @@ while (tstep<totSteps):
         tstep = tstep+1
 
         # check divergence
-        div = cp.sum( (Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY )
+        div = cp.sum((Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY)
         div_cpu = cp.asnumpy(div)  
 
         tend = time()
         if (tstep%print_res == 0):
+            res_cpu = cp.asnumpy(res)
             print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
             .format((tend-tstart)/3600., tstep, delt, it, res_cpu, div_cpu))
 
