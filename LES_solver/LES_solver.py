@@ -219,8 +219,9 @@ while (tstep<totSteps):
         Vn = Vn + alphaUV*hf*deltaX*(cr(iAp, 0, 1) + iAp)*deltpY2
 
         it = it+1
-        res_cpu = cp.asnumpy(res)
-        #print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
+        if (it%10 == 0):
+            res_cpu = cp.asnumpy(res)
+            print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
 
 
 
