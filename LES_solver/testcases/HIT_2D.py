@@ -15,9 +15,9 @@ from LES_constants import *
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
-totSteps  = 10
-print_res = 1
-print_img = 1
+totSteps  = 1000
+print_res = 10
+print_img = 10
 
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]

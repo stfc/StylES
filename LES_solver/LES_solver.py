@@ -82,6 +82,8 @@ if (tstep%print_res == 0):
     print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
     .format((tend-tstart)/3600.0, tstep, delt, 0, zero, div_cpu))
 
+
+firstIt = True 
 while (tstep<totSteps):
 
     #---------------------------- save old values of U, V and P
@@ -98,7 +100,7 @@ while (tstep<totSteps):
 
 
         #---------------------------- find Rhie-Chow interpolation (PWIM)
-        if (tstep>0):
+        if (not firstIt):
             deltpX1 = hf*(cr(P, 2, 0) - P)    
             deltpX2 = hf*(cr(P, 1, 0) - cr(P, -1, 0))
             deltpX3 = (P - cr(P,  1, 0))
@@ -117,7 +119,7 @@ while (tstep<totSteps):
                + hf*deltpY2*iAp*deltaX            \
                + hf*deltpY3*(cr(iAp, 0, 1) + iAp)*deltaX
     
-                    
+        firstIt = False
                
 
 
@@ -218,7 +220,7 @@ while (tstep<totSteps):
 
         it = it+1
         res_cpu = cp.asnumpy(res)
-        print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
+        #print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
 
 
 

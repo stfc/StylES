@@ -4,7 +4,7 @@ import sys
 import cupy as cp
 
 from LES_constants import *
-from testcases.Pulse import *
+from testcases.HIT_2D import *
 
 # wrapper for cp.roll
 def cr(phi, i, j):
