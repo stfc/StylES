@@ -1,9 +1,14 @@
 import os
 import importlib
 import sys
+import cupy as cp
 
 from LES_constants import *
 from testcases.Pulse import *
+
+# wrapper for cp.roll
+def cr(phi, i, j):
+    return cp.roll(phi, (-i, -j), axis=(0,1))
 
 
 # define runtime parameters
@@ -13,12 +18,11 @@ maxIt     = 100000
 maxItMom  = 100000
 maxItPc   = 100000
 maxItC    = 100000
-maxDelt   = 1.0e-6
 toll      = 1.0e-6    # tollerance for convergence of SIMPLE
 tollMom   = 1.0e-6    # tollerance for convergence of Pressure correction
 tollPc    = 1.0e-6    # tollerance for convergence of Pressure correction
 tollC     = 1.0e-12    # tollerance for convergence of TDMA
-alphaP    = 0.1       # pressure relaxation factor
+alphaP    = 0.1      # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 
 

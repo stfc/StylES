@@ -22,13 +22,13 @@ print_img = 1
 pRef      = 101325.0e0     # reference pressure (1 atm) [Pa]
 Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
-Nx        = 32         # number of points in x-direction   [-]
-Ny        = 32        # number of points in y-direction   [-]
+Nx        = 16         # number of points in x-direction   [-]
+Ny        = 16        # number of points in y-direction   [-]
 deltaX    = Lx/Nx
 deltaY    = Ly/Ny
 CNum      = 0.5        # Courant number 
-delt      = 0.01*0.001072
-maxDelt   = 0.01*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+delt      = 1.e-3 #0.001*deltaX*0.001072
+maxDelt   = 1.e-3 #0.001*deltaX*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
 BCs       = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
 dir       = 1               # cross direction for plotting results
 
@@ -44,7 +44,9 @@ ThreeDim  = False
 
 def init_flow(U, V, P, C):
 
-    # set missing variables
+    # set variables
+    np.random.seed(0)
+
     if (ThreeDim):
         Lz = Lx
         Nz = Nx
@@ -58,7 +60,6 @@ def init_flow(U, V, P, C):
 
     E = np.zeros([M], dtype=DTYPE)  # enery spectrum
     k = np.zeros([M], dtype=DTYPE)  # wave number
-    np.random.seed(0)
     P = pRef
     C = zero
 
@@ -270,11 +271,7 @@ def init_flow(U, V, P, C):
 
         plt.savefig("Energy_spectrum.png")
 
-
-    if (ThreeDim):
-        U[1:Nx+1,1:Ny+1] = u[:,:,0]
-        V[1:Nx+1,1:Ny+1] = v[:,:,0]
-    else:
-       U[1:Nx+1,1:Ny+1] = u
-       V[1:Nx+1,1:Ny+1] = v
-
+    for i in range(Nx):
+        for j in range(Ny):
+            U[i,j] = u[i,j]
+            V[i,j] = v[i,j]

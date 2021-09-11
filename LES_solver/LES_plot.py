@@ -1,11 +1,21 @@
 import numpy as np
+import cupy as cp
 import matplotlib.pyplot as plt
 
 from LES_parameters import *
 
-def save_fields(U, V, P, C, it, dir=0):
+def save_fields(U_, V_, P_, C_, it, dir=0):
 
-    W = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
+    # find vorticity
+    W_ = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
+    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/deltaX - (cr(U_, 0, 1) - cr(U_, 0, -1))/deltaY
+
+    U = cp.asnumpy(U_)
+    V = cp.asnumpy(V_)
+    P = cp.asnumpy(P_)
+    C = cp.asnumpy(C_)
+    W = cp.asnumpy(W_)
+
 
 
     # plot surfaces
@@ -20,17 +30,6 @@ def save_fields(U, V, P, C, it, dir=0):
     ax6 = axs[1,1]
     ax7 = axs[1,2]
     ax8 = axs[1,3]
-
-    for i in range(1,Nx+1):
-        for j in range(1,Ny+1):
-            W[i,j] = (V[i+1,j] - V[i-1,j])/deltaX - (U[i,j+1] - U[i,j-1])/deltaY
-    for i in range(1,Nx+1):
-        W[i,0]    = W[i,Ny]
-        W[i,Ny+1] = W[i,1]
-
-    for j in range(1,Ny+1):
-        W[0,j]    = W[Nx,j]
-        W[Nx+1,j] = W[1,j]
 
 
     U = np.transpose(U)
@@ -74,16 +73,16 @@ def save_fields(U, V, P, C, it, dir=0):
     W = np.transpose(W)
 
     if (dir==0):    # x-direction
-        x = list(range(-1, Ny+1))
-        hdim = int((Nx+2)/2)
+        x = list(range(Ny))
+        hdim = Nx//2
         yU = U[hdim,:]
         yV = V[hdim,:]
         yP = P[hdim,:]
         yC = C[hdim,:]
         yW = W[hdim,:]
     elif (dir==1):  # y-direction 
-        x = list(range(-1, Nx+1))
-        hdim = int((Ny+2)/2)
+        x = list(range(Nx))
+        hdim = Ny//2
         yU = U[:,hdim]
         yV = V[:,hdim]
         yP = P[:,hdim]
