@@ -1,24 +1,16 @@
 import cupy as cp
 import matplotlib.pyplot as plt
-import sys
-
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '../../TurboGenPY/')
-
-from numpy import pi, sqrt, sin, cos, pi
-from tkespec import *
-from cudaturbo import *
 
 from LES_constants import *
-
+from LES_functions import *
 
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
-RESTART   = False
-totSteps  = 1000
+RESTART   = True
+totSteps  = 10000
 print_res = 10
-print_img = 100
+print_img = 1000
 print_ckp = totSteps + 1
 print_spe = print_img
 
@@ -36,8 +28,8 @@ Nx        = 256         # number of points in x-direction   [-]
 Ny        = 256       # number of points in y-direction   [-]
 dXY       = Lx/Nx
 CNum      = 0.5        # Courant number 
-delt      = CNum*dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = CNum*dXY*0.001072
+delt      = dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = dXY*0.001072
 dir       = 1               # cross direction for plotting results
 
 

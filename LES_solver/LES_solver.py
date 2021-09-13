@@ -41,7 +41,7 @@ Z   = cp.zeros([Nx,Ny], dtype=DTYPE)
 
 #---------------------------- set flow pressure, velocity fields and BCs
 os.system("rm fields*.png")
-os.system("rm energy_spectrum*")
+os.system("rm Energy_spectrum.png")
 
 # initial flow
 totTime = zero
@@ -80,6 +80,10 @@ if (tstep%print_res == 0):
         "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
     .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
     resC_cpu, res_cpu, its, div_cpu))
+
+# plot spectrum
+plot_spectrum(U, V, Lx, Ly, tstep)
+
 
 while (tstep<totSteps):
 
@@ -300,13 +304,7 @@ while (tstep<totSteps):
 
         # print spectrum
         if (tstep%print_spe == 0):
-            U_cpu = cp.asnumpy(U)
-            V_cpu = cp.asnumpy(V)
-
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
-
-            plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
-            plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)
+            plot_spectrum(U, V, Lx, Ly, tstep)
 
 
 

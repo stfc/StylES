@@ -3,6 +3,8 @@ import cupy as cp
 import matplotlib.pyplot as plt
 
 from LES_parameters import *
+from LES_functions import *
+
 
 def print_fields(U_, V_, P_, C_, it, dir=0):
 

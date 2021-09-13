@@ -6,10 +6,6 @@ import cupy as cp
 from LES_constants import *
 from testcases.HIT_2D import *
 
-# wrapper for cp.roll
-def cr(phi, i, j):
-    return cp.roll(phi, (-i, -j), axis=(0,1))
-
 
 # define runtime parameters
 DEBUG     = False

@@ -1,4 +1,20 @@
 import cupy as cp
+import sys
+import matplotlib.pyplot as plt
+
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../../TurboGenPY/')
+
+from tkespec import *
+from tkespec import *
+from cudaturbo import *
+
+
+
+# wrapper for cp.roll
+def cr(phi, i, j):
+    return cp.roll(phi, (-i, -j), axis=(0,1))
+
 
 def load_fields():
     data = cp.load('restart.npz')
@@ -16,3 +32,16 @@ def load_fields():
 def save_fields(totTime, U, V, P, C, B):
 
     cp.savez('restart.npz', t=totTime, U=U, V=V, P=P, C=C, B=B)
+
+
+
+def plot_spectrum(U, V, Lx, Ly, tstep):
+    U_cpu = cp.asnumpy(U)
+    V_cpu = cp.asnumpy(V)
+
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
+
+    plt.xscale('log')
+    plt.yscale('log')
+    plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
+    plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)

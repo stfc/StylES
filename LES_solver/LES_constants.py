@@ -1,4 +1,6 @@
 # define constants
+from numpy import pi
+
 DTYPE    = "float64"
 zero     = 0.0e0
 small    = 1.0e-10
