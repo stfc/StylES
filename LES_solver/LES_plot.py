@@ -8,7 +8,7 @@ def save_fields(U_, V_, P_, C_, it, dir=0):
 
     # find vorticity
     W_ = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
-    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/deltaX - (cr(U_, 0, 1) - cr(U_, 0, -1))/deltaY
+    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dXY - (cr(U_, 0, 1) - cr(U_, 0, -1))/dXY
 
     U = cp.asnumpy(U_)
     V = cp.asnumpy(V_)

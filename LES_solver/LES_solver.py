@@ -18,12 +18,6 @@ tstart = time()
 
 
 #---------------------------- define arrays
-U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)   # x-velocity
-V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)   # y-velocity 
-P_cpu = np.zeros([Nx,Ny], dtype=DTYPE)   # pressure field
-C_cpu = np.zeros([Nx,Ny], dtype=DTYPE)   # passive scalar
-B_cpu = cp.zeros([Nx,Ny], dtype=DTYPE)   # body force
-
 Uo = cp.zeros([Nx,Ny], dtype=DTYPE)   # old x-velocity
 Vo = cp.zeros([Nx,Ny], dtype=DTYPE)   # old y-velocity
 Po = cp.zeros([Nx,Ny], dtype=DTYPE)   # old pressure field
@@ -49,15 +43,8 @@ os.system("rm *fields.png")
 os.system("rm Energy_spectrum.png")
 
 # initial flow
-init_flow(U_cpu, V_cpu, P_cpu, C_cpu)
+U, V, P, C, B = init_flow()
 
-
-# move to GPUs
-U = cp.asarray(U_cpu)
-V = cp.asarray(V_cpu)
-P = cp.asarray(P_cpu)
-C = cp.asarray(C_cpu)
-B = cp.asarray(B_cpu)
 
 save_fields(U, V, P, C, 0, dir)
 
@@ -69,30 +56,39 @@ Vn = hf*(cr(V, 1, 0) + V)
 
 
 #---------------------------- main time step loop
-tstep   = 0
-totTime = zero
+tstep    = 0
+totTime  = zero
+resM_cpu = zero
+resP_cpu = zero
+resC_cpu = zero
+res_cpu  = zero
+firstIt  = True
+its      = 0
 
 # check divergence
-div = cp.sum((Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY)
-div_cpu = cp.asnumpy(div)
+div = cp.sum(cp.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
+div_cpu = cp.asnumpy(div)  
 
-
+# print values
 tend = time()
 if (tstep%print_res == 0):
-    print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
-    .format((tend-tstart)/3600.0, tstep, delt, 0, zero, div_cpu))
+    wtime = (tend-tstart)
+    print("Wall time [s] {0:.1f}  steps {1:3d}  time {2:.2e}  delt {3:.2e}  resM {4:.2e}  "\
+            "resP {5:.2e}  resC {6:.2e}  res {7:.2e}  its {8:3d}  div {9:.2e}"       \
+    .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
+    resC_cpu, res_cpu, its, div_cpu))
 
-
-firstIt = True 
 while (tstep<totSteps):
 
-    #---------------------------- save old values of U, V and P
+
+    # save old values of U, V and P
     Uo = U
     Vo = V
     Po = P
     Co = C
 
-    #---------------------------- outer loop on SIMPLE convergence
+
+    # start outer loop on SIMPLE convergence
     it = 0
     res = large
     while (res>toll and it<maxIt):
@@ -110,78 +106,60 @@ while (tstep<totSteps):
             deltpY3 = (P - cr(P, 0,  1))
 
             Ue = hf*(cr(U, 1, 0) + U)             \
-               + hf*deltpX1*cr(iAp, 1, 0)*deltaY  \
-               + hf*deltpX2*iAp*deltaY            \
-               + hf*deltpX3*(cr(iAp, 1, 0) + iAp)*deltaY
+               + hf*deltpX1*cr(iAp, 1, 0)*dXY  \
+               + hf*deltpX2*iAp*dXY            \
+               + hf*deltpX3*(cr(iAp, 1, 0) + iAp)*dXY
 
             Vn = hf*(cr(V, 0, 1) + V)              \
-               + hf*deltpY1*cr(iAp, 0, 1)*deltaX  \
-               + hf*deltpY2*iAp*deltaX            \
-               + hf*deltpY3*(cr(iAp, 0, 1) + iAp)*deltaX
+               + hf*deltpY1*cr(iAp, 0, 1)*dXY  \
+               + hf*deltpY2*iAp*dXY            \
+               + hf*deltpY3*(cr(iAp, 0, 1) + iAp)*dXY
     
         firstIt = False
                
 
 
         #---------------------------- solve momentum equations
-        itMom  = 0
-        resMom = one
-
         Fw = rhoRef*hf*cr(Ue, -1, 0)
         Fe = rhoRef*hf*Ue
         Fs = rhoRef*hf*cr(Vn, 0, -1)
         Fn = rhoRef*hf*Vn
 
-        Aw = DX + hf*(abs(Fw) + Fw)
-        Ae = DX + hf*(abs(Fe) - Fe)
-        As = DY + hf*(abs(Fs) + Fs)
-        An = DY + hf*(abs(Fn) - Fn)
+        Aw = DX + hf*(cp.abs(Fw) + Fw)
+        Ae = DX + hf*(cp.abs(Fe) - Fe)
+        As = DY + hf*(cp.abs(Fs) + Fs)
+        An = DY + hf*(cp.abs(Fn) - Fn)
         Ao = rA/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
         iAp = one/Ap
 
-        while (resMom>tollMom and itMom<maxItMom):
+        aa = -As
+        bb = Ap
+        cc = -An
+        dd = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0)   \
+            - hf*(cr(P, 1, 0) - cr(P, -1, 0))*dXY     \
+            + hf*(cr(B, 1, 0) + cr(B, -1, 0))
+        nU = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-            # x-direction
-            # rhs = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1)  \
-            #     - hf*(cr(P, 1, 0) - cr(P, -1, 0))*deltaY                                       \
-            #     + hf*(cr(B, 1, 0) + cr(B, -1, 0))
-            # nU = rhs*iAp
+        resM = cp.sum(cp.abs(Ap*U - dd - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
 
-            aa = -As
-            bb = Ap
-            cc = -An
-            dd = Ao*Uo + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0)   \
-               - hf*(cr(P, 1, 0) - cr(P, -1, 0))*deltaY     \
-               + hf*(cr(B, 1, 0) + cr(B, -1, 0))
-            nU = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+        aa = -As
+        bb = Ap
+        cc = -An
+        dd = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0)   \
+            - hf*(cr(P, 0, 1) - cr(P, 0, -1))*dXY                                   \
+            + hf*(cr(B, 0, 1) + cr(B, 0, -1))
+        nV = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-            resMom = cp.sum(cp.abs(Ap*U - dd - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
+        resM = resM + cp.sum(cp.abs(Ap*V - dd - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
+        resM = resM/(2*Nx*Ny)
 
-            # # y-direction
-            # rhs = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1)  \
-            #     - hf*(cr(P, 0, 1) - cr(P, 0, -1))*deltaX                                   \
-            #     + hf*(cr(B, 0, 1) + cr(B, 0, -1))
-            # nV = rhs*iAp
+        resM_cpu = cp.asnumpy(resM)
+        # print("Momemtum iterations:  it {0:3d}  residuals {1:3e}".format(it, resM_cpu))
 
-            aa = -As
-            bb = Ap
-            cc = -An
-            dd = Ao*Vo + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0)   \
-                - hf*(cr(P, 0, 1) - cr(P, 0, -1))*deltaX                                   \
-                + hf*(cr(B, 0, 1) + cr(B, 0, -1))
-            nV = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
-
-            resMom = resMom + cp.sum(cp.abs(Ap*V - dd - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
-            resMom = resMom/(2*Nx*Ny)
-            itMom = itMom+1
-            if (itMom%1000 == 0):
-                resMom_cpu = cp.asnumpy(resMom)
-                print("Momemtum iterations {0:3d}   residuals {1:3e}".format(itMom, resMom_cpu))
-
-            U = nU
-            V = nV
+        U = nU
+        V = nV
 
 
 
@@ -197,32 +175,19 @@ while (tstep<totSteps):
         So = -rY*(Ue-cr(Ue, -1, 0)) - rX*(Vn-cr(Vn, 0, -1))
         pc = Z
 
-        while (resPc>tollPc and itPc<maxItPc):
+        aa = -As
+        bb = Ap
+        cc = -An
+        dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
+        npc = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-            # rhs = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0) + As*cr(pc, 0, -1) + An*cr(pc, 0, 1)
-            # npc = rhs/Ao
+        resP = cp.sum(cp.abs(Ap*pc - dd - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))
+        resP = resP/(Nx*Ny)
 
-            aa = -As
-            bb = Ap
-            cc = -An
-            dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
-            npc = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
+        resP_cpu = cp.asnumpy(resP)
+        # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(it, resP_cpu))
 
-            resPc = cp.sum(cp.abs(Ap*pc - dd - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))/(Nx*Ny)
-
-            itPc = itPc+1
-
-            if (itPc<maxItPc):
-                if (itPc%1000 == 0):
-                    resPc_cpu = cp.asnumpy(resPc)
-                    print("Pressure correction iterations {0:3d}   residuals {1:3e}".format(itPc, resPc_cpu))
-            else:
-                # give warning if solution of the pressure correction is not achieved
-                print("Attention: pressure correction solver not converged!!!")
-                save_fields(U, V, pc, C, tstep, dir)
-                exit()
-
-            pc = npc
+        pc = npc
 
 
 
@@ -234,23 +199,21 @@ while (tstep<totSteps):
         deltpY1 = cr(pc, 0, -1) - cr(pc, 0, 1)
         deltpY2 = pc            - cr(pc, 0, 1)
 
-        nU  = alphaUV*hf*deltaY*iAp*deltpX1
-        nV  = alphaUV*hf*deltaX*iAp*deltpY1
+        nU  = alphaUV*hf*dXY*iAp*deltpX1
+        nV  = alphaUV*hf*dXY*iAp*deltpY1
         nPc = alphaP*pc
 
-        res_cpu = zero
-        res = cp.sum(cp.abs(So))/(Nx*Ny)
+        res = cp.sum(cp.abs(So))
+        res = res/(Nx*Ny)
 
         U  = U + nU
         V  = V + nV
         P  = P + nPc
-        Ue = Ue + alphaUV*hf*deltaY*(cr(iAp, 1, 0) + iAp)*deltpX2
-        Vn = Vn + alphaUV*hf*deltaX*(cr(iAp, 0, 1) + iAp)*deltpY2
+        Ue = Ue + alphaUV*hf*dXY*(cr(iAp, 1, 0) + iAp)*deltpX2
+        Vn = Vn + alphaUV*hf*dXY*(cr(iAp, 0, 1) + iAp)*deltpY2
 
-        it = it+1
-        if (it%1000 == 0):
-            res_cpu = cp.asnumpy(res)
-            print("SIMPLE iterations {0:3d}   residuals {1:3e}".format(it, res_cpu))
+        res_cpu = cp.asnumpy(res)
+        # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
 
 
@@ -259,46 +222,39 @@ while (tstep<totSteps):
         if (PASSIVE):
 
             # solve iteratively
-            itC  = 0
-            resC = one
-
             Fw = rhoRef*hf*cr(U, -1, 0)
             Fe = rhoRef*hf*U
             Fs = rhoRef*hf*cr(V, 0, -1)
             Fn = rhoRef*hf*V
 
-            Aw = DX + hf*(abs(Fw) + Fw)
-            Ae = DX + hf*(abs(Fe) - Fe)
-            As = DY + hf*(abs(Fs) + Fs)
-            An = DY + hf*(abs(Fn) - Fn)
+            Aw = DX + hf*(cp.abs(Fw) + Fw)
+            Ae = DX + hf*(cp.abs(Fe) - Fe)
+            As = DY + hf*(cp.abs(Fs) + Fs)
+            An = DY + hf*(cp.abs(Fn) - Fn)
             Ao = rA/delt
 
             Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
 
-            while (resC>tollC and itC<maxItC):
+            aa = -As
+            bb = Ap
+            cc = -An
+            dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
+            nC = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-                # resC = zero
-                # rhs = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1)
-                # nC = rhs/Ap
+            resC = cp.sum(cp.abs(Ap*C - dd - As*cr(C, 0, -1) - Ae*cr(C, 0, 1)))/(Nx*Ny)
+            C = nC
 
-                aa = -As
-                bb = Ap
-                cc = -An
-                dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
-                nC = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
-
-                resC = cp.sum(cp.abs(Ap*C - dd - As*cr(C, 0, -1) - Ae*cr(C, 0, 1)))/(Nx*Ny)
-                C = nC
-
-                itC = itC+1
-                if (itC%100 == 0):
-                    resC_cpu = cp.asnumpy(resC)
-                    print("Iterations TDMA {0:3d}   residuals TDMA {1:3e}".format(itC, resC_cpu))
+            resC_cpu = cp.asnumpy(resC)
+            # print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(it, resC_cpu))
 
             # find integral of passive scalar
             totSca = cp.asnumpy(cp.sum(C))
             maxSca = cp.asnumpy(cp.max(C))
-            print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
+            # print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
+        else:
+            resC = zero
+
+        it = it+1
 
 
 
@@ -310,21 +266,27 @@ while (tstep<totSteps):
 
     else:
         # find new delt based on Courant number
-        delt = CNum*deltaX/(sqrt(cp.max(U)*cp.max(U) + cp.max(V)*cp.max(V))+small)
+        cdelt = CNum*dXY/(sqrt(cp.max(U)*cp.max(U) + cp.max(V)*cp.max(V))+small)
+        delt = cp.asnumpy(cdelt)
         delt = min(delt, maxDelt)
         totTime = totTime + delt
         tstep = tstep+1
+        its = it
 
         # check divergence
-        div = cp.sum((Ue - cr(Ue, -1, 0))*deltaY + (Vn - cr(Vn, 0, -1))*deltaY)
+        div = cp.sum(cp.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
         div_cpu = cp.asnumpy(div)  
 
+        # print values
         tend = time()
         if (tstep%print_res == 0):
-            res_cpu = cp.asnumpy(res)
-            print("Time [h] {0:.1f}   step {1:3d}   delt {2:3e}   iterations {3:3d}   residuals {4:3e}   div {5:3e}"
-            .format((tend-tstart)/3600., tstep, delt, it, res_cpu, div_cpu))
+            wtime = (tend-tstart)
+            print("Wall time [s] {0:.1f}  steps {1:3d}  time {2:.2e}  delt {3:.2e}  resM {4:.2e}  "\
+                "resP {5:.2e}  resC {6:.2e}  res {7:.2e}  its {8:3d}  div {9:.2e}"       \
+            .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
+            resC_cpu, res_cpu, its, div_cpu))
 
+        # save images
         if (tstep%print_img == 0):
             save_fields(U, V, P, C, tstep, dir)
 

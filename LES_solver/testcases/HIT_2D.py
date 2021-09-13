@@ -1,4 +1,4 @@
-import numpy as np
+import cupy as cp
 import matplotlib.pyplot as plt
 import sys
 
@@ -15,20 +15,19 @@ from LES_constants import *
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
-totSteps  = 1000
+totSteps  = 100
 print_res = 10
-print_img = 100
+print_img = 10
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
 Nx        = 1024         # number of points in x-direction   [-]
-Ny        = 1024        # number of points in y-direction   [-]
-deltaX    = Lx/Nx
-deltaY    = Ly/Ny
+Ny        = 1024       # number of points in y-direction   [-]
+dXY       = Lx/Nx
 CNum      = 0.5        # Courant number 
-delt      = 1.e-7 #0.001*deltaX*0.001072
-maxDelt   = 1.e-7 #0.001*deltaX*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+delt      = 1.0e-8  #CNum*dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-8  #CNum*dXY*0.001072
 BCs       = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
 dir       = 1               # cross direction for plotting results
 
@@ -39,27 +38,25 @@ M         = 5000           # number of modes
 kp        = 50.0e0*2*pi    # peak value
 Q         = 3.4e-20      # constant to normalize energy spectrum. Adjust to have maximum E=0.059  
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
-ThreeDim  = False
 
 
-def init_flow(U, V, P, C):
+def init_flow():
 
     # set variables
-    np.random.seed(0)
+    cp.random.seed(0)
 
-    if (ThreeDim):
-        Lz = Lx
-        Nz = Nx
-        deltaZ = Lz/Nz
-        u = np.zeros([Nx,Ny,Nz], dtype=DTYPE)  # enery spectrum
-        v = np.zeros([Nx,Ny,Nz], dtype=DTYPE)  # enery spectrum
-        w = np.zeros([Nx,Ny,Nz], dtype=DTYPE)  # enery spectrum
-    else:
-        u = np.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
-        v = np.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    U = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    V = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    P = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    C = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    B = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
 
-    E = np.zeros([M], dtype=DTYPE)  # enery spectrum
-    k = np.zeros([M], dtype=DTYPE)  # wave number
+    xyp = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
+    X, Y = cp.meshgrid(xyp, xyp)
+
+
+    E = cp.zeros([M], dtype=DTYPE)  # enery spectrum
+    k = cp.zeros([M], dtype=DTYPE)  # wave number
 
     # find max and min wave numbers
     k0   = two*pi/Lx     #same in each direction
@@ -67,13 +64,16 @@ def init_flow(U, V, P, C):
 
     # find k and E
     maxEm = zero
-    km = np.linspace(k0, kmax, M)
+    km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
-    E = Q*(km**8)*np.exp(-4*(km/kp)**2)
-    maxEm = np.max(E)
-    print("Energy peak is ", maxEm)
+    E = Q*(km**8)*cp.exp(-4*(km/kp)**2)
+    maxEm_cpu = cp.asnumpy(cp.max(E))
+    print("Energy peak is ", maxEm_cpu)
 
-    plt.plot(km, E, 'bo-', linewidth=0.5, markersize=2)
+    km_cpu = cp.asnumpy(km)
+    E_cpu = cp.asnumpy(E)
+
+    plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
     plt.xscale("log")
     plt.yscale("log")
     plt.grid(True, which='both')
@@ -84,124 +84,53 @@ def init_flow(U, V, P, C):
     #-------------- Start Saad procedure
     if (METHOD == 0): 
 
-        if (ThreeDim):
- 
-            # find random angles
-            nu     = np.random.uniform(0.0, 1.0, M)
-            thetaM = np.arccos(2.0 * nu - 1.0);
-            phiM   = 2.0*pi*np.random.uniform(0.0, 1.0, M)
-            psi    = np.random.uniform(-pi*hf, pi*hf, M)
+        # find random angles
+        nu      = cp.random.uniform(0.0, 1.0, M)
+        thetaM  = cp.arccos(2.0 * nu - 1.0);
+        phiM    = 2.0*pi*cp.random.uniform(0.0, 1.0, M)
+        psi     = cp.random.uniform(-pi*hf, pi*hf, M)
 
-            nu1     = np.random.uniform()
-            thetaM1 = np.arccos(2.0*nu1 - 1.0);
-            phiM1   = 2.0*pi*np.random.uniform()
+        nu1     = cp.random.uniform(0.0, 1.0, M)
+        thetaM1 = cp.arccos(2.0*nu1 - 1.0);
 
-            # compute km 
-            kxm = sin(thetaM)*cos(phiM)
-            kym = sin(thetaM)*sin(phiM)
-            kzm = cos(thetaM)
+        # compute km
+        kxm = sin(thetaM)
+        kym = cos(thetaM)
 
-            # compute kt
-            kxt = two/deltaX*sin(hf*km*kxm*deltaX)
-            kyt = two/deltaY*sin(hf*km*kym*deltaY)
-            kzt = two/deltaZ*sin(hf*km*kzm*deltaZ)
+        # compute kt
+        kxt = two/dXY*sin(hf*km*kxm*dXY)
+        kyt = two/dXY*sin(hf*km*kym*dXY)
 
-            # compute intermediate vector
-            zetax = sin(thetaM1)*cos(phiM1)
-            zetay = zetax*kyt/kxt
-            zetaz = cos(thetaM1)
+        # compute the unit vectors
+        sigmax =  sin(thetaM1)
+        sigmay = -sigmax*kxt/kyt
+        sigma = sqrt(sigmax*sigmax + sigmay*sigmay)
+        sigmax =  sigmax/sigma
+        sigmay =  sigmay/sigma
 
-            # compute the unit vectors
-            sigmax =  zetay*kzt - zetaz*kyt
-            sigmay = -(zetax*kzt - zetaz*kxt)
-            sigmaz =  zetax*kyt - zetay*kxt
-            sigma = sqrt(sigmax*sigmax + sigmay*sigmay + sigmaz*sigmaz)
-            sigmax =  sigmax/sigma
-            sigmay =  sigmay/sigma
-            sigmaz =  sigmaz/sigma
+        # verify orthogonality
+        #kk = cp.sum(kxt*sigmax + kyt*sigmay)
+        #print(" Orthogonality is ",kk) 
 
-            # verify orthogonality
-            #kk = np.sum(kxt*sigmax + kyt*sigmay + kzt*sigmaz)
-            #print(" Orthogonality ok and sigma ",kk, sigmaz) 
+        # find energy levels
+        qm = sqrt(E*dk)
 
-            # find energy levels
-            qm = sqrt(E*dk)
+        # compute u, v and w
+        for kk in range(M):
+            arg = km[kk]*(kxm[kk]*X + kym[kk]*Y - psi[kk])
 
-            # loop over all points
-            for k in range(Nz):
-                for j in range(Ny):
-                    for i in range(Nx):
+            bmx = 2.0 * qm[kk] * cos(arg - kxm[kk] * hf*dXY)
+            bmy = 2.0 * qm[kk] * cos(arg - kym[kk] * hf*dXY)
 
-                        # compute u, v and w
-                        x = hf*deltaX + i*deltaX
-                        y = hf*deltaY + j*deltaY
-                        z = hf*deltaZ + k*deltaZ
-
-                        arg = km*(kxm*x + kym*y + kzm*z - psi)
-
-                        bmx = 2.0 * qm * cos(arg - kxm * hf*deltaX)
-                        bmy = 2.0 * qm * cos(arg - kym * hf*deltaY)
-                        bmz = 2.0 * qm * cos(arg - kzm * hf*deltaZ)
-
-                        u[i, j, k] = np.sum(bmx * sigmax)
-                        v[i, j, k] = np.sum(bmy * sigmay)
-                        w[i, j, k] = np.sum(bmz * sigmaz)
-
-            # find spectrum
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum(u, v, w, Lx, Ly, Lz, True)
-
-        else:
-
-            # find random angles
-            nu      = np.random.uniform(0.0, 1.0, M)
-            thetaM  = np.arccos(2.0 * nu - 1.0);
-            phiM    = 2.0*pi*np.random.uniform(0.0, 1.0, M)
-            psi     = np.random.uniform(-pi*hf, pi*hf, M)
-
-            nu1     = np.random.uniform(0.0, 1.0, M)
-            thetaM1 = np.arccos(2.0*nu1 - 1.0);
-
-            # compute km
-            kxm = sin(thetaM)
-            kym = cos(thetaM)
-
-            # compute kt
-            kxt = two/deltaX*sin(hf*km*kxm*deltaX)
-            kyt = two/deltaY*sin(hf*km*kym*deltaY)
-
-            # compute the unit vectors
-            sigmax =  sin(thetaM1)
-            sigmay = -sigmax*kxt/kyt
-            sigma = sqrt(sigmax*sigmax + sigmay*sigmay)
-            sigmax =  sigmax/sigma
-            sigmay =  sigmay/sigma
-
-            # verify orthogonality
-            #kk = np.sum(kxt*sigmax + kyt*sigmay)
-            #print(" Orthogonality is ",kk) 
-
-            # find energy levels
-            qm = sqrt(E*dk)
-
-            # loop over all points
-            for j in range(Ny):
-                for i in range(Nx):
-
-                    # compute u, v and w
-                    x = hf*deltaX + i*deltaX
-                    y = hf*deltaY + j*deltaY
- 
-                    arg = km*(kxm*x + kym*y - psi)
-
-                    bmx = 2.0 * qm * cos(arg - kxm * hf*deltaX)
-                    bmy = 2.0 * qm * cos(arg - kym * hf*deltaY)
-
-                    u[i, j] = np.sum(bmx * sigmax)
-                    v[i, j] = np.sum(bmy * sigmay)
+            U = U + bmx * sigmax[kk]
+            V = V + bmy * sigmay[kk]
 
 
         # find spectrum
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(u, v, Lx, Ly, True)
+        U_cpu = cp.asnumpy(U)
+        V_cpu = cp.asnumpy(V)
+
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
 
         print("StylES nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
@@ -269,9 +198,11 @@ def init_flow(U, V, P, C):
 
         plt.savefig("Energy_spectrum.png")
 
-    for i in range(Nx):
-        for j in range(Ny):
-            U[i,j] = u[i,j]
-            V[i,j] = v[i,j]
-            P[i,j] = pRef
-            C[i,j] = zero
+
+
+    # set pressure field
+    P[:,:] = pRef
+
+
+
+    return U, V, P, C, B
