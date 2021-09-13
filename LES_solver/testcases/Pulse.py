@@ -1,6 +1,8 @@
-import cupy as cp
+import matplotlib.pyplot as plt
 
-from LES_constants import *
+from LES_constants  import *
+from LES_parameters import *
+from LES_functions  import *
 
 
 
@@ -40,20 +42,20 @@ Vmean   = 1.0e-4           # mean flow in y
 
 def init_fields():
 
-    U = cp.zeros([Nx,Ny], dtype=DTYPE)
-    V = cp.zeros([Nx,Ny], dtype=DTYPE)
-    P = cp.zeros([Nx,Ny], dtype=DTYPE)
-    C = cp.zeros([Nx,Ny], dtype=DTYPE)
-    B = cp.zeros([Nx,Ny], dtype=DTYPE)
+    U = nc.zeros([Nx,Ny], dtype=DTYPE)
+    V = nc.zeros([Nx,Ny], dtype=DTYPE)
+    P = nc.zeros([Nx,Ny], dtype=DTYPE)
+    C = nc.zeros([Nx,Ny], dtype=DTYPE)
+    B = nc.zeros([Nx,Ny], dtype=DTYPE)
 
-    xyp = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
-    X, Y = cp.meshgrid(xyp, xyp)
+    xyp = nc.linspace(hf*dXY, Lx-hf*dXY, Nx)
+    X, Y = nc.meshgrid(xyp, xyp)
 
     U[:,:] = Umean
     V[:,:] = Vmean
     P[:,:] = pRef
     dist2 = (X-puC)**2 + (Y-puC)**2
-    C = puA*cp.exp(-dist2/(2*puS**2))
+    C = puA*nc.exp(-dist2/(2*puS**2))
 
 
     # set remaining fiels

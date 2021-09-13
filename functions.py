@@ -21,7 +21,7 @@ from typing import Union
 TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
 
 #A type that can be converted to a valid Tensorflow expression
-TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
+TfExpressionEx = Union[TfExpression, int, float, nc.ndarray]
 
 
 #---------------------functions to build StyleGAN network--------------------
@@ -79,12 +79,12 @@ def nf(stage):
 
 #-------------get_Weight 
 class layer_get_Weight(layers.Layer):
-    def __init__(self, shape, gain=np.sqrt(2), use_wscale=False, lrmul=1, **kwargs):
+    def __init__(self, shape, gain=nc.sqrt(2), use_wscale=False, lrmul=1, **kwargs):
         super(layer_get_Weight, self).__init__()
 
         # Equalized learning rate and custom learning rate multiplier.
-        fan_in = np.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
-        he_std = gain / np.sqrt(fan_in)  # He init
+        fan_in = nc.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
+        he_std = gain / nc.sqrt(fan_in)  # He init
         if use_wscale:
             init_std = 1.0 / lrmul
             self.runtime_coef = he_std * lrmul
@@ -125,12 +125,12 @@ class layer_dense(layers.Layer):
         super(layer_dense, self).__init__()
 
         if len(x.shape) > 2:
-            x = tf.reshape(x, [-1, np.prod([d for d in x.shape[1:]])])
+            x = tf.reshape(x, [-1, nc.prod([d for d in x.shape[1:]])])
  
         # Equalized learning rate and custom learning rate multiplier.
         shape  = [x.shape[1], fmaps]
-        fan_in = np.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
-        he_std = gain / np.sqrt(fan_in)  # He init
+        fan_in = nc.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
+        he_std = gain / nc.sqrt(fan_in)  # He init
         if use_wscale:
             init_std = 1.0 / lrmul
             self.runtime_coef = he_std * lrmul
@@ -146,7 +146,7 @@ class layer_dense(layers.Layer):
 
     def call(self, x):
         if len(x.shape) > 2:
-            x = tf.reshape(x, [-1, np.prod([d for d in x.shape[1:]])])
+            x = tf.reshape(x, [-1, nc.prod([d for d in x.shape[1:]])])
         return tf.matmul(x, tf.cast(self.w, DTYPE) * self.runtime_coef)
 
 
@@ -230,16 +230,16 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     assert isinstance(stride, int) and stride >= 1
 
     # Finalize filter kernel.
-    f = np.array(f, dtype=DTYPE)
+    f = nc.array(f, dtype=DTYPE)
     if f.ndim == 1:
-        f = f[:, np.newaxis] * f[np.newaxis, :]
+        f = f[:, nc.newaxis] * f[nc.newaxis, :]
     assert f.ndim == 2
     if normalize:
-        f /= np.sum(f)
+        f /= nc.sum(f)
     if flip:
         f = f[::-1, ::-1]
-    f = f[:, :, np.newaxis, np.newaxis]
-    f = np.tile(f, [1, 1, int(x.shape[1]), 1])
+    f = f[:, :, nc.newaxis, nc.newaxis]
+    f = nc.tile(f, [1, 1, int(x.shape[1]), 1])
 
     # No-op => early exit.
     if f.shape == (1, 1) and f[0, 0] == 1:
@@ -252,17 +252,17 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     strides = [1, 1, stride, stride]
 
     # if (f.shape[0] % 2 == 0):
-    #     pleft   = np.int((f.shape[0]-1)/2)
-    #     pright  = np.int(f.shape[0]/2)
+    #     pleft   = nc.int((f.shape[0]-1)/2)
+    #     pright  = nc.int(f.shape[0]/2)
     # else:
-    #     pleft   = np.int((f.shape[0]-1)/2)
+    #     pleft   = nc.int((f.shape[0]-1)/2)
     #     pright  = pleft
 
     # if (f.shape[1] % 2 == 0):
-    #     ptop    = np.int((f.shape[1]-1)/2)
-    #     pbottom = np.int(f.shape[1]/2)
+    #     ptop    = nc.int((f.shape[1]-1)/2)
+    #     pbottom = nc.int(f.shape[1]/2)
     # else:
-    #     ptop    = np.int((f.shape[1]-1)/2)
+    #     ptop    = nc.int((f.shape[1]-1)/2)
     #     pbottom = ptop
 
     # x2 = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -336,17 +336,17 @@ def conv2d(x, fmaps, kernel, **kwargs):
     strides=[1, 1, 1, 1]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = np.int((w.shape[0]-1)/2)
-        pright  = np.int(w.shape[0]/2)
+        pleft   = nc.int((w.shape[0]-1)/2)
+        pright  = nc.int(w.shape[0]/2)
     else:
-        pleft   = np.int((w.shape[0]-1)/2)
+        pleft   = nc.int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = np.int((w.shape[1]-1)/2)
-        pbottom = np.int(w.shape[1]/2)
+        ptop    = nc.int((w.shape[1]-1)/2)
+        pbottom = nc.int(w.shape[1]/2)
     else:
-        ptop    = np.int((w.shape[1]-1)/2)
+        ptop    = nc.int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -404,7 +404,7 @@ def _downscale2d(x, factor=2, gain=1):
 
     # 2x2, float32 => downscale using _blur2d().
     if factor == 2 and DTYPE == tf.float32:
-        f = [np.sqrt(gain) / factor] * factor
+        f = [nc.sqrt(gain) / factor] * factor
         return _blur2d(x, f=f, normalize=False, stride=factor)
 
     # Apply gain.
@@ -455,17 +455,17 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     strides=[1, 1, 2, 2]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = np.int((w.shape[0]-1)/2)
-        pright  = np.int(w.shape[0]/2)
+        pleft   = nc.int((w.shape[0]-1)/2)
+        pright  = nc.int(w.shape[0]/2)
     else:
-        pleft   = np.int((w.shape[0]-1)/2)
+        pleft   = nc.int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = np.int((w.shape[1]-1)/2)
-        pbottom = np.int(w.shape[1]/2)
+        ptop    = nc.int((w.shape[1]-1)/2)
+        pbottom = nc.int(w.shape[1]/2)
     else:
-        ptop    = np.int((w.shape[1]-1)/2)
+        ptop    = nc.int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -491,10 +491,10 @@ def convert_to_pil_image(image, drange=[0, 1]):
 
 def adjust_dynamic_range(data, drange_in, drange_out):
     if drange_in != drange_out:
-        scale = (np.cast[DTYPE](drange_out[1]) - np.cast[DTYPE](drange_out[0])) / (
-            np.cast[DTYPE](drange_in[1]) - np.cast[DTYPE](drange_in[0])
+        scale = (nc.cast[DTYPE](drange_out[1]) - nc.cast[DTYPE](drange_out[0])) / (
+            nc.cast[DTYPE](drange_in[1]) - nc.cast[DTYPE](drange_in[0])
         )
-        bias = np.cast[DTYPE](drange_out[0]) - np.cast[DTYPE](drange_in[0]) * scale
+        bias = nc.cast[DTYPE](drange_out[0]) - nc.cast[DTYPE](drange_in[0]) * scale
         data = data * scale + bias
     return data    
 
@@ -504,11 +504,11 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
     dlatents    = mapping_ave(input, training=False)
     predictions = synthetic_ave(dlatents, training=False)
 
-    div = np.zeros(RES_LOG2-1)
+    div = nc.zeros(RES_LOG2-1)
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
-        nr = np.int(np.sqrt(NEXAMPLES))
-        nc = np.int(NEXAMPLES/nr)
+        nr = nc.int(nc.sqrt(NEXAMPLES))
+        nc = nc.int(NEXAMPLES/nr)
         # to maintain a fixed figure size
         # ninc = 10*nc/4
         # ninr = 10*nr/4
@@ -557,12 +557,12 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
 #     predictions = synthetic_ave(dlatents, training=False)
 
 #     for i in range(1):
-#         #plt.subplot(int(np.sqrt(NEXAMPLES)), int(np.sqrt(NEXAMPLES)), i+1)
+#         #plt.subplot(int(nc.sqrt(NEXAMPLES)), int(nc.sqrt(NEXAMPLES)), i+1)
 #         img = predictions[RES_LOG2-2]         # take highest resolution
 #         img = tf.transpose(img[i, :, :, :])
 #         img = adjust_dynamic_range(img, [1, 0], [0, 255])
 #         #img = img*127.5 + 127.5               # re-scale
-#         img = np.uint8(img)                   # convert to uint8
+#         img = nc.uint8(img)                   # convert to uint8
 #         #if (NUM_CHANNELS>1):
 #         #    plt.imshow(img)
 #         #else:

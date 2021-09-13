@@ -62,7 +62,7 @@ def make_mapping_model():
         latents = bias(latents)
         latents = layers.LeakyReLU()(latents)
 
-    dlatents = tf.tile(latents[:, np.newaxis], [1, G_LAYERS, 1])
+    dlatents = tf.tile(latents[:, nc.newaxis], [1, G_LAYERS, 1])
 
 
     # Update moving average of W.
@@ -74,8 +74,8 @@ def make_mapping_model():
 
     if (not TRAIN):
         if truncation_psi is not None and truncation_cutoff is not None:
-            layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
-            ones = np.ones(layer_idx.shape, dtype=DTYPE)
+            layer_idx = nc.arange(G_LAYERS)[nc.newaxis, :, nc.newaxis]
+            ones = nc.ones(layer_idx.shape, dtype=DTYPE)
             coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
             dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
 
@@ -366,7 +366,7 @@ def gradient_penalty(x):
 
 #---take one image only
 # image_in = Image.open(image_in)
-# image_in = np.array(image_in)
+# image_in = nc.array(image_in)
 # image_in = tf.image.convert_image_dtype(image_in, DTYPE)
 # image = []
 # for res in range(2, RES_LOG2 + 1):
@@ -393,7 +393,7 @@ def gradient_penalty(x):
 
 #---open a file
 # image_in = Image.open('./data/defects_clean/defects5_clean.jpg')
-# image_in = np.array(image_in)
+# image_in = nc.array(image_in)
 # image_in = tf.image.convert_image_dtype(image_in, DTYPE)
 
 

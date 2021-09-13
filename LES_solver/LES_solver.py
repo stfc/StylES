@@ -1,15 +1,15 @@
-import numpy as np
-import cupy as cp
 import os
 
 from time import time
 from PIL import Image
 from math import sqrt
 
+from LES_modules    import *
+from LES_constants  import *
 from LES_parameters import *
-from LES_functions import *
-from LES_plot import *
-from LES_lAlg import *
+from LES_functions  import *
+from LES_plot       import *
+from LES_lAlg       import *
 
 
 
@@ -19,22 +19,22 @@ tstart = time()
 
 
 #---------------------------- define arrays
-Uo = cp.zeros([Nx,Ny], dtype=DTYPE)   # old x-velocity
-Vo = cp.zeros([Nx,Ny], dtype=DTYPE)   # old y-velocity
-Po = cp.zeros([Nx,Ny], dtype=DTYPE)   # old pressure field
-Co = cp.zeros([Nx,Ny], dtype=DTYPE)   # old passive scalar
+Uo = nc.zeros([Nx,Ny], dtype=DTYPE)   # old x-velocity
+Vo = nc.zeros([Nx,Ny], dtype=DTYPE)   # old y-velocity
+Po = nc.zeros([Nx,Ny], dtype=DTYPE)   # old pressure field
+Co = nc.zeros([Nx,Ny], dtype=DTYPE)   # old passive scalar
 
-iAp = cp.zeros([Nx,Ny], dtype=DTYPE)  # central coefficient
-Ue  = cp.zeros([Nx,Ny], dtype=DTYPE)  # face x-velocities
-Vn  = cp.zeros([Nx,Ny], dtype=DTYPE)  # face y-velocities  
+iAp = nc.zeros([Nx,Ny], dtype=DTYPE)  # central coefficient
+Ue  = nc.zeros([Nx,Ny], dtype=DTYPE)  # face x-velocities
+Vn  = nc.zeros([Nx,Ny], dtype=DTYPE)  # face y-velocities  
 
-pc  = cp.zeros([Nx,Ny], dtype=DTYPE)  # pressure correction
+pc  = nc.zeros([Nx,Ny], dtype=DTYPE)  # pressure correction
 
-nU  = cp.zeros([Nx,Ny], dtype=DTYPE)
-nV  = cp.zeros([Nx,Ny], dtype=DTYPE)
-nPc = cp.zeros([Nx,Ny], dtype=DTYPE)
-nC  = cp.zeros([Nx,Ny], dtype=DTYPE)
-Z   = cp.zeros([Nx,Ny], dtype=DTYPE)
+nU  = nc.zeros([Nx,Ny], dtype=DTYPE)
+nV  = nc.zeros([Nx,Ny], dtype=DTYPE)
+nPc = nc.zeros([Nx,Ny], dtype=DTYPE)
+nC  = nc.zeros([Nx,Ny], dtype=DTYPE)
+Z   = nc.zeros([Nx,Ny], dtype=DTYPE)
 
 
 
@@ -69,8 +69,8 @@ firstIt  = True
 its      = 0
 
 # check divergence
-div = cp.sum(cp.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
-div_cpu = cp.asnumpy(div)  
+div = nc.sum(nc.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
+div_cpu = convert(div)  
 
 # print values
 tend = time()
@@ -132,10 +132,10 @@ while (tstep<totSteps):
         Fs = rhoRef*hf*cr(Vn, 0, -1)
         Fn = rhoRef*hf*Vn
 
-        Aw = DX + hf*(cp.abs(Fw) + Fw)
-        Ae = DX + hf*(cp.abs(Fe) - Fe)
-        As = DY + hf*(cp.abs(Fs) + Fs)
-        An = DY + hf*(cp.abs(Fn) - Fn)
+        Aw = DX + hf*(nc.abs(Fw) + Fw)
+        Ae = DX + hf*(nc.abs(Fe) - Fe)
+        As = DY + hf*(nc.abs(Fs) + Fs)
+        An = DY + hf*(nc.abs(Fn) - Fn)
         Ao = rA/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
@@ -149,7 +149,7 @@ while (tstep<totSteps):
             + hf*(cr(B, 1, 0) + cr(B, -1, 0))
         nU = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-        resM = cp.sum(cp.abs(Ap*U - dd - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
+        resM = nc.sum(nc.abs(Ap*U - dd - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
 
         aa = -As
         bb = Ap
@@ -159,10 +159,10 @@ while (tstep<totSteps):
             + hf*(cr(B, 0, 1) + cr(B, 0, -1))
         nV = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-        resM = resM + cp.sum(cp.abs(Ap*V - dd - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
+        resM = resM + nc.sum(nc.abs(Ap*V - dd - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
         resM = resM/(2*Nx*Ny)
 
-        resM_cpu = cp.asnumpy(resM)
+        resM_cpu = convert(resM)
         # print("Momemtum iterations:  it {0:3d}  residuals {1:3e}".format(it, resM_cpu))
 
         U = nU
@@ -188,10 +188,10 @@ while (tstep<totSteps):
         dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
         npc = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-        resP = cp.sum(cp.abs(Ap*pc - dd - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))
+        resP = nc.sum(nc.abs(Ap*pc - dd - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))
         resP = resP/(Nx*Ny)
 
-        resP_cpu = cp.asnumpy(resP)
+        resP_cpu = convert(resP)
         # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(it, resP_cpu))
 
         pc = npc
@@ -210,7 +210,7 @@ while (tstep<totSteps):
         nV  = alphaUV*hf*dXY*iAp*deltpY1
         nPc = alphaP*pc
 
-        res = cp.sum(cp.abs(So))
+        res = nc.sum(nc.abs(So))
         res = res/(Nx*Ny)
 
         U  = U + nU
@@ -219,7 +219,7 @@ while (tstep<totSteps):
         Ue = Ue + alphaUV*hf*dXY*(cr(iAp, 1, 0) + iAp)*deltpX2
         Vn = Vn + alphaUV*hf*dXY*(cr(iAp, 0, 1) + iAp)*deltpY2
 
-        res_cpu = cp.asnumpy(res)
+        res_cpu = convert(res)
         # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
 
@@ -234,10 +234,10 @@ while (tstep<totSteps):
             Fs = rhoRef*hf*cr(V, 0, -1)
             Fn = rhoRef*hf*V
 
-            Aw = DX + hf*(cp.abs(Fw) + Fw)
-            Ae = DX + hf*(cp.abs(Fe) - Fe)
-            As = DY + hf*(cp.abs(Fs) + Fs)
-            An = DY + hf*(cp.abs(Fn) - Fn)
+            Aw = DX + hf*(nc.abs(Fw) + Fw)
+            Ae = DX + hf*(nc.abs(Fe) - Fe)
+            As = DY + hf*(nc.abs(Fs) + Fs)
+            An = DY + hf*(nc.abs(Fn) - Fn)
             Ao = rA/delt
 
             Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
@@ -248,15 +248,15 @@ while (tstep<totSteps):
             dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
             nC = solver_TDMAcyclic(aa, bb, cc, dd, Ny)
 
-            resC = cp.sum(cp.abs(Ap*C - dd - As*cr(C, 0, -1) - Ae*cr(C, 0, 1)))/(Nx*Ny)
+            resC = nc.sum(nc.abs(Ap*C - dd - As*cr(C, 0, -1) - Ae*cr(C, 0, 1)))/(Nx*Ny)
             C = nC
 
-            resC_cpu = cp.asnumpy(resC)
+            resC_cpu = convert(resC)
             # print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(it, resC_cpu))
 
             # find integral of passive scalar
-            totSca = cp.asnumpy(cp.sum(C))
-            maxSca = cp.asnumpy(cp.max(C))
+            totSca = convert(nc.sum(C))
+            maxSca = convert(nc.max(C))
             # print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
         else:
             resC = zero
@@ -273,16 +273,16 @@ while (tstep<totSteps):
 
     else:
         # find new delt based on Courant number
-        cdelt = CNum*dXY/(sqrt(cp.max(U)*cp.max(U) + cp.max(V)*cp.max(V))+small)
-        delt = cp.asnumpy(cdelt)
+        cdelt = CNum*dXY/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
+        delt = convert(cdelt)
         delt = min(delt, maxDelt)
         totTime = totTime + delt
         tstep = tstep+1
         its = it
 
         # check divergence
-        div = cp.sum(cp.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
-        div_cpu = cp.asnumpy(div)  
+        div = nc.sum(nc.abs((Ue - cr(Ue, -1, 0))*dXY + (Vn - cr(Vn, 0, -1))*dXY))/(Nx*Ny)
+        div_cpu = convert(div)  
 
         # print values
         tend = time()

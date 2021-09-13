@@ -64,9 +64,9 @@ pres.save(PATH + "BW_pres.png")
 #============================== 4) scale fields
 
 # convert to numpy arrays
-velx = np.asarray(velx, dtype=DTYPE)
-vely = np.asarray(vely, dtype=DTYPE)
-pres = np.asarray(pres, dtype=DTYPE)
+velx = convert(velx, dtype=DTYPE)
+vely = convert(vely, dtype=DTYPE)
+pres = convert(pres, dtype=DTYPE)
 
 # scale fields to [0-1] range. Note: U and V fields are supposed to be obtained from same Min and Max values!!
 velx = velx/255.0
@@ -112,7 +112,7 @@ if (CORRECT_DIV):
 cont=0
 totDiv_o=0
 totDiv_e=0
-div = np.zeros([nc,nr])
+div = nc.zeros([nc,nr])
 for j in range(1,nr-1):
     for i in range(1,nc-1):
         div[i,j] = (velx[i+1,j] - velx[i-1,j]) + (vely[i,j+1] - vely[i,j-1])
@@ -122,10 +122,10 @@ for j in range(1,nr-1):
             totDiv_e = totDiv_e + div[i,j]
         cont=cont+1
 
-minDiv = np.min(div)
-maxDiv = np.max(div)
+minDiv = nc.min(div)
+maxDiv = nc.max(div)
 
-div = Image.fromarray(np.uint8(cm.gist_earth(div)*255))
+div = Image.fromarray(nc.uint8(cm.gist_earth(div)*255))
 div.save(PATH + "divergence.png")
 
 print("")
@@ -135,13 +135,13 @@ print("Minx and max divergencies are:      ", minDiv, maxDiv)
 
 
 #============================== 7) find vorticity
-vor = np.zeros([nc,nr])
+vor = nc.zeros([nc,nr])
 for j in range(1,nr-1):
     for i in range(1,nc-1):
         vor[i,j] = (velx[i,j+1] - velx[i,j-1]) - (vely[i+1,j] - vely[i-1,j])
 
-vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
-vor = Image.fromarray(np.uint8(cm.gist_earth(vor)*255))
+vor = (vor - nc.min(vor))/(nc.max(vor) - nc.min(vor))
+vor = Image.fromarray(nc.uint8(cm.gist_earth(vor)*255))
 vor.save(PATH + "vorticity.png")
 
 
@@ -149,8 +149,8 @@ vor.save(PATH + "vorticity.png")
 #============================== 8) find momentum
 totMomx = 0.0e0
 totMomy = 0.0e0
-momx = np.zeros([nc,nr])
-momy = np.zeros([nc,nr])
+momx = nc.zeros([nc,nr])
+momy = nc.zeros([nc,nr])
 for jj in range(0,nr):
     j = jj
     jm = j-1
@@ -187,24 +187,24 @@ print("")
 print("Total momentum in x-direction is ", totMomx)
 print("Total momentum in y-direction is ", totMomy)
 
-mom = np.zeros([nc,nr,3])
-momx = (momx - np.min(momx))/(np.max(momx) - np.min(momx) + 1e-10)
-momy = (momy - np.min(momy))/(np.max(momy) - np.min(momy) + 1e-10)
+mom = nc.zeros([nc,nr,3])
+momx = (momx - nc.min(momx))/(nc.max(momx) - nc.min(momx) + 1e-10)
+momy = (momy - nc.min(momy))/(nc.max(momy) - nc.min(momy) + 1e-10)
 
 mom[:,:,0] = momx
 mom[:,:,1] = momy
 
-mom = Image.fromarray(np.uint8(mom*255.0e0))
+mom = Image.fromarray(nc.uint8(mom*255.0e0))
 mom.save(PATH + "momentum.png")
 
 
 
 #============================== 9) find combined image uvp
-uvp = np.zeros([nc,nr,3])
+uvp = nc.zeros([nc,nr,3])
 uvp[:,:,0] = velx
 uvp[:,:,1] = vely
 uvp[:,:,2] = pres
 
-uvp = Image.fromarray(np.uint8(uvp*255))
+uvp = Image.fromarray(nc.uint8(uvp*255))
 uvp.save(PATH + "uvp.png")
 

@@ -1,18 +1,25 @@
-import cupy as cp
 import matplotlib.pyplot as plt
 
-from LES_constants import *
-from LES_functions import *
+import cupy as cp
+
+from LES_modules    import *
+from LES_constants  import *
+from LES_parameters import *
+from LES_functions  import *
+
+
 
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
-RESTART   = True
-totSteps  = 10000
-print_res = 10
+RESTART   = False 
+totSteps  = 10
+print_res = 1
 print_img = 1000
 print_ckp = totSteps + 1
 print_spe = print_img
+Nx        = 32         # number of points in x-direction   [-]
+Ny        = 32       # number of points in y-direction   [-]
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rhoRef    = 1.0e0          # density                    [kg/m3]
@@ -24,12 +31,10 @@ Q         = 3.4e-20      # constant to normalize energy spectrum. Adjust to have
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
 Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
-Nx        = 256         # number of points in x-direction   [-]
-Ny        = 256       # number of points in y-direction   [-]
 dXY       = Lx/Nx
 CNum      = 0.5        # Courant number 
-delt      = dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = dXY*0.001072
+delt      = 1.0e-8 #dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-8 #dXY*0.001072
 dir       = 1               # cross direction for plotting results
 
 
@@ -41,9 +46,9 @@ def init_fields():
 
     U = cp.zeros([Nx,Ny], dtype=DTYPE)
     V = cp.zeros([Nx,Ny], dtype=DTYPE)
-    P = cp.zeros([Nx,Ny], dtype=DTYPE)
-    C = cp.zeros([Nx,Ny], dtype=DTYPE)
-    B = cp.zeros([Nx,Ny], dtype=DTYPE)
+    P = nc.zeros([Nx,Ny], dtype=DTYPE)
+    C = nc.zeros([Nx,Ny], dtype=DTYPE)
+    B = nc.zeros([Nx,Ny], dtype=DTYPE)
 
     xyp = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
     X, Y = cp.meshgrid(xyp, xyp)
@@ -57,7 +62,6 @@ def init_fields():
     kmax = pi/(Lx/Nx)  #same in each direction
 
     # find k and E
-    maxEm = zero
     km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
     E = Q*(km**8)*cp.exp(-4*(km/kp)**2)
@@ -81,7 +85,6 @@ def init_fields():
         # find random angles
         nu      = cp.random.uniform(0.0, 1.0, M)
         thetaM  = cp.arccos(2.0 * nu - 1.0);
-        phiM    = 2.0*pi*cp.random.uniform(0.0, 1.0, M)
         psi     = cp.random.uniform(-pi*hf, pi*hf, M)
 
         nu1     = cp.random.uniform(0.0, 1.0, M)
@@ -198,5 +201,7 @@ def init_fields():
     totTime = zero
     P[:,:] = pRef
 
-
-    return U, V, P, C, B, totTime
+    if (USE_CUPY):
+        return U, V, P, C, B, totTime
+    else:
+        return U_cpu, V_cpu, P, C, B, totTime

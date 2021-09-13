@@ -1,22 +1,23 @@
-import numpy as np
-import cupy as cp
 import matplotlib.pyplot as plt
 
+from LES_modules    import *
+from LES_constants  import *
 from LES_parameters import *
-from LES_functions import *
+from LES_functions  import *
+
 
 
 def print_fields(U_, V_, P_, C_, it, dir=0):
 
     # find vorticity
-    W_ = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
+    W_ = nc.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
     W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dXY - (cr(U_, 0, 1) - cr(U_, 0, -1))/dXY
 
-    U = cp.asnumpy(U_)
-    V = cp.asnumpy(V_)
-    P = cp.asnumpy(P_)
-    C = cp.asnumpy(C_)
-    W = cp.asnumpy(W_)
+    U = convert(U_)
+    V = convert(V_)
+    P = convert(P_)
+    C = convert(C_)
+    W = convert(W_)
 
 
 

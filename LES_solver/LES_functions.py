@@ -1,4 +1,3 @@
-import cupy as cp
 import sys
 import matplotlib.pyplot as plt
 
@@ -9,17 +8,23 @@ from tkespec import *
 from tkespec import *
 from cudaturbo import *
 
+from cupy import sin, cos, sqrt
+
+from LES_modules    import *
+from LES_constants  import *
+from LES_parameters import *
+from LES_functions  import *
 
 
-# wrapper for cp.roll
+# wrapper for nc.roll
 def cr(phi, i, j):
-    return cp.roll(phi, (-i, -j), axis=(0,1))
+    return nc.roll(phi, (-i, -j), axis=(0,1))
 
 
 def load_fields():
-    data = cp.load('restart.npz')
+    data = nc.load('restart.npz')
     ctotTime = data['t']
-    totTime = cp.asnumpy(ctotTime)
+    totTime = convert(ctotTime)
     U = data['U']
     V = data['V']
     P = data['P']
@@ -31,13 +36,13 @@ def load_fields():
 
 def save_fields(totTime, U, V, P, C, B):
 
-    cp.savez('restart.npz', t=totTime, U=U, V=V, P=P, C=C, B=B)
+    nc.savez('restart.npz', t=totTime, U=U, V=V, P=P, C=C, B=B)
 
 
 
 def plot_spectrum(U, V, Lx, Ly, tstep):
-    U_cpu = cp.asnumpy(U)
-    V_cpu = cp.asnumpy(V)
+    U_cpu = convert(U)
+    V_cpu = convert(V)
 
     knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
 

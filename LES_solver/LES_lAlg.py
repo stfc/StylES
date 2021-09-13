@@ -1,13 +1,14 @@
-import cupy as cp
+from LES_modules    import *
+from LES_constants  import *
+from LES_parameters import *
+from LES_functions  import *
 
-from LES_parameters import DTYPE, toll, maxIt, Nx, Ny
-from LES_constants import *
 
 
 def solver_TDMA(a, bb, c, dd, N):
 
-    b = cp.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
-    d = cp.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
+    b = nc.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
+    d = nc.zeros([N,N], dtype=DTYPE)  # aw coefficient for TDMA
 
     for i in range(N):
         b[:,i] = bb[:,i]
@@ -30,8 +31,8 @@ def solver_TDMA(a, bb, c, dd, N):
 
 def solver_TDMAcyclic(a, b, c, r, n):
     
-    bb = cp.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
-    u  = cp.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
+    bb = nc.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
+    u  = nc.zeros([n, n], dtype=DTYPE)  # aw coefficient for TDMA
 
     alpha = c[:,n-1]
     beta  = a[:,0]

@@ -33,11 +33,11 @@ OUTPUT_DIM        = 128
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
-GAIN              = np.sqrt(2.0)
+GAIN              = nc.sqrt(2.0)
 FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
-RES_LOG2          = int(np.log2(OUTPUT_DIM))
+RES_LOG2          = int(nc.log2(OUTPUT_DIM))
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2* 2 - 2  # Numer of layers  
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
