@@ -8,12 +8,14 @@ from tkespec import *
 from tkespec import *
 from cudaturbo import *
 
-from cupy import sin, cos, sqrt
-
 from LES_modules    import *
 from LES_constants  import *
 from LES_parameters import *
-from LES_functions  import *
+
+if (USE_CUPY):
+    from cupy import sin, cos, sqrt, exp
+else:
+    from numpy import sin, cos, sqrt, exp
 
 
 # wrapper for nc.roll

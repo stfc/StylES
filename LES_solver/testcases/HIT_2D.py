@@ -5,6 +5,7 @@ import cupy as cp
 from LES_modules    import *
 from LES_constants  import *
 from LES_parameters import *
+
 from LES_functions  import *
 
 
@@ -13,13 +14,13 @@ from LES_functions  import *
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
 RESTART   = False 
-totSteps  = 10
-print_res = 1
-print_img = 1000
+totSteps  = 1000
+print_res = 10
+print_img = 100
 print_ckp = totSteps + 1
 print_spe = print_img
-Nx        = 32         # number of points in x-direction   [-]
-Ny        = 32       # number of points in y-direction   [-]
+Nx        = 256         # number of points in x-direction   [-]
+Ny        = 256       # number of points in y-direction   [-]
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rhoRef    = 1.0e0          # density                    [kg/m3]
@@ -33,8 +34,8 @@ Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
 dXY       = Lx/Nx
 CNum      = 0.5        # Courant number 
-delt      = 1.0e-8 #dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 1.0e-8 #dXY*0.001072
+delt      = 3.0e-6 #dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 3.0e-6 #dXY*0.001072
 dir       = 1               # cross direction for plotting results
 
 
