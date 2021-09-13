@@ -7,9 +7,10 @@ from PIL import Image
 from math import sqrt
 
 from LES_parameters import *
-from LES_BC import *
+from LES_functions import *
 from LES_plot import *
 from LES_lAlg import *
+
 
 
 # start timing
@@ -39,14 +40,17 @@ Z   = cp.zeros([Nx,Ny], dtype=DTYPE)
 
 
 #---------------------------- set flow pressure, velocity fields and BCs
-os.system("rm *fields.png")
-os.system("rm Energy_spectrum.png")
+os.system("rm fields*.png")
+os.system("rm energy_spectrum*")
 
 # initial flow
-U, V, P, C, B = init_flow()
+totTime = zero
+if (RESTART):
+    U, V, P, C, B, totTime = load_fields()
+else:
+    U, V, P, C, B, totTime = init_fields()
 
-
-save_fields(U, V, P, C, 0, dir)
+print_fields(U, V, P, C, 0, dir)
 
 
 
@@ -57,7 +61,6 @@ Vn = hf*(cr(V, 1, 0) + V)
 
 #---------------------------- main time step loop
 tstep    = 0
-totTime  = zero
 resM_cpu = zero
 resP_cpu = zero
 resC_cpu = zero
@@ -73,8 +76,8 @@ div_cpu = cp.asnumpy(div)
 tend = time()
 if (tstep%print_res == 0):
     wtime = (tend-tstart)
-    print("Wall time [s] {0:.1f}  steps {1:3d}  time {2:.2e}  delt {3:.2e}  resM {4:.2e}  "\
-            "resP {5:.2e}  resC {6:.2e}  res {7:.2e}  its {8:3d}  div {9:.2e}"       \
+    print("Wall time [s] {0:6.1f}  steps {1:3d}  time {2:5.2e}  delt {3:5.2e}  resM {4:5.2e}  "\
+        "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
     .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
     resC_cpu, res_cpu, its, div_cpu))
 
@@ -281,12 +284,33 @@ while (tstep<totSteps):
         tend = time()
         if (tstep%print_res == 0):
             wtime = (tend-tstart)
-            print("Wall time [s] {0:.1f}  steps {1:3d}  time {2:.2e}  delt {3:.2e}  resM {4:.2e}  "\
-                "resP {5:.2e}  resC {6:.2e}  res {7:.2e}  its {8:3d}  div {9:.2e}"       \
+            print("Wall time [s] {0:6.1f}  steps {1:3d}  time {2:5.2e}  delt {3:5.2e}  resM {4:5.2e}  "\
+                "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
         # save images
         if (tstep%print_img == 0):
-            save_fields(U, V, P, C, tstep, dir)
+            print_fields(U, V, P, C, tstep, dir)
 
+        # write checkpoint
+        if (tstep%print_ckp == 0):
+            save_fields(totTime, U, V, P, C, B)
+
+
+        # print spectrum
+        if (tstep%print_spe == 0):
+            U_cpu = cp.asnumpy(U)
+            V_cpu = cp.asnumpy(V)
+
+            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
+
+            plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
+            plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)
+
+
+
+# write checkpoint always at the end
+print("End of the run. Saving latest results.")
+
+save_fields(totTime, U, V, P, C, B)

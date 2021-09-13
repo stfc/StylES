@@ -15,41 +15,43 @@ from LES_constants import *
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
-totSteps  = 100
+RESTART   = False
+totSteps  = 1000
 print_res = 10
-print_img = 10
+print_img = 100
+print_ckp = totSteps + 1
+print_spe = print_img
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
-Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
-Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
-Nx        = 1024         # number of points in x-direction   [-]
-Ny        = 1024       # number of points in y-direction   [-]
-dXY       = Lx/Nx
-CNum      = 0.5        # Courant number 
-delt      = 1.0e-8  #CNum*dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 1.0e-8  #CNum*dXY*0.001072
-BCs       = [0, 0, 0, 0]    # Boundary conditions: W,E,S,N   0-periodic, 1-wall, 2-fixed inlet velocity
-dir       = 1               # cross direction for plotting results
-
-Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 rhoRef    = 1.0e0          # density                    [kg/m3]
 nuRef     = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
+Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 5000           # number of modes
 kp        = 50.0e0*2*pi    # peak value
 Q         = 3.4e-20      # constant to normalize energy spectrum. Adjust to have maximum E=0.059  
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
+Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
+Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
+Nx        = 256         # number of points in x-direction   [-]
+Ny        = 256       # number of points in y-direction   [-]
+dXY       = Lx/Nx
+CNum      = 0.5        # Courant number 
+delt      = CNum*dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = CNum*dXY*0.001072
+dir       = 1               # cross direction for plotting results
 
 
-def init_flow():
+
+def init_fields():
 
     # set variables
     cp.random.seed(0)
 
-    U = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
-    V = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
-    P = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
-    C = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
-    B = cp.zeros([Nx,Ny], dtype=DTYPE)  # enery spectrum
+    U = cp.zeros([Nx,Ny], dtype=DTYPE)
+    V = cp.zeros([Nx,Ny], dtype=DTYPE)
+    P = cp.zeros([Nx,Ny], dtype=DTYPE)
+    C = cp.zeros([Nx,Ny], dtype=DTYPE)
+    B = cp.zeros([Nx,Ny], dtype=DTYPE)
 
     xyp = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
     X, Y = cp.meshgrid(xyp, xyp)
@@ -196,13 +198,13 @@ def init_flow():
         print("OpenFoam Nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'ro-', linewidth=0.5, markersize=2)
 
-        plt.savefig("Energy_spectrum.png")
+        plt.savefig("Energy_spectrum_it_0.png")
 
 
 
-    # set pressure field
+    # set remaining fiels
+    totTime = zero
     P[:,:] = pRef
 
 
-
-    return U, V, P, C, B
+    return U, V, P, C, B, totTime

@@ -23,9 +23,6 @@ alphaP    = 0.1      # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 
 
-# define test case parameters
-
-
 # find case dependent parameters
 A         = dXY*dXY  # Area                              [m2] 
 DX        = nuRef/dXY   # diffusion conductance term in x

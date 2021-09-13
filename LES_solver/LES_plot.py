@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 
 from LES_parameters import *
 
-def save_fields(U_, V_, P_, C_, it, dir=0):
+def print_fields(U_, V_, P_, C_, it, dir=0):
 
     # find vorticity
     W_ = np.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
@@ -32,32 +32,27 @@ def save_fields(U_, V_, P_, C_, it, dir=0):
     ax8 = axs[1,3]
 
 
-    U = np.transpose(U)
     velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(velx, ax=ax1)
     ax1.title.set_text('X-vel')
     ax1.set_aspect(1)
 
-    V = np.transpose(V)
     vely = ax2.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(vely, ax=ax2)
     ax2.title.set_text('Y-vel')
     ax2.set_aspect(1)
 
-    P = np.transpose(P)
     pres = ax3.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud')
     fig.colorbar(pres, ax=ax3)
     ax3.title.set_text('pressure')
     ax3.set_aspect(1)
 
     if (PASSIVE):
-        C = np.transpose(C)
         scal = ax4.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud')
         fig.colorbar(scal, ax=ax4)
         ax4.title.set_text('scalar')
         ax4.set_aspect(1)
     else:
-        W = np.transpose(W)
         vort = ax4.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
         fig.colorbar(vort, ax=ax4)
         ax4.title.set_text('vorticity')
@@ -66,12 +61,6 @@ def save_fields(U_, V_, P_, C_, it, dir=0):
 
 
     # plot centerlines
-    U = np.transpose(U)
-    V = np.transpose(V)
-    P = np.transpose(P)
-    C = np.transpose(C)
-    W = np.transpose(W)
-
     if (dir==0):    # x-direction
         x = list(range(Ny))
         hdim = Nx//2
@@ -106,5 +95,5 @@ def save_fields(U_, V_, P_, C_, it, dir=0):
         ax8.title.set_text('vorticity')
 
     # save images
-    plt.show()
-    plt.savefig("it_{0:d}_fields.png".format(it), bbox_inches='tight', pad_inches=0)
+    plt.savefig("fields_it_{0:d}.png".format(it), bbox_inches='tight', pad_inches=0)    
+    plt.close()
