@@ -45,16 +45,6 @@ def init_fields():
     # set variables
     cp.random.seed(0)
 
-    U = cp.zeros([Nx,Ny], dtype=DTYPE)
-    V = cp.zeros([Nx,Ny], dtype=DTYPE)
-    P = nc.zeros([Nx,Ny], dtype=DTYPE)
-    C = nc.zeros([Nx,Ny], dtype=DTYPE)
-    B = nc.zeros([Nx,Ny], dtype=DTYPE)
-
-    xyp = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
-    X, Y = cp.meshgrid(xyp, xyp)
-
-
     E = cp.zeros([M], dtype=DTYPE)  # enery spectrum
     k = cp.zeros([M], dtype=DTYPE)  # wave number
 
@@ -82,6 +72,16 @@ def init_fields():
 
     #-------------- Start Saad procedure
     if (METHOD == 0): 
+
+        U = cp.zeros([Nx,Ny], dtype=DTYPE)
+        V = cp.zeros([Nx,Ny], dtype=DTYPE)
+        P = nc.zeros([Nx,Ny], dtype=DTYPE)
+        C = nc.zeros([Nx,Ny], dtype=DTYPE)
+        B = nc.zeros([Nx,Ny], dtype=DTYPE)
+
+        xyp  = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
+        X, Y = cp.meshgrid(xyp, xyp)
+
 
         # find random angles
         nu      = cp.random.uniform(0.0, 1.0, M)
@@ -135,9 +135,9 @@ def init_fields():
 
         plt.savefig("Energy_spectrum.png")
 
-    elif (METHOD == 1): 
 
-        #-------------------- use Saad github implementation
+    elif (METHOD == 1):          #-------------------- use Saad github implementation
+
         u, v, w = generate_isotropic_turbulence(Lx, Ly, Lz, Nx, Ny, Nz, M, k0, E)
         if (ThreeDim):
             knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum(u, v, w, Lx, Ly, Lz, True)
@@ -149,54 +149,61 @@ def init_fields():
 
         plt.savefig("Energy_spectrum.png")
 
-    elif (METHOD == 2): 
 
-        #--------------------  read from OpenFOAM
-        if (ThreeDim):
 
-            pass
+    elif (METHOD == 2):         #--------------------  read from OpenFOAM
 
-        else:
+        U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        P = np.zeros([Nx,Ny], dtype=DTYPE)
+        C = np.zeros([Nx,Ny], dtype=DTYPE)
+        B = np.zeros([Nx,Ny], dtype=DTYPE)
 
-            # read velocity field
-            filename = "0.001_U"
-            fr = open(filename, "r")
-            line = fr.readline()
-            while (("internalField" in line) == False):
-                    line = fr.readline()
-
-            line = fr.readline()   # read number of points
-            line = fr.readline()   # read (
-            line = fr.readline()   # read first triple u,v,w
-
-            i=0
-            j=0
-            k=0
-
-            while k<(Nx*Ny):
-                line = line.replace('(','')
-                line = line.replace(')','')
-
-                u[Nx-j-1,i] = float(line.split()[0])
-                v[Nx-j-1,i] = float(line.split()[1])
-
-                newline = str(i) + "   " + str(j) + "    " + line
-
-                k = k+1
-                i = k % Nx
-                j = int(k/Nx)
+        # read velocity field
+        filename = "U_0.000"
+        fr = open(filename, "r")
+        line = fr.readline()
+        while (("internalField" in line) == False):
                 line = fr.readline()
 
-            fr.close()
+        line = fr.readline()   # read number of points
+        line = fr.readline()   # read (
+        line = fr.readline()   # read first triple u,v,w
 
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(u, v, Lx, Ly, True)
+        i=0
+        j=0
+        k=0
+
+        while k<(Nx*Ny):
+            line = line.replace('(','')
+            line = line.replace(')','')
+
+            U_cpu[Nx-j-1,i] = float(line.split()[0])
+            V_cpu[Nx-j-1,i] = float(line.split()[1])
+
+            newline = str(i) + "   " + str(j) + "    " + line
+
+            k = k+1
+            i = k % Nx
+            j = int(k/Nx)
+            line = fr.readline()
+
+        fr.close()
+
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
 
         print("OpenFoam Nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'ro-', linewidth=0.5, markersize=2)
 
-        plt.savefig("Energy_spectrum_it_0.png")
+        plt.savefig("Energy_spectrum.png")
 
-
+        if (USE_CUPY):
+            U = cp.asarray(U_cpu)
+            V = cp.asarray(V_cpu)
+        else:
+            U = U_cpu
+            V = V_cpu
+    
 
     # set remaining fiels
     totTime = zero

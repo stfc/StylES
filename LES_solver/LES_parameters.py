@@ -8,7 +8,7 @@ maxIt     = 100000
 maxItMom  = 100000
 maxItPc   = 100000
 maxItC    = 100000
-toll      = 1.0e-3    # tollerance for convergence of SIMPLE
+toll      = 1.0e-6    # tollerance for convergence of SIMPLE
 alphaP    = 0.1      # pressure relaxation factor
 alphaUV   = 0.1       # velocity relaxation factor
 
