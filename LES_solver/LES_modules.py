@@ -1,7 +1,7 @@
 # switch between numpy and cupy
-USE_CUPY = False
+USE_GPU = False
 
-if (USE_CUPY):
+if (USE_GPU):
     import cupy as nc
     from cupy import asnumpy as convert
 else:

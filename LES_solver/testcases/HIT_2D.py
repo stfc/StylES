@@ -1,5 +1,7 @@
 import matplotlib.pyplot as plt
+import sys
 
+import numpy as np
 import cupy as cp
 
 from LES_modules    import *
@@ -9,14 +11,18 @@ from LES_parameters import *
 from LES_functions  import *
 
 
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../../TurboGenPY/')
+
+import spectra
 
 
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
 RESTART   = False 
-totSteps  = 1000
+totSteps  = 100000
 print_res = 10
-print_img = 100
+print_img = 1000
 print_ckp = totSteps + 1
 print_spe = print_img
 Nx        = 256         # number of points in x-direction   [-]
@@ -27,10 +33,10 @@ rhoRef    = 1.0e0          # density                    [kg/m3]
 nuRef     = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
 Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 5000           # number of modes
-kp        = 50.0e0*2*pi    # peak value
+kp        = 50.0*2*pi    # peak value
 Q         = 3.4e-20      # constant to normalize energy spectrum. Adjust to have maximum E=0.059  
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
-Lx        = two*pi*0.145e0     # system dimension in x-direction   [m]
+Lx        = two*pi*0.145e0    # system dimension in x-direction   [m]
 Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
 dXY       = Lx/Nx
 CNum      = 0.5        # Courant number 
@@ -49,8 +55,8 @@ def init_fields():
     k = cp.zeros([M], dtype=DTYPE)  # wave number
 
     # find max and min wave numbers
-    k0   = two*pi/Lx     #same in each direction
-    kmax = pi/(Lx/Nx)  #same in each direction
+    k0   = 100.0 #two*pi/Lx     #same in each direction
+    kmax = 600.0 #pi/(Lx/Nx)  #same in each direction
 
     # find k and E
     km = cp.linspace(k0, kmax, M)
@@ -62,34 +68,38 @@ def init_fields():
     km_cpu = cp.asnumpy(km)
     E_cpu = cp.asnumpy(E)
 
+    ykm3_cpu = 1.e3*km_cpu**(-3)
+    plt.plot(km_cpu, ykm3_cpu, '-', linewidth=0.5, markersize=2)
+
+    ykm4_cpu = 1.e5*km_cpu**(-4)
+    plt.plot(km_cpu, ykm4_cpu, '-', linewidth=0.5, markersize=2)
+
     plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
     plt.xscale("log")
     plt.yscale("log")
-    plt.grid(True, which='both')
-
+    plt.ylim([1.0e-7, 0.1])
+    plt.grid(True, which='major')
+    plt.legend(('k^-3', 'k^-4', 'input'),  loc='upper right')
     plt.savefig("Energy_spectrum.png")
-
 
     #-------------- Start Saad procedure
     if (METHOD == 0): 
 
+        # do everything on GPU
         U = cp.zeros([Nx,Ny], dtype=DTYPE)
         V = cp.zeros([Nx,Ny], dtype=DTYPE)
-        P = nc.zeros([Nx,Ny], dtype=DTYPE)
-        C = nc.zeros([Nx,Ny], dtype=DTYPE)
-        B = nc.zeros([Nx,Ny], dtype=DTYPE)
+        P = cp.zeros([Nx,Ny], dtype=DTYPE)
+        C = cp.zeros([Nx,Ny], dtype=DTYPE)
+        B = cp.zeros([Nx,Ny], dtype=DTYPE)
 
         xyp  = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
         X, Y = cp.meshgrid(xyp, xyp)
 
 
         # find random angles
-        nu      = cp.random.uniform(0.0, 1.0, M)
-        thetaM  = cp.arccos(2.0 * nu - 1.0);
+        nu      = cp.random.uniform(zero, one, M)
+        thetaM  = cp.arccos(two*nu - one);
         psi     = cp.random.uniform(-pi*hf, pi*hf, M)
-
-        nu1     = cp.random.uniform(0.0, 1.0, M)
-        thetaM1 = cp.arccos(2.0*nu1 - 1.0);
 
         # compute km
         kxm = sin(thetaM)
@@ -100,15 +110,15 @@ def init_fields():
         kyt = two/dXY*sin(hf*km*kym*dXY)
 
         # compute the unit vectors
-        sigmax =  sin(thetaM1)
-        sigmay = -sigmax*kxt/kyt
+        sigmax =-kyt
+        sigmay = kxt
         sigma = sqrt(sigmax*sigmax + sigmay*sigmay)
         sigmax =  sigmax/sigma
         sigmay =  sigmay/sigma
 
         # verify orthogonality
-        #kk = cp.sum(kxt*sigmax + kyt*sigmay)
-        #print(" Orthogonality is ",kk) 
+        # kk = cp.sum(kxt*sigmax + kyt*sigmay)
+        # print(" Orthogonality is ",kk) 
 
         # find energy levels
         qm = sqrt(E*dk)
@@ -117,8 +127,8 @@ def init_fields():
         for kk in range(M):
             arg = km[kk]*(kxm[kk]*X + kym[kk]*Y - psi[kk])
 
-            bmx = 2.0 * qm[kk] * cos(arg - kxm[kk] * hf*dXY)
-            bmy = 2.0 * qm[kk] * cos(arg - kym[kk] * hf*dXY)
+            bmx = two * qm[kk] * cos(arg - kxm[kk] * hf*dXY)
+            bmy = two * qm[kk] * cos(arg - kym[kk] * hf*dXY)
 
             U = U + bmx * sigmax[kk]
             V = V + bmy * sigmay[kk]
@@ -135,32 +145,71 @@ def init_fields():
 
         plt.savefig("Energy_spectrum.png")
 
+        # set remaining fiels
+        totTime = zero
+        P[:,:] = pRef
+
+        # return fields
+        if (USE_GPU):
+            return U, V, P, C, B, totTime
+        else:
+            U_cpu = cp.asnumpy(U)
+            V_cpu = cp.asnumpy(V)
+            P_cpu = cp.asnumpy(P)
+            C_cpu = cp.asnumpy(C)
+            B_cpu = cp.asnumpy(B)
+            totTime_cpu = cp.asnumpy(totTime)
+            return U_cpu, V_cpu, P_cpu, C_cpu, B_cpu, totTime_cpu
+
 
     elif (METHOD == 1):          #-------------------- use Saad github implementation
 
-        u, v, w = generate_isotropic_turbulence(Lx, Ly, Lz, Nx, Ny, Nz, M, k0, E)
-        if (ThreeDim):
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum(u, v, w, Lx, Ly, Lz, True)
-        else:
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(u[:,:,0], v[:,:,0], Lx, Ly, True)
+        # do everthing on CPU
+        U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        P_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        C_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        B_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+
+        inputspec = 'dal_spectrum'
+        whichspec = getattr(spectra, inputspec)().evaluate
+
+        U_cpu, V_cpu = generate_isotropic_turbulence_2d(Lx, Ly, Nx, Ny, M, k0, whichspec)
+
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
 
         print("Saad nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
 
         plt.savefig("Energy_spectrum.png")
 
+        # set remaining fiels
+        totTime_cpu = zero
+        P_cpu[:,:] = pRef
 
+        # return fields
+        if (USE_GPU):
+            U = cp.asarray(U_cpu)
+            V = cp.asarray(V_cpu)
+            P = cp.asarray(P_cpu)
+            C = cp.asarray(C_cpu)
+            B = cp.asarray(B_cpu)
+            totTime = cp.asarray(totTime_cpu)
+            return U, V, P, C, B, totTime
+        else:
+            return U_cpu, V_cpu, P_cpu, C_cpu, B_cpu, totTime_cpu
+    
 
     elif (METHOD == 2):         #--------------------  read from OpenFOAM
 
         U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
         V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        P = np.zeros([Nx,Ny], dtype=DTYPE)
-        C = np.zeros([Nx,Ny], dtype=DTYPE)
-        B = np.zeros([Nx,Ny], dtype=DTYPE)
+        P_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        C_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        B_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
 
         # read velocity field
-        filename = "U_0.000"
+        filename = "results/OpenFOAM/U_0.000"
         fr = open(filename, "r")
         line = fr.readline()
         while (("internalField" in line) == False):
@@ -178,8 +227,8 @@ def init_fields():
             line = line.replace('(','')
             line = line.replace(')','')
 
-            U_cpu[Nx-j-1,i] = float(line.split()[0])
-            V_cpu[Nx-j-1,i] = float(line.split()[1])
+            U_cpu[Nx-j-1,i] = np.float64(line.split()[0])
+            V_cpu[Nx-j-1,i] = np.float64(line.split()[1])
 
             newline = str(i) + "   " + str(j) + "    " + line
 
@@ -197,19 +246,20 @@ def init_fields():
 
         plt.savefig("Energy_spectrum.png")
 
-        if (USE_CUPY):
+        # set remaining fiels
+        totTime_cpu = zero
+        P_cpu[:,:] = pRef
+
+        # return fields
+        if (USE_GPU):
             U = cp.asarray(U_cpu)
             V = cp.asarray(V_cpu)
+            P = cp.asarray(P_cpu)
+            C = cp.asarray(C_cpu)
+            B = cp.asarray(B_cpu)
+            totTime = cp.asarray(totTime_cpu)
+            return U, V, P, C, B, totTime
         else:
-            U = U_cpu
-            V = V_cpu
+            return U_cpu, V_cpu, P_cpu, C_cpu, B_cpu, totTime_cpu
     
 
-    # set remaining fiels
-    totTime = zero
-    P[:,:] = pRef
-
-    if (USE_CUPY):
-        return U, V, P, C, B, totTime
-    else:
-        return U_cpu, V_cpu, P, C, B, totTime

@@ -1,21 +1,23 @@
-import sys
 import matplotlib.pyplot as plt
-
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '../../TurboGenPY/')
-
-from tkespec import *
-from tkespec import *
-from cudaturbo import *
+import sys
 
 from LES_modules    import *
 from LES_constants  import *
 from LES_parameters import *
 
-if (USE_CUPY):
+if (USE_GPU):
     from cupy import sin, cos, sqrt, exp
 else:
     from numpy import sin, cos, sqrt, exp
+
+
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, '../../TurboGenPY/')
+
+from tkespec import compute_tke_spectrum2d
+from isoturb import generate_isotropic_turbulence_2d
+
+
 
 
 # wrapper for nc.roll
