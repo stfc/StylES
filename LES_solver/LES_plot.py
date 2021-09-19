@@ -11,8 +11,8 @@ from LES_functions  import *
 def print_fields(U_, V_, P_, C_, it, dir=0):
 
     # find vorticity
-    W_ = nc.zeros([Nx+2,Ny+2], dtype=DTYPE)  # passive scalar
-    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dXY - (cr(U_, 0, 1) - cr(U_, 0, -1))/dXY
+    W_ = nc.zeros([N,N], dtype=DTYPE)  # passive scalar
+    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dl - (cr(U_, 0, 1) - cr(U_, 0, -1))/dl
 
     U = convert(U_)
     V = convert(V_)
@@ -66,16 +66,16 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
 
     # plot centerlines
     if (dir==0):    # x-direction
-        x = list(range(Ny))
-        hdim = Nx//2
+        x = list(range(N))
+        hdim = N//2
         yU = U[hdim,:]
         yV = V[hdim,:]
         yP = P[hdim,:]
         yC = C[hdim,:]
         yW = W[hdim,:]
     elif (dir==1):  # y-direction 
-        x = list(range(Nx))
-        hdim = Ny//2
+        x = list(range(N))
+        hdim = N//2
         yU = U[:,hdim]
         yV = V[:,hdim]
         yP = P[:,hdim]

@@ -21,27 +21,24 @@ TEST_CASE = "2D_HIT"
 PASSIVE   = False
 RESTART   = False 
 totSteps  = 100000
-print_res = 10
-print_img = 1000
+print_res = 1
+print_img = 100
 print_ckp = totSteps + 1
 print_spe = print_img
-Nx        = 256         # number of points in x-direction   [-]
-Ny        = 256       # number of points in y-direction   [-]
+N         = 256      # number of points   [-]
+iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
-rhoRef    = 1.0e0          # density                    [kg/m3]
-nuRef     = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
+rho       = 1.0e0          # density                    [kg/m3]
+nu        = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
 Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 5000           # number of modes
-kp        = 50.0*2*pi    # peak value
-Q         = 3.4e-20      # constant to normalize energy spectrum. Adjust to have maximum E=0.059  
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
-Lx        = two*pi*0.145e0    # system dimension in x-direction   [m]
-Ly        = two*pi*0.145e0    # system dimension in y-direction   [m]
-dXY       = Lx/Nx
+L         = two*pi*0.145e0  # system dimension   [m]
+dl        = L/N
 CNum      = 0.5        # Courant number 
-delt      = 3.0e-6 #dXY*0.001072    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 3.0e-6 #dXY*0.001072
+delt      = 1.0e-7    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-7
 dir       = 1               # cross direction for plotting results
 
 
@@ -55,13 +52,18 @@ def init_fields():
     k = cp.zeros([M], dtype=DTYPE)  # wave number
 
     # find max and min wave numbers
-    k0   = 100.0 #two*pi/Lx     #same in each direction
-    kmax = 600.0 #pi/(Lx/Nx)  #same in each direction
+    k0   = two*pi/L     #same in each direction
+    kmax = 600.0 #pi/(L/N)  #same in each direction
 
     # find k and E
     km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
-    E = Q*(km**8)*cp.exp(-4*(km/kp)**2)
+    inputspec = 'ld_spectrum'
+    especf = getattr(spectra, inputspec)().evaluate
+    km_cpu = cp.asnumpy(km)
+    E_cpu = especf(km_cpu)
+    E_cpu = cp.clip(E_cpu, zero)
+    E = cp.asarray(E_cpu)
     maxEm_cpu = cp.asnumpy(cp.max(E))
     print("Energy peak is ", maxEm_cpu)
 
@@ -86,13 +88,13 @@ def init_fields():
     if (METHOD == 0): 
 
         # do everything on GPU
-        U = cp.zeros([Nx,Ny], dtype=DTYPE)
-        V = cp.zeros([Nx,Ny], dtype=DTYPE)
-        P = cp.zeros([Nx,Ny], dtype=DTYPE)
-        C = cp.zeros([Nx,Ny], dtype=DTYPE)
-        B = cp.zeros([Nx,Ny], dtype=DTYPE)
+        U = cp.zeros([N,N], dtype=DTYPE)
+        V = cp.zeros([N,N], dtype=DTYPE)
+        P = cp.zeros([N,N], dtype=DTYPE)
+        C = cp.zeros([N,N], dtype=DTYPE)
+        B = cp.zeros([N,N], dtype=DTYPE)
 
-        xyp  = cp.linspace(hf*dXY, Lx-hf*dXY, Nx)
+        xyp  = cp.linspace(hf*dl, L-hf*dl, N)
         X, Y = cp.meshgrid(xyp, xyp)
 
 
@@ -106,8 +108,8 @@ def init_fields():
         kym = cos(thetaM)
 
         # compute kt
-        kxt = two/dXY*sin(hf*km*kxm*dXY)
-        kyt = two/dXY*sin(hf*km*kym*dXY)
+        kxt = two/dl*sin(hf*km*kxm*dl)
+        kyt = two/dl*sin(hf*km*kym*dl)
 
         # compute the unit vectors
         sigmax =-kyt
@@ -127,8 +129,8 @@ def init_fields():
         for kk in range(M):
             arg = km[kk]*(kxm[kk]*X + kym[kk]*Y - psi[kk])
 
-            bmx = two * qm[kk] * cos(arg - kxm[kk] * hf*dXY)
-            bmy = two * qm[kk] * cos(arg - kym[kk] * hf*dXY)
+            bmx = two * qm[kk] * cos(arg - kxm[kk] * hf*dl)
+            bmy = two * qm[kk] * cos(arg - kym[kk] * hf*dl)
 
             U = U + bmx * sigmax[kk]
             V = V + bmy * sigmay[kk]
@@ -138,7 +140,7 @@ def init_fields():
         U_cpu = cp.asnumpy(U)
         V_cpu = cp.asnumpy(V)
 
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
         print("StylES nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
@@ -165,18 +167,18 @@ def init_fields():
     elif (METHOD == 1):          #-------------------- use Saad github implementation
 
         # do everthing on CPU
-        U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        P_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        C_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        B_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        U_cpu = np.zeros([N,N], dtype=DTYPE)
+        V_cpu = np.zeros([N,N], dtype=DTYPE)
+        P_cpu = np.zeros([N,N], dtype=DTYPE)
+        C_cpu = np.zeros([N,N], dtype=DTYPE)
+        B_cpu = np.zeros([N,N], dtype=DTYPE)
 
         inputspec = 'dal_spectrum'
         whichspec = getattr(spectra, inputspec)().evaluate
 
-        U_cpu, V_cpu = generate_isotropic_turbulence_2d(Lx, Ly, Nx, Ny, M, k0, whichspec)
+        U_cpu, V_cpu = generate_isotropic_turbulence_2d(L, L, N, N, M, k0, whichspec)
 
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
         print("Saad nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
@@ -202,49 +204,56 @@ def init_fields():
 
     elif (METHOD == 2):         #--------------------  read from OpenFOAM
 
-        U_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        V_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        P_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        C_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
-        B_cpu = np.zeros([Nx,Ny], dtype=DTYPE)
+        U_cpu = np.zeros([N,N], dtype=DTYPE)
+        V_cpu = np.zeros([N,N], dtype=DTYPE)
+        P_cpu = np.zeros([N,N], dtype=DTYPE)
+        C_cpu = np.zeros([N,N], dtype=DTYPE)
+        B_cpu = np.zeros([N,N], dtype=DTYPE)
 
-        # read velocity field
-        filename = "results/OpenFOAM/U_0.000"
-        fr = open(filename, "r")
-        line = fr.readline()
-        while (("internalField" in line) == False):
+        for c in range(0,101,10):
+            val = 0.003*c
+            if c==0:
+                val = 0
+            if (c==100):
+                val = 0.3
+
+            # read velocity field
+            filename = "results/OpenFOAM/U_" + str(val)
+            fr = open(filename, "r")
+            line = fr.readline()
+            while (("internalField" in line) == False):
+                    line = fr.readline()
+
+            line = fr.readline()   # read number of points
+            line = fr.readline()   # read (
+            line = fr.readline()   # read first triple u,v,w
+
+            i=0
+            j=0
+            k=0
+
+            while k<(N*N):
+                line = line.replace('(','')
+                line = line.replace(')','')
+
+                U_cpu[N-j-1,i] = np.float64(line.split()[0])
+                V_cpu[N-j-1,i] = np.float64(line.split()[1])
+
+                newline = str(i) + "   " + str(j) + "    " + line
+
+                k = k+1
+                i = k % N
+                j = int(k/N)
                 line = fr.readline()
 
-        line = fr.readline()   # read number of points
-        line = fr.readline()   # read (
-        line = fr.readline()   # read first triple u,v,w
+            fr.close()
 
-        i=0
-        j=0
-        k=0
+            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
-        while k<(Nx*Ny):
-            line = line.replace('(','')
-            line = line.replace(')','')
+            print("OpenFoam Nyquist limit is ", knyquist)
+            plt.plot(wave_numbers, tke_spectrum, 'ro-', linewidth=0.5, markersize=2)
 
-            U_cpu[Nx-j-1,i] = np.float64(line.split()[0])
-            V_cpu[Nx-j-1,i] = np.float64(line.split()[1])
-
-            newline = str(i) + "   " + str(j) + "    " + line
-
-            k = k+1
-            i = k % Nx
-            j = int(k/Nx)
-            line = fr.readline()
-
-        fr.close()
-
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
-
-        print("OpenFoam Nyquist limit is ", knyquist)
-        plt.plot(wave_numbers, tke_spectrum, 'ro-', linewidth=0.5, markersize=2)
-
-        plt.savefig("Energy_spectrum.png")
+            plt.savefig("Energy_spectrum.png")
 
         # set remaining fiels
         totTime_cpu = zero

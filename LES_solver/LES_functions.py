@@ -44,11 +44,11 @@ def save_fields(totTime, U, V, P, C, B):
 
 
 
-def plot_spectrum(U, V, Lx, Ly, tstep):
+def plot_spectrum(U, V, L, tstep):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
-    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, Lx, Ly, True)
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
     plt.xscale('log')
     plt.yscale('log')
