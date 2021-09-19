@@ -186,7 +186,7 @@ while (tstep<totSteps):
             resP = resP*iNN
 
             resP_cpu = convert(resP)
-            print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
+            # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
             itP = itP+1
 
 
