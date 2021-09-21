@@ -20,12 +20,12 @@ import spectra
 TEST_CASE = "2D_HIT"
 PASSIVE   = False
 RESTART   = False 
-totSteps  = 100000
-print_res = 1
+totSteps  = 10000
+print_res = 10
 print_img = 100
-print_ckp = totSteps + 1
+print_ckp = print_img
 print_spe = print_img
-N         = 256      # number of points   [-]
+N         = 2048      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
@@ -34,11 +34,11 @@ nu        = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be f
 Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 5000           # number of modes
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
-L         = two*pi*0.145e0  # system dimension   [m]
+L         = 0.911062       # system dimension   [m]
 dl        = L/N
 CNum      = 0.5        # Courant number 
-delt      = 1.0e-7    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 1.0e-7
+delt      = 1.0e-3    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-3
 dir       = 1               # cross direction for plotting results
 
 
@@ -52,7 +52,7 @@ def init_fields():
     k = cp.zeros([M], dtype=DTYPE)  # wave number
 
     # find max and min wave numbers
-    k0   = two*pi/L     #same in each direction
+    k0   = 100.0 #two*pi/L     #same in each direction
     kmax = 600.0 #pi/(L/N)  #same in each direction
 
     # find k and E
@@ -210,15 +210,12 @@ def init_fields():
         C_cpu = np.zeros([N,N], dtype=DTYPE)
         B_cpu = np.zeros([N,N], dtype=DTYPE)
 
-        for c in range(0,101,10):
-            val = 0.003*c
-            if c==0:
-                val = 0
-            if (c==100):
-                val = 0.3
+        for c in range(0,1):
+            val = 0.003*(c+1)
 
             # read velocity field
-            filename = "results/OpenFOAM/U_" + str(val)
+            sval = "{:.3f}".format(val)
+            filename = "results/OpenFOAM/2D_DNS_ReT60_N256/" + sval + "/U"
             fr = open(filename, "r")
             line = fr.readline()
             while (("internalField" in line) == False):
@@ -255,9 +252,41 @@ def init_fields():
 
             plt.savefig("Energy_spectrum.png")
 
+
+
+            # read pressure field
+            filename = "results/OpenFOAM/2D_DNS_ReT60_N256/" + sval + "/p"
+            fr = open(filename, "r")
+            line = fr.readline()
+            while (("internalField" in line) == False):
+                    line = fr.readline()
+
+            line = fr.readline()   # read number of points
+            line = fr.readline()   # read (
+            line = fr.readline()   # read first triple u,v,w
+
+            i=0
+            j=0
+            k=0
+
+            while k<(N*N):
+                line = line.replace('(','')
+                line = line.replace(')','')
+
+                P_cpu[N-j-1,i] = np.float64(line.split()[0])
+
+                newline = str(i) + "   " + str(j) + "    " + line
+
+                k = k+1
+                i = k % N
+                j = int(k/N)
+                line = fr.readline()
+
+            fr.close()
+
+
         # set remaining fiels
         totTime_cpu = zero
-        P_cpu[:,:] = pRef
 
         # return fields
         if (USE_GPU):

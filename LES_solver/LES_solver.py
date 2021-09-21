@@ -58,7 +58,6 @@ resM_cpu = zero
 resP_cpu = zero
 resC_cpu = zero
 res_cpu  = zero
-firstIt  = True
 its      = 0
 
 # check divergence
@@ -96,41 +95,16 @@ while (tstep<totSteps):
     while (res>toll and it<maxIt):
 
 
-
-        #---------------------------- find Rhie-Chow interpolation (PWIM)
-        if (not firstIt):
-            deltpX1 = hf*(cr(P, 2, 0) - P)    
-            deltpX2 = hf*(cr(P, 1, 0) - cr(P, -1, 0))
-            deltpX3 = (P - cr(P,  1, 0))
-
-            deltpY1 = hf*(cr(P, 0, 2) - P)
-            deltpY2 = hf*(cr(P, 0, 1) - cr(P, 0, -1))
-            deltpY3 = (P - cr(P, 0,  1))
-
-            Ue = hf*(cr(U, 1, 0) + U)             \
-               + hf*deltpX1*cr(iApM, 1, 0)*dl  \
-               + hf*deltpX2*iApM*dl            \
-               + hf*deltpX3*(cr(iApM, 1, 0) + iApM)*dl
-
-            Vn = hf*(cr(V, 0, 1) + V)              \
-               + hf*deltpY1*cr(iApM, 0, 1)*dl  \
-               + hf*deltpY2*iApM*dl            \
-               + hf*deltpY3*(cr(iApM, 0, 1) + iApM)*dl
-    
-        firstIt = False
-               
-
-
         #---------------------------- solve momentum equations
-        Fw = rho*cr(Ue, -1, 0)
-        Fe = rho*Ue
-        Fs = rho*cr(Vn, 0, -1)
-        Fn = rho*Vn
+        Fw = A*rho*cr(Ue, -1, 0)
+        Fe = A*rho*Ue
+        Fs = A*rho*cr(Vn, 0, -1)
+        Fn = A*rho*Vn
 
-        Aw = A*(Dc + hf*(nc.abs(Fw) + Fw))
-        Ae = A*(Dc + hf*(nc.abs(Fe) - Fe))
-        As = A*(Dc + hf*(nc.abs(Fs) + Fs))
-        An = A*(Dc + hf*(nc.abs(Fn) - Fn))
+        Aw = Dc + hf*(nc.abs(Fw) + Fw)
+        Ae = Dc + hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*(nc.abs(Fs) + Fs)
+        An = Dc + hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
@@ -160,6 +134,26 @@ while (tstep<totSteps):
             itM = itM+1
 
 
+
+        #---------------------------- find Rhie-Chow interpolation (PWIM)
+        deltpX1 = hf*(cr(P, 1, 0) - cr(P, -1, 0))
+        deltpX2 = hf*(cr(P, 2, 0) - P)    
+        deltpX3 = (P - cr(P,  1, 0))
+
+        deltpY1 = hf*(cr(P, 0, 1) - cr(P, 0, -1))
+        deltpY2 = hf*(cr(P, 0, 2) - P)
+        deltpY3 = (P - cr(P, 0,  1))
+
+        Ue = hf*(cr(U, 1, 0) + U)                 \
+            + hf*deltpX1*iApM*A                   \
+            + hf*deltpX2*cr(iApM, 1, 0)*A         \
+            + hf*deltpX3*(cr(iApM, 1, 0) + iApM)*A
+
+        Vn = hf*(cr(V, 0, 1) + V)                 \
+            + hf*deltpY1*iApM*A                   \
+            + hf*deltpY2*cr(iApM, 0, 1)*A         \
+            + hf*deltpY3*(cr(iApM, 0, 1) + iApM)*A
+    
 
 
         #---------------------------- solve pressure correction equation
@@ -199,11 +193,11 @@ while (tstep<totSteps):
         deltpY1 = cr(pc, 0, -1) - cr(pc, 0, 1)
         deltpY2 = pc            - cr(pc, 0, 1)
 
-        P = P + alphaP*pc
-        U  = alphaUV*(U  + A*iApM*hf*deltpX1)                    + (one-alphaUV)*U
-        V  = alphaUV*(V  + A*iApM*hf*deltpY1)                    + (one-alphaUV)*V
-        Ue = alphaUV*(Ue + A*hf*(cr(iApM, 1, 0) + iApM)*deltpX2) + (one-alphaUV)*Ue
-        Vn = alphaUV*(Vn + A*hf*(cr(iApM, 0, 1) + iApM)*deltpY2) + (one-alphaUV)*Vn
+        P  = P  + alphaP*pc
+        U  = U  + A*iApM*hf*deltpX1
+        V  = V  + A*iApM*hf*deltpY1
+        Ue = Ue + A*hf*(cr(iApM, 1, 0) + iApM)*deltpX2
+        Vn = Vn + A*hf*(cr(iApM, 0, 1) + iApM)*deltpY2
 
         res = nc.sum(nc.abs(So))
         res = res*iNN
@@ -217,15 +211,15 @@ while (tstep<totSteps):
         if (PASSIVE):
 
             # solve iteratively
-            Fw = rho*cr(Ue, -1, 0)
-            Fe = rho*Ue
-            Fs = rho*cr(Vn, 0, -1)
-            Fn = rho*Vn
+            Fw = A*rho*cr(Ue, -1, 0)
+            Fe = A*rho*Ue
+            Fs = A*rho*cr(Vn, 0, -1)
+            Fn = A*rho*Vn
 
-            Aw = A*(Dc + hf*(nc.abs(Fw) + Fw))
-            Ae = A*(Dc + hf*(nc.abs(Fe) - Fe))
-            As = A*(Dc + hf*(nc.abs(Fs) + Fs))
-            An = A*(Dc + hf*(nc.abs(Fn) - Fn))
+            Aw = Dc + hf*(nc.abs(Fw) + Fw)
+            Ae = Dc + hf*(nc.abs(Fe) - Fe)
+            As = Dc + hf*(nc.abs(Fs) + Fs)
+            An = Dc + hf*(nc.abs(Fn) - Fn)
             Ao = rho*A*dl/delt
 
             Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
