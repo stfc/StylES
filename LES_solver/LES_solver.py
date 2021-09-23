@@ -34,7 +34,7 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 
 #---------------------------- set flow pressure, velocity fields and BCs
 os.system("rm fields*.png")
-os.system("rm Energy_spectrum.png")
+os.system("rm Energy_spectrum*")
 
 # initial flow
 totTime = zero
@@ -76,6 +76,11 @@ if (tstep%print_res == 0):
 
 # plot spectrum
 plot_spectrum(U, V, L, tstep)
+
+
+# save instant zero
+save_fields(totTime, U, V, P, C, B)
+
 
 
 while (tstep<totSteps):

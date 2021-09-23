@@ -1,5 +1,6 @@
 import matplotlib.pyplot as plt
 import sys
+import numpy as np
 
 from LES_modules    import *
 from LES_constants  import *
@@ -54,3 +55,6 @@ def plot_spectrum(U, V, L, tstep):
     plt.yscale('log')
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
     plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)
+
+    filename = "Energy_spectrum_" + str(tstep) + ".txt"
+    np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation

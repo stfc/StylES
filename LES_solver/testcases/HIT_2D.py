@@ -22,10 +22,10 @@ PASSIVE   = False
 RESTART   = False 
 totSteps  = 10000
 print_res = 10
-print_img = 100
+print_img = 1000
 print_ckp = print_img
 print_spe = print_img
-N         = 2048      # number of points   [-]
+N         = 4096      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
