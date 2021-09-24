@@ -281,7 +281,7 @@ while (tstep<totSteps and totTime<finalTime):
 
 
 
-        if (TEST_CASE == "2D_HIT"):
+        if (TEST_CASE == "HIT_2D"):
             if (totTime<0.0342+hf*delt and totTime>0.0342-hf*delt):
                 print_fields(U, V, P, C, tstep, dir)
                 plot_spectrum(U, V, L, tstep)
