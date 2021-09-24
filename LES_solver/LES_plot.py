@@ -10,8 +10,8 @@ from LES_functions  import *
 
 def print_fields(U_, V_, P_, C_, it, dir=0):
 
-    # find vorticity
-    W_ = nc.zeros([N,N], dtype=DTYPE)  # passive scalar
+    #---------------------------------- find vorticity
+    W_ = nc.zeros([N,N], dtype=DTYPE)
     W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dl - (cr(U_, 0, 1) - cr(U_, 0, -1))/dl
 
     U = convert(U_)
@@ -22,7 +22,7 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
 
 
 
-    # plot surfaces
+    #---------------------------------- plot surfaces
     fig, axs = plt.subplots(2, 4, figsize=(20,10))
     fig.subplots_adjust(hspace=0.25)
 
@@ -64,7 +64,7 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
 
 
 
-    # plot centerlines
+    #---------------------------------- plot centerlines
     if (dir==0):    # x-direction
         x = list(range(N))
         hdim = N//2
@@ -101,3 +101,39 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
     # save images
     plt.savefig("fields_it_{0:d}.png".format(it), bbox_inches='tight', pad_inches=0)    
     plt.close()
+
+
+    return
+
+    #--------------------------------------- save combined images uvp
+    img = nc.zeros([N, N, 3], dtype=DTYPE)
+    img[:,:,0] = convert(U[:,:])
+    img[:,:,1] = convert(V[:,:])
+    img[:,:,2] = convert(P[:,:])
+
+    # normalize velocity
+    maxU = nc.max(img[:,:,0])
+    maxV = nc.max(img[:,:,1])
+    minU = nc.min(img[:,:,0])
+    minV = nc.min(img[:,:,1])
+    maxVel = max(maxU, maxV)
+    minVel = min(minU, minV)
+    if (maxVel!=minVel):
+        img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel)
+        img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel)
+    else:
+        print("Carefull: min and max velocities are equal!!:", maxV, minV)
+
+    # normalize pressure
+    maxP = nc.max(img[:,:,2])
+    minP = nc.min(img[:,:,2])
+    if (maxP!=minP):
+        img[:,:,2] = (img[:,:,2] - minP)/(maxP - minP)
+    else:
+        print("Carefull: min and max pressures are equal!!:", maxP, minP)
+
+    img = Image.fromarray(nc.uint8(img*255), 'RGB')
+    filename = "uvp_" + str(it) + ".png"
+    size = N, N
+    img.thumbnail(size)
+    img.save(filename)

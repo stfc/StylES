@@ -24,8 +24,6 @@ Uo = nc.zeros([N,N], dtype=DTYPE)   # old x-velocity
 Vo = nc.zeros([N,N], dtype=DTYPE)   # old y-velocity
 Po = nc.zeros([N,N], dtype=DTYPE)   # old pressure field
 Co = nc.zeros([N,N], dtype=DTYPE)   # old passive scalar
-Ue = nc.zeros([N,N], dtype=DTYPE)  # face x-velocities
-Vn = nc.zeros([N,N], dtype=DTYPE)  # face y-velocities  
 pc = nc.zeros([N,N], dtype=DTYPE)  # pressure correction
 Z  = nc.zeros([N,N], dtype=DTYPE)
 
@@ -33,8 +31,10 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 
 
 #---------------------------- set flow pressure, velocity fields and BCs
-os.system("rm fields*.png")
-os.system("rm Energy_spectrum.png")
+os.system("rm fields*")
+os.system("rm Energy_spectrum*")
+os.system("rm uvp_*")
+
 
 # initial flow
 totTime = zero
@@ -47,11 +47,6 @@ print_fields(U, V, P, C, 0, dir)
 
 
 
-# find face velocities first guess as forward difference (i.e. on side east and north)
-Ue = hf*(cr(U, 1, 0) + U)
-Vn = hf*(cr(V, 1, 0) + V)
-
-
 #---------------------------- main time step loop
 tstep    = 0
 resM_cpu = zero
@@ -61,7 +56,7 @@ res_cpu  = zero
 its      = 0
 
 # check divergence
-div = rho*dl*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
 div = div*iNN
 div_cpu = convert(div)
 
@@ -77,7 +72,7 @@ if (tstep%print_res == 0):
 # plot spectrum
 plot_spectrum(U, V, L, tstep)
 
-
+# start loop
 while (tstep<totSteps):
 
 
@@ -260,7 +255,7 @@ while (tstep<totSteps):
         its = it
 
         # check divergence
-        div = rho*dl*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+        div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
         div = div*iNN
         div_cpu = convert(div)  
 
@@ -273,22 +268,45 @@ while (tstep<totSteps):
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
-        # save images
-        if (tstep%print_img == 0):
-            print_fields(U, V, P, C, tstep, dir)
 
-        # write checkpoint
-        if (tstep%print_ckp == 0):
-            save_fields(totTime, U, V, P, C, B)
+        if (TEST_CASE == "HIT_2D"):
+            if (totTime<0.0342+hf*delt and totTime>0.0342-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+            if (totTime<0.0912+hf*delt and totTime>0.0912-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+            if (totTime<0.3686+hf*delt and totTime>0.3686-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+        else:
+    
+            # save images
+            if (tstep%print_img == 0):
+                print_fields(U, V, P, C, tstep, dir)
+
+            # write checkpoint
+            if (tstep%print_ckp == 0):
+                save_fields(totTime, tstep, U, V, P, C, B)
 
 
-        # print spectrum
-        if (tstep%print_spe == 0):
-            plot_spectrum(U, V, L, tstep)
+            # print spectrum
+            if (tstep%print_spe == 0):
+                plot_spectrum(U, V, L, tstep)
 
 
+# end of the simulation
 
-# write checkpoint always at the end
-print("End of the run. Saving latest results.")
+# save images
+print_fields(U, V, P, C, tstep, dir)
 
-save_fields(totTime, U, V, P, C, B)
+# write checkpoint
+save_fields(totTime, tstep, U, V, P, C, B)
+
+# print spectrum
+plot_spectrum(U, V, L, tstep)
+
+print("Simulation succesfully completed!")

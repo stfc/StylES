@@ -33,8 +33,10 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 
 
 #---------------------------- set flow pressure, velocity fields and BCs
-os.system("rm fields*.png")
+os.system("rm fields*")
 os.system("rm Energy_spectrum*")
+os.system("rm uvp_*")
+
 
 # initial flow
 totTime = zero
@@ -61,7 +63,7 @@ res_cpu  = zero
 its      = 0
 
 # check divergence
-div = rho*dl*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+div = rho*A*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
 div = div*iNN
 div_cpu = convert(div)
 
@@ -78,12 +80,8 @@ if (tstep%print_res == 0):
 plot_spectrum(U, V, L, tstep)
 
 
-# save instant zero
-save_fields(totTime, U, V, P, C, B)
-
-
-
-while (tstep<totSteps):
+# start loop
+while (tstep<totSteps and totTime<finalTime):
 
 
     # save old values of U, V and P
@@ -268,7 +266,7 @@ while (tstep<totSteps):
         its = it
 
         # check divergence
-        div = rho*dl*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+        div = rho*A*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
         div = div*iNN
         div_cpu = convert(div)  
 
@@ -281,22 +279,46 @@ while (tstep<totSteps):
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
-        # save images
-        if (tstep%print_img == 0):
-            print_fields(U, V, P, C, tstep, dir)
-
-        # write checkpoint
-        if (tstep%print_ckp == 0):
-            save_fields(totTime, U, V, P, C, B)
 
 
-        # print spectrum
-        if (tstep%print_spe == 0):
-            plot_spectrum(U, V, L, tstep)
+        if (TEST_CASE == "2D_HIT"):
+            if (totTime<0.0342+hf*delt and totTime>0.0342-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+            if (totTime<0.0912+hf*delt and totTime>0.0912-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+            if (totTime<0.3686+hf*delt and totTime>0.3686-hf*delt):
+                print_fields(U, V, P, C, tstep, dir)
+                plot_spectrum(U, V, L, tstep)
+
+        else:
+    
+            # save images
+            if (tstep%print_img == 0):
+                print_fields(U, V, P, C, tstep, dir)
+
+            # write checkpoint
+            if (tstep%print_ckp == 0):
+                save_fields(totTime, tstep, U, V, P, C, B)
 
 
+            # print spectrum
+            if (tstep%print_spe == 0):
+                plot_spectrum(U, V, L, tstep)
 
-# write checkpoint always at the end
-print("End of the run. Saving latest results.")
 
-save_fields(totTime, U, V, P, C, B)
+# end of the simulation
+
+# save images
+print_fields(U, V, P, C, tstep, dir)
+
+# write checkpoint
+save_fields(totTime, tstep, U, V, P, C, B)
+
+# print spectrum
+plot_spectrum(U, V, L, tstep)
+
+print("Simulation succesfully completed!")

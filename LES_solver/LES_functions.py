@@ -1,6 +1,8 @@
-import matplotlib.pyplot as plt
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
+
+from PIL import Image
 
 from LES_modules    import *
 from LES_constants  import *
@@ -39,9 +41,11 @@ def load_fields():
     return U, V, P, C, B, totTime
 
 
-def save_fields(totTime, U, V, P, C, B):
+def save_fields(totTime, it, U, V, P, C, B):
 
-    nc.savez('restart.npz', t=totTime, U=U, V=V, P=P, C=C, B=B)
+    filename = "restart.npz"
+    #filename = "restart_" + str(it) + ".npz"
+    nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
 
 
 

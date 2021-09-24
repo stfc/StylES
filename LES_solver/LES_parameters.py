@@ -1,4 +1,4 @@
-from testcases.HIT_2D import *
+from testcases.HIT_2D.HIT_2D import *
 
 
 # define runtime parameters
