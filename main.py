@@ -65,29 +65,29 @@ if (not USE_GPU):
 list_ds = tf.data.Dataset.list_files(str(DATASET + '*.png' ))
 
 def decode_img(img):
-  #convert the compressed string to a 3D uint8 tensor
-  img = tf.image.decode_png(img, channels=3)
-  if (NUM_CHANNELS==1):
-    img = tf.image.rgb_to_grayscale(img)
+    #convert the compressed string to a 3D uint8 tensor
+    img = tf.image.decode_png(img, channels=3)
+    if (NUM_CHANNELS==1):
+        img = tf.image.rgb_to_grayscale(img)
   
-  #Use `convert_image_dtype` to convert to floats in the [0,1] range.
-  img = tf.image.convert_image_dtype(img, DTYPE)
+    #Use `convert_image_dtype` to convert to floats in the [0,1] range.
+    img = tf.image.convert_image_dtype(img, DTYPE)
   
-  #resize the image to the desired size.
-  img_out = []
-  for res in range(2, RES_LOG2 + 1):
-    r_img = tf.image.resize(img, [2**res, 2**res])
-    r_img = tf.transpose(r_img)
-    img_out.append(r_img)
+    #resize the image to the desired size.
+    img_out = []
+    for res in range(2, RES_LOG2 + 1):
+        r_img = tf.image.resize(img, [2**res, 2**res])
+        r_img = tf.transpose(r_img)
+        img_out.append(r_img)
     
-  return img_out
+    return img_out
 
 
 def process_path(file_path):
-  # load the raw data from the file as a string
-  img = tf.io.read_file(file_path)
-  img = decode_img(img)
-  return img
+    # load the raw data from the file as a string
+    img = tf.io.read_file(file_path)
+    img = decode_img(img)
+    return img
 
 # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
 labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)

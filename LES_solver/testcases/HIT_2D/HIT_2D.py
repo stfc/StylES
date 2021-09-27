@@ -19,27 +19,27 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = False 
-finalTime = 0.5092
-totSteps  = 100000
+RESTART   = True
+finalTime = 1.1547
+totSteps  = 1
 print_res = 1
 print_img = totSteps+1
 print_ckp = totSteps+1
 print_spe = totSteps+1
-N         = 1024      # number of points   [-]
+N         = 256      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rho       = 1.0e0          # density                    [kg/m3]
-nu        = 5.6e-5        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
+nu        = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
 Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 5000           # number of modes
 METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
-L         = 0.94      # system dimension   [m]
+L         = 0.95      # system dimension   [m]
 dl        = L/N
 CNum      = 0.5        # Courant number 
-delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 1.0e-4
+delt      = 1.0e-6    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-3
 dir       = 1               # cross direction for plotting results
 
 
@@ -54,7 +54,7 @@ def init_fields():
 
     # find max and min wave numbers
     k0   = two*pi/L     #same in each direction
-    kmax = pi/(L/N)  #same in each direction
+    kmax = 600.0 #pi/(L/N)  #same in each direction
 
     # find k and E
     km = cp.linspace(k0, kmax, M)
@@ -80,9 +80,9 @@ def init_fields():
     plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
     plt.xscale("log")
     plt.yscale("log")
-    #plt.xlim([0.0e0, 100])        
+    #plt.xlim([0.0e0, 600])        
     #plt.ylim([1.0e-7, 0.2])
-    plt.grid(True, which='major')
+    plt.grid(True, which='both')
     plt.legend(('k^-3', 'k^-4', 'input'),  loc='upper right')
     plt.savefig("Energy_spectrum.png")
 
@@ -212,7 +212,9 @@ def init_fields():
         C_cpu = np.zeros([N,N], dtype=DTYPE)
         B_cpu = np.zeros([N,N], dtype=DTYPE)
 
-        list_files = ["0.072_256", "0.195_256", "0.792_256", "1.095_256"]
+        list_files = ["2D_DNS_ReT60_N1024/0.155/U"]
+        #list_files = ["0.000_U", "0.0342_U", "0.0912_U", "0.3686_U", "0.3724_U"]
+        #list_files = ["0.032_256", "0.195_256", "0.792_256", "1.095_256"]
         #list_files = ["0.072_512", "0.195_512", "0.792_512", "1.095_512"]
 
         for c in list_files:
@@ -220,7 +222,7 @@ def init_fields():
 
             # read velocity field
             #sval = "{:.3f}".format(val)
-            filename = "results/Francesca/256_512/" + c
+            filename = "results/OpenFOAM/" + c
             fr = open(filename, "r")
             line = fr.readline()
             while (("internalField" in line) == False):
@@ -257,6 +259,8 @@ def init_fields():
             plt.legend(('k^-3', 'k^-4', 'input','t=0'),  loc='upper right')
             plt.savefig("Energy_spectrum.png")
 
+            filename = "Energy_spectrum_" + "134te.txt"
+            np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
 
 
             # # read pressure field

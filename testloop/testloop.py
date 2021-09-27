@@ -1,7 +1,7 @@
 import os
 
 # provide lists for names and decay rate values for each CASE
-list_case_name = ["2D_HIT", 
+list_case_name = ["HIT_2D", 
                   "divergence"]
 
 list_case_dr = [1.0e0,

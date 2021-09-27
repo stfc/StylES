@@ -5,7 +5,7 @@ from testcases.HIT_2D.HIT_2D import *
 DEBUG     = False
 PATH      = "./"
 maxIt     = 100000
-toll      = 1.0e-3   # tollerance for convergence of SIMPLE
+toll      = 1.0e-5   # tollerance for convergence of SIMPLE
 tollM     = 1.0e-3
 tollP     = 1.0e-3
 tollC     = 1.0e-3

@@ -8,20 +8,37 @@
 #             licence policy
 #
 #-----------------------------------------------------------------------------------------------
-
 import numpy as np
 import tensorflow as tf
 import matplotlib.pyplot as plt
+import sys
 
-from parameters import *
 from tensorflow.keras import layers
 from typing import Union
+
+from parameters import *
+
+
+# insert at 1, 0 is the script path (or '' in REPL)
+sys.path.insert(1, './LES_solver/')
+sys.path.insert(1, './LES_solver/testcases/HIT_2D')
+sys.path.insert(1, '../TurboGenPY/')
+
+from LES_constants import hf
+from LES_parameters import A, Dc
+from HIT_2D import L, dl, rho, nu
+
 
 #A type that represents a valid Tensorflow expression
 TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
 
 #A type that can be converted to a valid Tensorflow expression
-TfExpressionEx = Union[TfExpression, int, float, nc.ndarray]
+TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
+
+
+
+def cr(phi, i, j):
+    return np.roll(phi, (-i, -j), axis=(0,1))
 
 
 #---------------------functions to build StyleGAN network--------------------
@@ -45,7 +62,8 @@ def periodic_padding_flexible(tensor, axis, padding=1):
 
     ndim = len(tensor.shape)
 
-    if (padding[0,0]>0):
+    sp = np.sum(np.abs(padding))
+    if (sp>0):
         for ax,p in zip(axis,padding):
             # create a slice object that selects everything from all axes,
             # except only 0:p for the specified for right, and -p: for left
@@ -79,12 +97,12 @@ def nf(stage):
 
 #-------------get_Weight 
 class layer_get_Weight(layers.Layer):
-    def __init__(self, shape, gain=nc.sqrt(2), use_wscale=False, lrmul=1, **kwargs):
+    def __init__(self, shape, gain=np.sqrt(2), use_wscale=False, lrmul=1, **kwargs):
         super(layer_get_Weight, self).__init__()
 
         # Equalized learning rate and custom learning rate multiplier.
-        fan_in = nc.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
-        he_std = gain / nc.sqrt(fan_in)  # He init
+        fan_in = np.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
+        he_std = gain / np.sqrt(fan_in)  # He init
         if use_wscale:
             init_std = 1.0 / lrmul
             self.runtime_coef = he_std * lrmul
@@ -125,12 +143,12 @@ class layer_dense(layers.Layer):
         super(layer_dense, self).__init__()
 
         if len(x.shape) > 2:
-            x = tf.reshape(x, [-1, nc.prod([d for d in x.shape[1:]])])
+            x = tf.reshape(x, [-1, np.prod([d for d in x.shape[1:]])])
  
         # Equalized learning rate and custom learning rate multiplier.
         shape  = [x.shape[1], fmaps]
-        fan_in = nc.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
-        he_std = gain / nc.sqrt(fan_in)  # He init
+        fan_in = np.prod(shape[:-1])  # [kernel, kernel, fmaps_in, fmaps_out] or [in, out]
+        he_std = gain / np.sqrt(fan_in)  # He init
         if use_wscale:
             init_std = 1.0 / lrmul
             self.runtime_coef = he_std * lrmul
@@ -146,7 +164,7 @@ class layer_dense(layers.Layer):
 
     def call(self, x):
         if len(x.shape) > 2:
-            x = tf.reshape(x, [-1, nc.prod([d for d in x.shape[1:]])])
+            x = tf.reshape(x, [-1, np.prod([d for d in x.shape[1:]])])
         return tf.matmul(x, tf.cast(self.w, DTYPE) * self.runtime_coef)
 
 
@@ -230,16 +248,16 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     assert isinstance(stride, int) and stride >= 1
 
     # Finalize filter kernel.
-    f = nc.array(f, dtype=DTYPE)
+    f = np.array(f, dtype=DTYPE)
     if f.ndim == 1:
-        f = f[:, nc.newaxis] * f[nc.newaxis, :]
+        f = f[:, np.newaxis] * f[np.newaxis, :]
     assert f.ndim == 2
     if normalize:
-        f /= nc.sum(f)
+        f /= np.sum(f)
     if flip:
         f = f[::-1, ::-1]
-    f = f[:, :, nc.newaxis, nc.newaxis]
-    f = nc.tile(f, [1, 1, int(x.shape[1]), 1])
+    f = f[:, :, np.newaxis, np.newaxis]
+    f = np.tile(f, [1, 1, int(x.shape[1]), 1])
 
     # No-op => early exit.
     if f.shape == (1, 1) and f[0, 0] == 1:
@@ -252,17 +270,17 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     strides = [1, 1, stride, stride]
 
     # if (f.shape[0] % 2 == 0):
-    #     pleft   = nc.int((f.shape[0]-1)/2)
-    #     pright  = nc.int(f.shape[0]/2)
+    #     pleft   = np.int((f.shape[0]-1)/2)
+    #     pright  = np.int(f.shape[0]/2)
     # else:
-    #     pleft   = nc.int((f.shape[0]-1)/2)
+    #     pleft   = np.int((f.shape[0]-1)/2)
     #     pright  = pleft
 
     # if (f.shape[1] % 2 == 0):
-    #     ptop    = nc.int((f.shape[1]-1)/2)
-    #     pbottom = nc.int(f.shape[1]/2)
+    #     ptop    = np.int((f.shape[1]-1)/2)
+    #     pbottom = np.int(f.shape[1]/2)
     # else:
-    #     ptop    = nc.int((f.shape[1]-1)/2)
+    #     ptop    = np.int((f.shape[1]-1)/2)
     #     pbottom = ptop
 
     # x2 = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -336,17 +354,17 @@ def conv2d(x, fmaps, kernel, **kwargs):
     strides=[1, 1, 1, 1]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = nc.int((w.shape[0]-1)/2)
-        pright  = nc.int(w.shape[0]/2)
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = np.int(w.shape[0]/2)
     else:
-        pleft   = nc.int((w.shape[0]-1)/2)
+        pleft   = np.int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = nc.int((w.shape[1]-1)/2)
-        pbottom = nc.int(w.shape[1]/2)
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = np.int(w.shape[1]/2)
     else:
-        ptop    = nc.int((w.shape[1]-1)/2)
+        ptop    = np.int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -404,7 +422,7 @@ def _downscale2d(x, factor=2, gain=1):
 
     # 2x2, float32 => downscale using _blur2d().
     if factor == 2 and DTYPE == tf.float32:
-        f = [nc.sqrt(gain) / factor] * factor
+        f = [np.sqrt(gain) / factor] * factor
         return _blur2d(x, f=f, normalize=False, stride=factor)
 
     # Apply gain.
@@ -455,17 +473,17 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     strides=[1, 1, 2, 2]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = nc.int((w.shape[0]-1)/2)
-        pright  = nc.int(w.shape[0]/2)
+        pleft   = np.int((w.shape[0]-1)/2)
+        pright  = np.int(w.shape[0]/2)
     else:
-        pleft   = nc.int((w.shape[0]-1)/2)
+        pleft   = np.int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = nc.int((w.shape[1]-1)/2)
-        pbottom = nc.int(w.shape[1]/2)
+        ptop    = np.int((w.shape[1]-1)/2)
+        pbottom = np.int(w.shape[1]/2)
     else:
-        ptop    = nc.int((w.shape[1]-1)/2)
+        ptop    = np.int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -491,52 +509,143 @@ def convert_to_pil_image(image, drange=[0, 1]):
 
 def adjust_dynamic_range(data, drange_in, drange_out):
     if drange_in != drange_out:
-        scale = (nc.cast[DTYPE](drange_out[1]) - nc.cast[DTYPE](drange_out[0])) / (
-            nc.cast[DTYPE](drange_in[1]) - nc.cast[DTYPE](drange_in[0])
+        scale = (np.cast[DTYPE](drange_out[1]) - np.cast[DTYPE](drange_out[0])) / (
+            np.cast[DTYPE](drange_in[1]) - np.cast[DTYPE](drange_in[0])
         )
-        bias = nc.cast[DTYPE](drange_out[0]) - nc.cast[DTYPE](drange_in[0]) * scale
+        bias = np.cast[DTYPE](drange_out[0]) - np.cast[DTYPE](drange_in[0]) * scale
         data = data * scale + bias
     return data    
 
+
+def check_divergence(img, pow2):
+
+    # initialize arrays
+    U = img[0,:,:]
+    V = img[1,:,:]
+    P = img[2,:,:]
+    iNN  = 1.0e0/(pow2*pow2)
+
+    # find Rhie-Chow interpolation (PWIM)
+    Ue = hf*(U + cr(U, 1, 0))
+    Vn = hf*(V + cr(V, 1, 0))
+
+    Fw = A*rho*cr(Ue, -1, 0)
+    Fe = A*rho*Ue
+    Fs = A*rho*cr(Vn, 0, -1)
+    Fn = A*rho*Vn
+
+    Aw = Dc + hf*(np.abs(Fw) + Fw)
+    Ae = Dc + hf*(np.abs(Fe) - Fe)
+    As = Dc + hf*(np.abs(Fs) + Fs)
+    An = Dc + hf*(np.abs(Fn) - Fn)
+    Ao = rho*A*dl/delt
+
+    Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
+    iApM = 1.e0/Ap
+
+    deltpX1 = hf*(cr(P, 1, 0) - cr(P, -1, 0))
+    deltpX2 = hf*(cr(P, 2, 0) - P)    
+    deltpX3 = (P - cr(P,  1, 0))
+
+    deltpY1 = hf*(cr(P, 0, 1) - cr(P, 0, -1))
+    deltpY2 = hf*(cr(P, 0, 2) - P)
+    deltpY3 = (P - cr(P, 0,  1))
+
+    Ue = hf*(cr(U, 1, 0) + U)                 \
+        + hf*deltpX1*iApM*A                   \
+        + hf*deltpX2*cr(iApM, 1, 0)*A         \
+        + hf*deltpX3*(cr(iApM, 1, 0) + iApM)*A
+
+    Vn = hf*(cr(V, 0, 1) + V)                 \
+        + hf*deltpY1*iApM*A                   \
+        + hf*deltpY2*cr(iApM, 0, 1)*A         \
+        + hf*deltpY3*(cr(iApM, 0, 1) + iApM)*A
+
+    # check divergence
+    div = rho*A*np.sum(np.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+    div = div*iNN
+
+    # find dU/dt term
+    sU = - hf*(cr(P, 1, 0) - cr(P, -1, 0))*A
+    dUdt = np.sum(np.abs(sU + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1)))
+    dUdt = dUdt*iNN
+
+    # find dV/dt term
+    sV = - hf*(cr(P, 0, 1) - cr(P, 0, -1))*A
+    dVdt = np.sum(np.abs(sV + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1)))
+    dVdt = dVdt*iNN
+
+    return div, dUdt, dVdt
+
+
+def check_divergence_staggered(img, pow2):
+    
+    # initialize arrays
+    U = img[0,:,:]
+    V = img[1,:,:]
+    P = img[2,:,:]
+    iNN  = 1.0e0/(pow2*pow2)
+
+    # check divergence
+    div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
+    div = div*iNN
+
+    # x-direction
+    Fw = A*rho*hf*(U            + cr(U, -1, 0))
+    Fe = A*rho*hf*(cr(U,  1, 0) + U           )
+    Fs = A*rho*hf*(V            + cr(V, -1, 0))
+    Fn = A*rho*hf*(cr(V,  0, 1) + cr(V, -1, 1))
+
+    Aw = Dc + hf*(np.abs(Fw) + Fw)
+    Ae = Dc + hf*(np.abs(Fe) - Fe)
+    As = Dc + hf*(np.abs(Fs) + Fs)
+    An = Dc + hf*(np.abs(Fn) - Fn)
+    dUdt = np.sum(np.abs(Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1) - (P - cr(P, -1, 0))*A))
+    dUdt = dUdt*iNN
+
+    # y-direction
+    Fw = A*rho*hf*(U             + cr(U, 0, -1))
+    Fe = A*rho*hf*(cr(U,  1,  0) + cr(U, 1, -1))
+    Fs = A*rho*hf*(cr(V,  0, -1) + V           )
+    Fn = A*rho*hf*(V             + cr(V, 0,  1))
+
+    Aw = Dc + hf*(np.abs(Fw) + Fw)
+    Ae = Dc + hf*(np.abs(Fe) - Fe)
+    As = Dc + hf*(np.abs(Fs) + Fs)
+    An = Dc + hf*(np.abs(Fn) - Fn)
+    dVdt = np.sum(np.abs(Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1) - (P - cr(P, 0, -1))*A))
+    dVdt = dVdt*iNN
+
+    return div, dUdt, dVdt
 
 
 def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
     dlatents    = mapping_ave(input, training=False)
     predictions = synthetic_ave(dlatents, training=False)
 
-    div = nc.zeros(RES_LOG2-1)
+    div  = np.zeros(RES_LOG2-1)
+    momU = np.zeros(RES_LOG2-1)
+    momV = np.zeros(RES_LOG2-1)
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
-        nr = nc.int(nc.sqrt(NEXAMPLES))
-        nc = nc.int(NEXAMPLES/nr)
+        nr = np.int(np.sqrt(NEXAMPLES))
+        nc = np.int(NEXAMPLES/nr)
         # to maintain a fixed figure size
-        # ninc = 10*nc/4
-        # ninr = 10*nr/4
-        # fig, axs = plt.subplots(nr,nc, figsize=(ninc, ninr), dpi=96, squeeze=False)
-        fig, axs = plt.subplots(nr,nc, squeeze=False)
-        plt.subplots_adjust(wspace=0.01, hspace=0.01)
+        dpi = 367
+        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi, squeeze=False, frameon=False, tight_layout=True)
+        #fig, axs = plt.subplots(nr,nc, squeeze=False)
+        #plt.subplots_adjust(wspace=0.01, hspace=0.01)
         axs = axs.ravel()
         for i in range(NEXAMPLES):
             img = predictions[res]
-            velx = periodic_padding_flexible(img[0,0,:,:], axis=(0,1), padding=([1,1],[1,1]))
-            vely = periodic_padding_flexible(img[0,1,:,:], axis=(0,1), padding=([1,1],[1,1]))
-            div[res] = 0
-            nc=velx.shape[0]
-            nr=velx.shape[1]
-            totDiv_e = 0.
-            totDiv_o = 0.
-            cont=0
-            for ii in range(1,nc-1):
-                for jj in range(1,nr-1):
-                    pdiv = (velx[ii+1,jj] - velx[ii-1,jj]) + (vely[ii,jj+1] - vely[ii,jj-1])
-                    if ((cont/2)%2 == 0):
-                        totDiv_o = totDiv_o + pdiv
-                    else:
-                        totDiv_e = totDiv_e + pdiv
-                    cont=cont+1
 
-            div[res] = abs(totDiv_o) + abs(totDiv_e)
+            #divergence, dUdt, dVdt = check_divergence(img[0,:,:,:], pow2)
+            divergence, dUdt, dVdt = check_divergence_staggered(img[0,:,:,:], pow2)
+            div[res] = divergence
+            momU[res] = dUdt
+            momV[res] = dVdt
 
+            # show image
             img = convert_to_pil_image(img[i])
             axs[i].axis('off')
             if (NUM_CHANNELS==1):
@@ -547,7 +656,12 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
-    return div
+    return div, momU, momV
+
+
+
+
+
 
 #-------------------------extras pieces----------------------------------
 # #--- use the following definition if running on ScafellPike
@@ -557,12 +671,12 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
 #     predictions = synthetic_ave(dlatents, training=False)
 
 #     for i in range(1):
-#         #plt.subplot(int(nc.sqrt(NEXAMPLES)), int(nc.sqrt(NEXAMPLES)), i+1)
+#         #plt.subplot(int(np.sqrt(NEXAMPLES)), int(np.sqrt(NEXAMPLES)), i+1)
 #         img = predictions[RES_LOG2-2]         # take highest resolution
 #         img = tf.transpose(img[i, :, :, :])
 #         img = adjust_dynamic_range(img, [1, 0], [0, 255])
 #         #img = img*127.5 + 127.5               # re-scale
-#         img = nc.uint8(img)                   # convert to uint8
+#         img = np.uint8(img)                   # convert to uint8
 #         #if (NUM_CHANNELS>1):
 #         #    plt.imshow(img)
 #         #else:

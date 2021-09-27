@@ -36,7 +36,7 @@ def periodic_padding_flexible(tensor, axis, padding=1):
 
 
 
-x_in = nc.ones([1, 1, 4, 4])
+x_in = np.ones([1, 1, 4, 4])
 x_in[:,:, :, 0] = 0
 x_in[:,:, 0, :] = 0
 x_in[:,:, :,-1] = 0
@@ -52,12 +52,12 @@ y1 = tf.nn.conv2d(x, filters=w, strides=[1, 1, 2, 2], padding="SAME", data_forma
 
 
 if (w.shape[0] % 2 == 0):
-    pleft   = nc.int((w.shape[0]-1)/2)
-    pright  = nc.int(w.shape[0]/2)
+    pleft   = np.int((w.shape[0]-1)/2)
+    pright  = np.int(w.shape[0]/2)
     ptop    = pleft
     pbottom = pright
 else:
-    pleft   = nc.int(w.shape[0]/2)
+    pleft   = np.int(w.shape[0]/2)
     pright  = pleft
     ptop    = pleft
     pbottom = pleft

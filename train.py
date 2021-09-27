@@ -100,12 +100,16 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
 
 
     #save first images
-    div = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, 0)
+    div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
             var_name = "divergence/" + str(pow) + "x" + str(pow)
             tf.summary.scalar(var_name, div[res], step=0)
+            var_name = "dUdt/" + str(pow) + "x" + str(pow)
+            tf.summary.scalar(var_name, momU[res], step=0)
+            var_name = "dVdt/" + str(pow) + "x" + str(pow)
+            tf.summary.scalar(var_name, momV[res], step=0)
 
     tstart = time.time()
     tint   = tstart
@@ -142,22 +146,26 @@ def train(dataset, GEN_LR, DIS_LR, train_summary_writer):
 
         #print images
         if (it+1) % IMAGES_EVERY == 0:    
-            div = generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
+            div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
                     pow = 2**(res+2)
                     var_name = "divergence/" + str(pow) + "x" + str(pow)
                     tf.summary.scalar(var_name, div[res], step=it)
+                    var_name = "dUdt/" + str(pow) + "x" + str(pow)
+                    tf.summary.scalar(var_name, momU[res], step=it)
+                    var_name = "dVdt/" + str(pow) + "x" + str(pow)
+                    tf.summary.scalar(var_name, momV[res], step=it)
 
         #save the model
         if (it+1) % SAVE_EVERY == 0:    
             checkpoint.save(file_prefix = CHKP_PREFIX)
 
 
-    print("Total divergencies for each resolution are:")
+    print("Total divergencies, dUdt and dVdt for each resolution are:")
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
-        print("{:d}x{:d}:   {:03e}".format(pow2,pow2,div[res]))
+        print("{:4d}x{:4d}:   {:03e}   {:03e}   {:03e}".format(pow2, pow2, div[res], momU[res], momV[res]))
     print("\n")
 
     if (PROFILE):

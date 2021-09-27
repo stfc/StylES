@@ -103,19 +103,18 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
     plt.close()
 
 
-    return
 
     #--------------------------------------- save combined images uvp
-    img = nc.zeros([N, N, 3], dtype=DTYPE)
+    img = np.zeros([N, N, 3], dtype=DTYPE)
     img[:,:,0] = convert(U[:,:])
     img[:,:,1] = convert(V[:,:])
     img[:,:,2] = convert(P[:,:])
 
     # normalize velocity
-    maxU = nc.max(img[:,:,0])
-    maxV = nc.max(img[:,:,1])
-    minU = nc.min(img[:,:,0])
-    minV = nc.min(img[:,:,1])
+    maxU = np.max(img[:,:,0])
+    maxV = np.max(img[:,:,1])
+    minU = np.min(img[:,:,0])
+    minV = np.min(img[:,:,1])
     maxVel = max(maxU, maxV)
     minVel = min(minU, minV)
     if (maxVel!=minVel):
@@ -125,14 +124,14 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
         print("Carefull: min and max velocities are equal!!:", maxV, minV)
 
     # normalize pressure
-    maxP = nc.max(img[:,:,2])
-    minP = nc.min(img[:,:,2])
+    maxP = np.max(img[:,:,2])
+    minP = np.min(img[:,:,2])
     if (maxP!=minP):
         img[:,:,2] = (img[:,:,2] - minP)/(maxP - minP)
     else:
         print("Carefull: min and max pressures are equal!!:", maxP, minP)
 
-    img = Image.fromarray(nc.uint8(img*255), 'RGB')
+    img = Image.fromarray(np.uint8(img*255), 'RGB')
     filename = "uvp_" + str(it) + ".png"
     size = N, N
     img.thumbnail(size)

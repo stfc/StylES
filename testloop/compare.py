@@ -34,9 +34,9 @@ def compare_images(imgA, imgB, title):
     # compute the mean squared error and structural similarity
 
     # index for the images
-    imageA = (convert(imgA, dtype=nc.float32))/255.0
-    imageB = (convert(imgB, dtype=nc.float32))/255.0
-    m = nc.mean((imageA - imageB)**2)   # Mean Square Error
+    imageA = (convert(imgA, dtype=np.float32))/255.0
+    imageB = (convert(imgB, dtype=np.float32))/255.0
+    m = np.mean((imageA - imageB)**2)   # Mean Square Error
     s = ssim(imageA, imageB)
 
     # setup the figure
@@ -64,8 +64,8 @@ def compare_images(imgA, imgB, title):
     # show the third image
     ax = fig.add_subplot(spec[2])
     diff = (imageA - imageB)
-    maxDiff = nc.max(diff)
-    minDiff = nc.min(diff)
+    maxDiff = np.max(diff)
+    minDiff = np.min(diff)
     nDiff = (diff - minDiff)/(maxDiff-minDiff)
     img_diff = Image.fromarray(nDiff)
     img_diff = img_diff.convert("L")
@@ -112,7 +112,7 @@ for i in range(NIMG, 0, -1):
     temp = temp.convert("L")
     #temp = trim(temp)
     temp = temp.resize((OUTPUT_DIM,OUTPUT_DIM))
-    atemp = convert(temp, dtype=nc.float32)    
+    atemp = convert(temp, dtype=np.float32)    
     if (i==NIMG):
         afake = atemp
     else:

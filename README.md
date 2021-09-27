@@ -25,7 +25,7 @@ We have 2 tests:
 #### 2D Homogeneous Isotropic Turbulence (2D-HIT) - single image
 The test consists into reproducing a single 2D HIT image. The following results are expected:
 
-![image info](./testloop/result_2D_HIT.png)
+![image info](./testloop/result_HIT_2D.png)
 
 #### Verify divergence
 The test consists into reproducing a divergence-free flow 2D image. The following results are expected when opening the tensorboard (Crtl+Shift+p => Launch Tensorboard)
