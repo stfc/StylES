@@ -60,6 +60,11 @@ div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
 div = div*iNN
 div_cpu = convert(div)
 
+# find new delt based on Courant number
+cdelt = CNum*dl/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
+delt = convert(cdelt)
+delt = min(delt, maxDelt)
+
 # print values
 tend = time()
 if (tstep%print_res == 0):
@@ -73,7 +78,7 @@ if (tstep%print_res == 0):
 plot_spectrum(U, V, L, tstep)
 
 # start loop
-while (tstep<totSteps):
+while (tstep<totSteps and totTime<finalTime):
 
 
     # save old values of U, V and P
@@ -270,15 +275,15 @@ while (tstep<totSteps):
 
 
         if (TEST_CASE == "HIT_2D"):
-            if (totTime<0.0342+hf*delt and totTime>0.0342-hf*delt):
+            if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
                 print_fields(U, V, P, C, tstep, dir)
                 plot_spectrum(U, V, L, tstep)
 
-            if (totTime<0.0912+hf*delt and totTime>0.0912-hf*delt):
+            if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
                 print_fields(U, V, P, C, tstep, dir)
                 plot_spectrum(U, V, L, tstep)
 
-            if (totTime<0.3686+hf*delt and totTime>0.3686-hf*delt):
+            if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
                 print_fields(U, V, P, C, tstep, dir)
                 plot_spectrum(U, V, L, tstep)
 
