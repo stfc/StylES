@@ -24,20 +24,24 @@ sys.path.insert(0, '../')
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from matplotlib import gridspec
-from parameters import *
+from mpl_toolkits.axes_grid1 import make_axes_locatable
+from parameters import OUTPUT_DIM, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
 
 
-NIMG = 10              # number of images to use for statistical values
-CONVERT_TO_BW = True
+NIMG = 1              # number of images to use for statistical values
+
 
 def compare_images(imgA, imgB, title):
     # compute the mean squared error and structural similarity
 
     # index for the images
-    imageA = (convert(imgA, dtype=np.float32))/255.0
-    imageB = (convert(imgB, dtype=np.float32))/255.0
+    imageA = (np.asarray(imgA, dtype=np.float32))/255.0
+    imageB = (np.asarray(imgB, dtype=np.float32))/255.0
     m = np.mean((imageA - imageB)**2)   # Mean Square Error
-    s = ssim(imageA, imageB)
+    if (NUM_CHANNELS==1):
+        s = ssim(imageA, imageB, multichannel=False)
+    else:
+        s = ssim(imageA, imageB, multichannel=True)
 
     # setup the figure
     fig = plt.figure(title)
@@ -45,7 +49,7 @@ def compare_images(imgA, imgB, title):
 
     # show first image
     ax = fig.add_subplot(spec[0])
-    if (CONVERT_TO_BW):
+    if (NUM_CHANNELS==1):
         plt.imshow(imgA, cmap = plt.cm.gray)
     else:
         plt.imshow(imgA)
@@ -54,7 +58,7 @@ def compare_images(imgA, imgB, title):
 
     # show the second image
     ax = fig.add_subplot(spec[1])
-    if (CONVERT_TO_BW):
+    if (NUM_CHANNELS==1):
         plt.imshow(imgB, cmap = plt.cm.gray)
     else:
         plt.imshow(imgB)
@@ -67,16 +71,20 @@ def compare_images(imgA, imgB, title):
     maxDiff = np.max(diff)
     minDiff = np.min(diff)
     nDiff = (diff - minDiff)/(maxDiff-minDiff)
-    img_diff = Image.fromarray(nDiff)
-    img_diff = img_diff.convert("L")
+    img_diff = Image.fromarray(np.uint8(nDiff*255))
+    if (NUM_CHANNELS==1):
+        img_diff = img_diff.convert("L")
     plt.imshow(img_diff)
     plt.axis("off")
-    plt.title("min-max diff [-1,1]")
+    plt.title("diff")
 
     # show the colormap
-    cax = fig.add_subplot(spec[3])    
+    divider = make_axes_locatable(ax)
+    cax = divider.append_axes("right", size="10%", pad=0.05)
+
+    #cax = fig.add_subplot(spec[3])    
     plt.colorbar(cax=cax)
-    plt.clim(minDiff,maxDiff)
+    plt.clim(0,1)
     plt.suptitle("Statistical differences MSE: %.4f, SSIM: %.4f" % (m, s))
 
     fig.savefig(title, bbox_inches='tight', pad_inches=0)
@@ -93,10 +101,11 @@ def trim(im):
 
 
 # load the images -- the orig, the orig + fake
-orig = Image.open("./../testloop/data/CASE_NAME/test_01.png")
+orig = Image.open("../testloop/data/from_solver/single/uvp_0.png").convert('RGB')
 
-# convert to black and white
-orig = orig.convert("L") 
+# convert to black and white, if needed
+if (NUM_CHANNELS==1):
+    orig = orig.convert("L")
 
 # remove white spaces
 #orig = trim(orig)
@@ -108,20 +117,22 @@ orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
 for i in range(NIMG, 0, -1):
     val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
     filename = "./../images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
-    temp = Image.open(filename)
-    temp = temp.convert("L")
+    temp = Image.open(filename).convert('RGB')
+    if (NUM_CHANNELS==1):
+        temp = temp.convert("L")
     #temp = trim(temp)
     temp = temp.resize((OUTPUT_DIM,OUTPUT_DIM))
-    atemp = convert(temp, dtype=np.float32)    
+    atemp = np.asarray(temp, dtype=np.float32)    
     if (i==NIMG):
-        afake = atemp
+        ttemp = atemp
     else:
-        afake = afake + atemp
+        ttemp = ttemp + atemp
 
-if (NIMG>0):
-    afake = afake/NIMG
-    fake = Image.fromarray(afake)
-    fake = fake.convert("L") 
+ttemp = ttemp/NIMG
+fake = Image.fromarray(np.uint8(ttemp))
+if (NUM_CHANNELS==1):
+    fake = fake.convert("L")
 
 # compare the images
-compare_images(orig, fake, "./../testloop/result_CASE_NAME.png")
+compare_images(orig, fake, "diff.png")
+
