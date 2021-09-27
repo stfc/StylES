@@ -25,8 +25,7 @@ sys.path.insert(1, './LES_solver/testcases/HIT_2D')
 sys.path.insert(1, '../TurboGenPY/')
 
 from LES_constants import hf
-from LES_parameters import A, Dc
-from HIT_2D import L, dl, rho, nu
+from HIT_2D import L, rho, nu
 
 
 #A type that represents a valid Tensorflow expression
@@ -524,6 +523,9 @@ def check_divergence(img, pow2):
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(pow2*pow2)
+    dl = L/pow2
+    A = dl
+    Dc = nu/dl*A
 
     # find Rhie-Chow interpolation (PWIM)
     Ue = hf*(U + cr(U, 1, 0))
@@ -585,6 +587,9 @@ def check_divergence_staggered(img, pow2):
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(pow2*pow2)
+    dl = L/pow2
+    A = dl
+    Dc = nu/dl*A
 
     # check divergence
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
