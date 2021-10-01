@@ -11,8 +11,9 @@ from LES_parameters import *
 from LES_functions  import *
 
 
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, '../../TurboGenPY/')
+# sys.path.insert(n, item) inserts the item at the nth position in the list 
+# (0 at the beginning, 1 after the first element, etc ...)
+sys.path.insert(0, '../../TurboGenPY/')
 
 import spectra
 

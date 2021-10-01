@@ -16,6 +16,7 @@ import time
 import sys
 import pathlib
 import datetime
+import scipy as sc
 
 from parameters import *
 from functions import *
@@ -62,7 +63,10 @@ if (not USE_GPU):
 
 
 #-------------------------------------define dataset
-list_ds = tf.data.Dataset.list_files(str(DATASET + '*.png' ))
+if (READ_NUMPY):
+    list_ds = tf.data.Dataset.list_files(str(DATASET + '*.npz' ))
+else:
+    list_ds = tf.data.Dataset.list_files(str(DATASET + '*.png' ))
 
 def decode_img(img):
     #convert the compressed string to a 3D uint8 tensor
@@ -84,9 +88,29 @@ def decode_img(img):
 
 
 def process_path(file_path):
-    # load the raw data from the file as a string
-    img = tf.io.read_file(file_path)
-    img = decode_img(img)
+    if (READ_NUMPY):
+        U = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
+        P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
+        V = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
+        U, V, P = load_fields(DATASET + "restart_N32.npz")
+        U = np.cast[DTYPE](U)
+        V = np.cast[DTYPE](V)
+        P = np.cast[DTYPE](P)
+        img = []
+        N = OUTPUT_DIM
+        for res in range(RES_LOG2-1):
+            pow2 = 2**(res+2)
+            data = np.zeros([3,pow2,pow2], dtype=DTYPE)
+            s = pow2/N
+            data[0,:,:] = sc.ndimage.interpolation.zoom(U, s, order=3, mode='wrap')
+            data[1,:,:] = sc.ndimage.interpolation.zoom(V, s, order=3, mode='wrap')
+            data[2,:,:] = sc.ndimage.interpolation.zoom(P, s, order=3, mode='wrap')
+            img.append(data)
+    else:
+        # load the raw data from the file as a string
+        img = tf.io.read_file(file_path)
+        img = decode_img(img)
+
     return img
 
 # Set `num_parallel_calls` so multiple images are loaded/processed in parallel.
@@ -125,8 +149,53 @@ def prepare_for_training(ds, cache=True, batch_size=0, shuffle_buffer_size=BUFFE
 
 #-------------------------------------main: train the model
 def main():
-    train_images = prepare_for_training(labeled_ds, batch_size=BATCH_SIZE)
-    train(train_images, GEN_LR, DIS_LR, train_summary_writer)
+
+    if (TRAIN):
+
+        train_images = prepare_for_training(labeled_ds, batch_size=BATCH_SIZE)
+        train(train_images, GEN_LR, DIS_LR, train_summary_writer)
+
+    else:
+
+        pass
+        # # load NN and find convolutional layers used in the upsampling
+        # checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
+        # conv_layers = []
+        # for layer in synthesis.layers:
+        #     if ("up_conv" in layer.name):
+        #         conv_layers.append(layer)
+
+        # # generate image
+        # tf.random.set_seed(1)
+        # input = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
+        # dlatents    = mapping_ave(input, training=False)
+        # predictions = synthesis_ave(dlatents, training=False)
+
+        # # find non linear terms
+        # U = predictions[RES_LOG2-2][0,0,:,:]
+        # V = predictions[RES_LOG2-2][0,1,:,:]
+        # UU = U*U
+        # VV = V*V
+
+        # # find filtered non linear terms
+        # tlen = len(conv_layers)
+        # for i in range(tlen-1, -1, -1):
+        #     UU = conv_layers[i](UU)
+        #     VV = conv_layers[i](VV)
+
+        # Ufil = UU.asnumpy()
+        # Vfil = VV.asnumpy()
+
+        # Ufil = (Ufil - np.min(UU))/(np.max(UU) - np.min(UU))
+        # Vfil = (Vfil - np.min(VV))/(np.max(VV) - np.min(VV))
+
+        # img = Image.fromarray(np.uint8(Ufil*255), 'RGB')
+        # filename = "Ufiltered.png"
+        # size = 32, 32
+        # img.thumbnail(size)
+        # img.save(filename)      
+
+
 
 
 if __name__ == "__main__":

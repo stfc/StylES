@@ -26,6 +26,7 @@ CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 NEXAMPLES         = 1
+READ_NUMPY        = False
 
 
 # Network hyper-parameters

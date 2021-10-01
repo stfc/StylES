@@ -21,6 +21,7 @@ from parameters import *
 from functions import *
 from tensorflow.keras import layers, initializers, regularizers
 from tensorflow.keras.models import Model
+from tensorflow.keras.utils import plot_model
 
 
 #---------------------------define mapping
@@ -335,6 +336,12 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_dis_schedule
 mapping, mapping_ave     = make_mapping_model()
 synthesis, synthesis_ave = make_synthesis_model()
 discriminator            = make_discriminator_model()
+
+#mapping.summary()
+#synthesis.summary()
+#discriminator.summary()
+
+plot_model(synthesis, to_file='synthesis.png', show_shapes=True, show_layer_names=True)
 
 
 #-------------------------------------define checkpoint

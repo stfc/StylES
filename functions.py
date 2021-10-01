@@ -19,10 +19,11 @@ from typing import Union
 from parameters import *
 
 
-# insert at 1, 0 is the script path (or '' in REPL)
-sys.path.insert(1, './LES_solver/')
-sys.path.insert(1, './LES_solver/testcases/HIT_2D')
-sys.path.insert(1, '../TurboGenPY/')
+# sys.path.insert(n, item) inserts the item at the nth position in the list 
+# (0 at the beginning, 1 after the first element, etc ...)
+sys.path.insert(0, './LES_solver/')
+sys.path.insert(0, './LES_solver/testcases/HIT_2D')
+sys.path.insert(0, '../TurboGenPY/')
 
 from LES_constants import hf
 from HIT_2D import L, rho, nu
@@ -36,11 +37,8 @@ TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
 
 
 
-def cr(phi, i, j):
-    return np.roll(phi, (-i, -j), axis=(0,1))
 
-
-#---------------------functions to build StyleGAN network--------------------
+#------------------------------ functions to build StyleGAN network
 
 # define periodic padding
 def periodic_padding_flexible(tensor, axis, padding=1):
@@ -490,7 +488,31 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
 
 
 
-#-----------------------functions for visualization
+
+
+
+
+
+#------------------------------ functions for visualization
+def cr(phi, i, j):
+    return np.roll(phi, (-i, -j), axis=(0,1))
+
+
+def load_fields(filename='restart.npz'):
+    data = np.load(filename)
+    U = data['U']
+    V = data['V']
+    P = data['P']
+
+    return U, V, P
+
+def save_fields(it, U, V, P):
+    #filename = "restart.npz"
+    sval = str(OUTPUT_DIM) + "x" + str(OUTPUT_DIM)
+    filename = 'images/image_{:d}x{:d}/restart_it_{:06d}.npz'.format(OUTPUT_DIM,OUTPUT_DIM,it)
+    np.savez(filename, U=U, V=V, P=P)
+
+
 def convert_to_pil_image(image, drange=[0, 1]):
     assert image.ndim == 2 or image.ndim == 3
     if image.ndim == 3:
@@ -522,7 +544,7 @@ def check_divergence(img, pow2):
     U = img[0,:,:]
     V = img[1,:,:]
     P = img[2,:,:]
-    iNN  = 1.0e0/(pow2*pow2)
+    iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
     dl = L/pow2
     A = dl
     Dc = nu/dl*A
@@ -586,7 +608,7 @@ def check_divergence_staggered(img, pow2):
     U = img[0,:,:]
     V = img[1,:,:]
     P = img[2,:,:]
-    iNN  = 1.0e0/(pow2*pow2)
+    iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
     dl = L/pow2
     A = dl
     Dc = nu/dl*A
@@ -650,8 +672,22 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
             momU[res] = dUdt
             momV[res] = dVdt
 
+            # save values as numpy array
+            if (pow2==OUTPUT_DIM and READ_NUMPY):
+                save_fields(iteration, img[0,0,:,:], img[0,1,:,:], img[0,2,:,:])
+
             # show image
-            img = convert_to_pil_image(img[i])
+            maxU = np.max(img[0,0,:,:])
+            minU = np.min(img[0,0,:,:])
+            maxV = np.max(img[0,1,:,:])
+            minV = np.min(img[0,1,:,:])
+            maxP = np.max(img[0,2,:,:])
+            minP = np.min(img[0,2,:,:])
+            imax = max(maxU, maxV, maxP)
+            imin = min(minU, minV, minP)
+            img = np.uint8((img - imin)/(imax - imin)*255)
+            if (NUM_CHANNELS>1):
+                img = np.transpose(img[0,:,:,:], axes=[1,2,0])
             axs[i].axis('off')
             if (NUM_CHANNELS==1):
                 axs[i].imshow(img,cmap='gray')
