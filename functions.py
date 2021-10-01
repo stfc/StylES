@@ -21,8 +21,8 @@ from parameters import *
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
-sys.path.insert(0, './LES_solver/')
-sys.path.insert(0, './LES_solver/testcases/HIT_2D')
+sys.path.insert(0, './LES_Solvers/')
+sys.path.insert(0, './LES_Solvers/testcases/HIT_2D')
 sys.path.insert(0, '../TurboGenPY/')
 
 from LES_constants import hf
