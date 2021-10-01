@@ -28,8 +28,8 @@ def cr(phi, i, j):
     return nc.roll(phi, (-i, -j), axis=(0,1))
 
 
-def load_fields():
-    data = nc.load('restart.npz')
+def load_fields(filename='restart.npz'):
+    data = nc.load(filename)
     ctotTime = data['t']
     totTime = convert(ctotTime)
     U = data['U']
