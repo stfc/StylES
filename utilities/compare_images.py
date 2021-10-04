@@ -22,13 +22,14 @@ import importlib
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../')
+sys.path.insert(0, '../LES_Solvers')
 
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from matplotlib import gridspec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
 from parameters import OUTPUT_DIM, READ_NUMPY, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
-
+from LES_Solvers.testcases.HIT_2D.HIT_2D import L, rho
 
 
 #-------------------------------- define parameters
@@ -177,7 +178,7 @@ if (READ_NUMPY):
     for i in range(NIMG, 0, -1):
         val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
         filename = "./../images/image_{:d}x{:d}/restart_it_{:06d}.npz".format(OUTPUT_DIM, OUTPUT_DIM, val)
-        atemp[:,:,0], atemp[:,:,1], atemp[:,:,2] = load_fields("../images/image_32x32/restart_it_000000.npz")
+        atemp[:,:,0], atemp[:,:,1], atemp[:,:,2] = load_fields(filename)
         atemp = np.cast[np.float64](atemp)
         if (i==NIMG):
             ttemp = atemp

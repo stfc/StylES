@@ -213,6 +213,50 @@ def make_synthesis_model():
 
 
 
+#-------------------------------------define filter
+def make_filter_model(f_res):
+
+    # inner parameters
+    use_wscale  = True        # Enable equalized learning rate
+    blur_filter = [1, 4, 6, 4, 1] # Low-pass filter to apply when resampling activations. 
+                              # None = no filtering.
+    fused_scale =False        # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+    # inner functions
+    def blur(in_x):
+        return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+    def torgb(in_res, in_x):  # res = 2..RES_LOG2
+        in_lod = RES_LOG2 - in_res
+        in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+        in_x = bias(in_x)
+        return in_x
+
+    # create model
+    f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+
+    f_x = conv2d(f_in, fmaps=nf(f_res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_0")
+    bias = layer_bias(f_x, name="filter_bias_0")
+    f_x = bias(f_x)
+    f_x = layers.LeakyReLU()(f_x)
+
+    f_x = blur(f_x)
+    f_x = conv2d_downscale2d(f_x, fmaps=nf(f_res - 2), kernel=3, gain=GAIN,
+            use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+    bias = layer_bias(f_x, name="filter_bias_1")
+    f_x = bias(f_x)
+    f_x = layers.LeakyReLU()(f_x)
+    fout_x = torgb(f_res-1, f_x)
+
+    # Create model
+    filter_model = Model(inputs=f_in, outputs=fout_x)
+
+    return filter_model 
+
+
+
+
 #-------------------------------------define discriminator
 def make_discriminator_model():
 
@@ -316,41 +360,43 @@ def make_discriminator_model():
 
 
 #-------------------------------------define optimizer and loss functions
-lr_gen_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=GEN_LR,
+lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
+    initial_learning_rate=LR,
     decay_steps=DECAY_STEPS,
     decay_rate=DECAY_RATE,
     staircase=STAIRCASE)
 
-lr_dis_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-    initial_learning_rate=DIS_LR,
-    decay_steps=DECAY_STEPS,
-    decay_rate=DECAY_RATE,
-    staircase=STAIRCASE)
-
-generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_gen_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
-discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_dis_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+filter_optimizer        = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
 
 
 #-------------------------------------create an instance of the generator and discriminator
 mapping, mapping_ave     = make_mapping_model()
 synthesis, synthesis_ave = make_synthesis_model()
+filter                   = make_filter_model(RES_LOG2)
 discriminator            = make_discriminator_model()
 
 #mapping.summary()
 #synthesis.summary()
+#filter.summary()
 #discriminator.summary()
 
-plot_model(synthesis, to_file='synthesis.png', show_shapes=True, show_layer_names=True)
+#plot_model(mapping,       to_file='images/mapping_graph.png',       show_shapes=True, show_layer_names=True)
+#plot_model(synthesis,     to_file='images/synthesis_graph.png',     show_shapes=True, show_layer_names=True)
+#plot_model(filter,        to_file='images/filter_graph.png',        show_shapes=True, show_layer_names=True)
+#plot_model(discriminator, to_file='images/discriminator_graph.png', show_shapes=True, show_layer_names=True)
 
 
 #-------------------------------------define checkpoint
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
+                                filter_optimizer=filter_optimizer,
                                 discriminator_optimizer=discriminator_optimizer,
                                 mapping=mapping,
                                 mapping_ave=mapping_ave,
                                 synthesis=synthesis,
                                 synthesis_ave=synthesis_ave,
+                                filter=filter,
                                 discriminator=discriminator)
 
 

@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './testloop/data/CASE_NAME/'
+DATASET           = './testloop/data/from_solver/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -26,11 +26,11 @@ CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 NEXAMPLES         = 1
-READ_NUMPY        = False
+READ_NUMPY        = True
 
 
 # Network hyper-parameters
-OUTPUT_DIM        = 128
+OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -47,17 +47,15 @@ R1_GAMMA          = 10  # Gradient penalty coefficient
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 50000
+TOT_ITERATIONS = 30000
 PRINT_EVERY    = 100
 IMAGES_EVERY   = 1000
-SAVE_EVERY     = 50000
-REDUCE_EVERY   = 100000
+SAVE_EVERY     = 30000
 BATCH_SIZE     = 1
 IRESTART       = False
-GEN_LR         = 3.0e-3
-DIS_LR         = 3.0e-3
+LR             = 3.0e-3
 DECAY_STEPS    = TOT_ITERATIONS/5
-DECAY_RATE     = CASE_DECAY_RATE
+DECAY_RATE     = 1.0
 STAIRCASE      = True
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:
@@ -67,9 +65,6 @@ else:
 PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
-GEN_LR            = 3.e-3
-DIS_LR            = 3.e-3
-LR_THRS           = 3.01e-3
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 NEXAMPLES         = 1
 BUFFER_SIZE       = 100 #same size of the number of images in DATASET

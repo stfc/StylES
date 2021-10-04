@@ -22,8 +22,7 @@ from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
 from train import *
-
-
+from PIL import Image
 
 #-------------------------------------prepare for run
 # clean folders
@@ -92,7 +91,7 @@ def process_path(file_path):
         U = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
         P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
         V = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
-        U, V, P = load_fields(DATASET + "restart_N32.npz")
+        U, V, P = load_fields(DATASET + "restart_N256.npz")
         U = np.cast[DTYPE](U)
         V = np.cast[DTYPE](V)
         P = np.cast[DTYPE](P)
@@ -153,47 +152,66 @@ def main():
     if (TRAIN):
 
         train_images = prepare_for_training(labeled_ds, batch_size=BATCH_SIZE)
-        train(train_images, GEN_LR, DIS_LR, train_summary_writer)
+        train(train_images, LR, train_summary_writer)
 
     else:
 
-        pass
-        # # load NN and find convolutional layers used in the upsampling
-        # checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
-        # conv_layers = []
-        # for layer in synthesis.layers:
-        #     if ("up_conv" in layer.name):
-        #         conv_layers.append(layer)
+        # load filter
+        checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
 
-        # # generate image
-        # tf.random.set_seed(1)
-        # input = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
-        # dlatents    = mapping_ave(input, training=False)
-        # predictions = synthesis_ave(dlatents, training=False)
+        input_random = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
+        dlatents     = mapping_ave(input_random, training=False)
+        predictions  = synthesis_ave(dlatents, training=False)
+        filtered     = filter(predictions[RES_LOG2-2], training=False)
 
-        # # find non linear terms
-        # U = predictions[RES_LOG2-2][0,0,:,:]
-        # V = predictions[RES_LOG2-2][0,1,:,:]
-        # UU = U*U
-        # VV = V*V
 
-        # # find filtered non linear terms
-        # tlen = len(conv_layers)
-        # for i in range(tlen-1, -1, -1):
-        #     UU = conv_layers[i](UU)
-        #     VV = conv_layers[i](VV)
 
-        # Ufil = UU.asnumpy()
-        # Vfil = VV.asnumpy()
+        #----------------------- verify fields
+        # save fields
+        fake = predictions[RES_LOG2-3][0]
+        fake = np.transpose(fake, axes=[1,2,0])
+        fake = (fake - np.min(fake))/(np.max(fake) - np.min(fake))
+        img = Image.fromarray(np.uint8(fake*255), 'RGB')
+        filename = "images/nl_prediction.png"
+        img.save(filename)
 
-        # Ufil = (Ufil - np.min(UU))/(np.max(UU) - np.min(UU))
-        # Vfil = (Vfil - np.min(VV))/(np.max(VV) - np.min(VV))
+        filt = filtered[0]
+        filt = np.transpose(filt, axes=[1,2,0])
+        filt = (filt - np.min(filt))/(np.max(filt) - np.min(filt))
+        img = Image.fromarray(np.uint8(filt*255), 'RGB')
+        filename = "images/nl_filtered.png"
+        img.save(filename)      
 
-        # img = Image.fromarray(np.uint8(Ufil*255), 'RGB')
-        # filename = "Ufiltered.png"
-        # size = 32, 32
-        # img.thumbnail(size)
-        # img.save(filename)      
+        diff = np.abs(fake-filt)
+        img = Image.fromarray(np.uint8(diff*255), 'RGB')
+        filename = "images/nl_diff_prediction_filter.png"
+        img.save(filename)
+
+        # find non linear term
+        U = predictions[RES_LOG2-2][0,0,:,:]
+        V = predictions[RES_LOG2-2][0,1,:,:]
+        P = predictions[RES_LOG2-2][0,2,:,:]
+        UU = U*U
+        VV = V*V
+        nonl = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
+        nonl[0, 0, :, :] = UU
+        nonl[0, 1, :, :] = VV
+        nonl[0, 2, :, :] = P
+        filtered = filter(nonl, training=False)
+
+        # save non linear image
+        fake = np.transpose(nonl[0], axes=[1,2,0])
+        fake = (fake - np.min(fake))/(np.max(fake) - np.min(fake))
+        img = Image.fromarray(np.uint8(fake*255), 'RGB')
+        filename = "images/nl_non_linear.png"
+        img.save(filename)      
+
+        filt = filtered[0]
+        filt = np.transpose(filt, axes=[1,2,0])
+        filt = (filt - np.min(filt))/(np.max(filt) - np.min(filt))
+        img = Image.fromarray(np.uint8(filt*255), 'RGB')
+        filename = "images/nl_non_linear_filtered.png"
+        img.save(filename)       
 
 
 

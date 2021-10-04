@@ -646,9 +646,9 @@ def check_divergence_staggered(img, pow2):
     return div, dUdt, dVdt
 
 
-def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
+def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
     dlatents    = mapping_ave(input, training=False)
-    predictions = synthetic_ave(dlatents, training=False)
+    predictions = synthesis_ave(dlatents, training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
@@ -698,30 +698,3 @@ def generate_and_save_images(mapping_ave, synthetic_ave, input, iteration):
         plt.close('all')
 
     return div, momU, momV
-
-
-
-
-
-
-#-------------------------extras pieces----------------------------------
-# #--- use the following definition if running on ScafellPike
-
-# def generate_and_save_images_scf(mapping_ave, synthetic_ave, input, latent_input, iteration):
-#     dlatents = mapping_ave(input, training=False)
-#     predictions = synthetic_ave(dlatents, training=False)
-
-#     for i in range(1):
-#         #plt.subplot(int(np.sqrt(NEXAMPLES)), int(np.sqrt(NEXAMPLES)), i+1)
-#         img = predictions[RES_LOG2-2]         # take highest resolution
-#         img = tf.transpose(img[i, :, :, :])
-#         img = adjust_dynamic_range(img, [1, 0], [0, 255])
-#         #img = img*127.5 + 127.5               # re-scale
-#         img = np.uint8(img)                   # convert to uint8
-#         #if (NUM_CHANNELS>1):
-#         #    plt.imshow(img)
-#         #else:
-#         #    plt.imshow(img[:,:,0],cmap='gray')
-#         #plt.axis('off')
-
-#     plt.imsave('image_at_iteration_{:06d}.png'.format(iteration), img)
