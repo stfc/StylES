@@ -17,11 +17,14 @@ import sys
 import pathlib
 import datetime
 
+from tensorflow.keras import layers, initializers, regularizers
+from tensorflow.keras.models import Model
+
 from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
-from tensorflow.keras import layers, initializers, regularizers
-from tensorflow.keras.models import Model
+from IO_functions import *
+
 
 
 

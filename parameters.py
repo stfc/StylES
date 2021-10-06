@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './testloop/data/from_solver/'
+DATASET           = './testloop/data/from_solver_all/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -26,7 +26,7 @@ CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 NEXAMPLES         = 1
-READ_NUMPY        = True
+USE_NUMPY_ARRAYS  = True
 
 
 # Network hyper-parameters
@@ -40,17 +40,17 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
-G_LAYERS          = RES_LOG2* 2 - 2  # Numer of layers  
+G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 30000
-PRINT_EVERY    = 100
-IMAGES_EVERY   = 1000
-SAVE_EVERY     = 30000
+TOT_ITERATIONS = 100
+PRINT_EVERY    = 10
+IMAGES_EVERY   = 10
+SAVE_EVERY     = 100
 BATCH_SIZE     = 1
 IRESTART       = False
 LR             = 3.0e-3
@@ -67,4 +67,4 @@ CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 NEXAMPLES         = 1
-BUFFER_SIZE       = 100 #same size of the number of images in DATASET
+BUFFER_SIZE       = 200 #same size of the number of images in DATASET

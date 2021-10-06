@@ -28,9 +28,9 @@ from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from matplotlib import gridspec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from parameters import OUTPUT_DIM, READ_NUMPY, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
+from parameters import OUTPUT_DIM, USE_NUMPY_ARRAYS, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
 from LES_Solvers.testcases.HIT_2D.HIT_2D import L, rho
-
+from functions import StyleGAN_load_fields
 
 #-------------------------------- define parameters
 NIMG = 1              # number of images to use for statistical values
@@ -39,16 +39,6 @@ NIMG = 1              # number of images to use for statistical values
 #-------------------------------- define functions
 def cr(phi, i, j):
     return np.roll(phi, (-i, -j), axis=(0,1))
-
-
-def load_fields(filename='restart.npz'):
-    data = np.load(filename)
-    U = data['U']
-    V = data['V']
-    P = data['P']
-
-    return U, V, P
-
 
 
 def compare_images(imageA, imageB, title):
@@ -148,9 +138,9 @@ def trim(im):
 
 
 #-------------------------------- starts comparison
-if (READ_NUMPY):
+if (USE_NUMPY_ARRAYS):
     orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
-    orig[:,:,0], orig[:,:,1], orig[:,:,2] = load_fields("../testloop/data/from_solver/restart_N32.npz")
+    orig[:,:,0], orig[:,:,1], orig[:,:,2] = StyleGAN_load_fields("../testloop/data/from_solver/restart_N32.npz")
     orig = np.cast[np.float64](orig)
 else:
     # load image
@@ -172,13 +162,13 @@ else:
 
 
 # load fake images
-if (READ_NUMPY):
+if (USE_NUMPY_ARRAYS):
 
     atemp = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
     for i in range(NIMG, 0, -1):
         val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
-        filename = "./../images/image_{:d}x{:d}/restart_it_{:06d}.npz".format(OUTPUT_DIM, OUTPUT_DIM, val)
-        atemp[:,:,0], atemp[:,:,1], atemp[:,:,2] = load_fields(filename)
+        filename = "./../images/image_{:d}x{:d}/fields_it_{:06d}.npz".format(OUTPUT_DIM, OUTPUT_DIM, val)
+        atemp[:,:,0], atemp[:,:,1], atemp[:,:,2] = StyleGAN_load_fields(filename)
         atemp = np.cast[np.float64](atemp)
         if (i==NIMG):
             ttemp = atemp
