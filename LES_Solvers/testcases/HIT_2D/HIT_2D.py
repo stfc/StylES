@@ -18,16 +18,17 @@ sys.path.insert(0, '../../TurboGenPY/')
 import spectra
 
 
-TEST_CASE = "HIT_2D"
+TEST_CASE = "HIT_2D_new"
 PASSIVE   = False
 RESTART   = False
-finalTime = 0.1547
+SAVE_UVP  = False
+finalTime = 10.0
 totSteps  = 10000000
-print_res = 100
+print_res = 1
 print_img = totSteps+1
-print_ckp = totSteps+1
+print_ckp = 100
 print_spe = totSteps+1
-N         = 2048      # number of points   [-]
+N         = 256      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
@@ -39,8 +40,8 @@ METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
 L         = 0.95      # system dimension   [m]
 dl        = L/N
 CNum      = 0.5        # Courant number 
-delt      = 1.0e-3    # initial guess for delt: 0.001072 is the eddy turnover time
-maxDelt   = 1.0e-3
+delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
+maxDelt   = 1.0e-4
 dir       = 1               # cross direction for plotting results
 
 

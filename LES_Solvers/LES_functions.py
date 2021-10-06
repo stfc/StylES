@@ -44,8 +44,8 @@ def load_fields(filename='restart.npz'):
 
 def save_fields(totTime, it, U, V, P, C, B):
 
-    filename = "restart.npz"
-    #filename = "restart_" + str(it) + ".npz"
+    #filename = "restart.npz"
+    filename = "restart_" + str(it) + ".npz"
     nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
 
 
