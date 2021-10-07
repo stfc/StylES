@@ -28,7 +28,7 @@ from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from matplotlib import gridspec
 from mpl_toolkits.axes_grid1 import make_axes_locatable
-from parameters import OUTPUT_DIM, USE_NUMPY_ARRAYS, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
+from parameters import OUTPUT_DIM, READ_NUMPY_ARRAYS, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
 from LES_Solvers.testcases.HIT_2D.HIT_2D import L, rho
 from functions import StyleGAN_load_fields
 
@@ -138,7 +138,7 @@ def trim(im):
 
 
 #-------------------------------- starts comparison
-if (USE_NUMPY_ARRAYS):
+if (READ_NUMPY_ARRAYS):
     orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
     orig[:,:,0], orig[:,:,1], orig[:,:,2] = StyleGAN_load_fields("../testloop/data/from_solver/restart_N32.npz")
     orig = np.cast[np.float64](orig)
@@ -162,7 +162,7 @@ else:
 
 
 # load fake images
-if (USE_NUMPY_ARRAYS):
+if (READ_NUMPY_ARRAYS):
 
     atemp = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
     for i in range(NIMG, 0, -1):
@@ -186,8 +186,6 @@ else:
             temp = temp.convert("L")
         #temp = trim(temp)
         temp = temp.resize((OUTPUT_DIM,OUTPUT_DIM))
-        atemp = np.asarray(temp, dtype=np.float32)    
-        atemp = np.asarray(temp, dtype=np.float32)    
         atemp = np.asarray(temp, dtype=np.float32)    
         if (i==NIMG):
             ttemp = atemp

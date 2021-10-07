@@ -32,7 +32,7 @@ data_augmentation = tf.keras.Sequential([
 
 
 # define dataset
-if (USE_NUMPY_ARRAYS):
+if (READ_NUMPY_ARRAYS):
     list_ds = tf.data.Dataset.list_files(str(DATASET + '*.npz' ))
 else:
     list_ds = tf.data.Dataset.list_files(str(DATASET + '*.png' ))
@@ -95,7 +95,7 @@ def process_path_numpy_arrays(path):
 
 
 # define dataset. Set num_parallel_calls so multiple images are loaded/processed in parallel.
-if (USE_NUMPY_ARRAYS):
+if (READ_NUMPY_ARRAYS):
     labeled_ds = list_ds.map(process_path_numpy_arrays, num_parallel_calls=AUTOTUNE)
 else:
     labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
@@ -291,36 +291,37 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         #fig, axs = plt.subplots(nr,nc, squeeze=False)
         #plt.subplots_adjust(wspace=0.01, hspace=0.01)
         axs = axs.ravel()
-        for i in range(NEXAMPLES):
-            img = predictions[res]
+        img = predictions[res]
 
-            #divergence, dUdt, dVdt = check_divergence(img[0,:,:,:], pow2)
-            divergence, dUdt, dVdt = check_divergence_staggered(img[0,:,:,:], pow2)
+        # save the highest dimension and first image of the batch as numpy array
+        if (pow2==OUTPUT_DIM and SAVE_NUMPY_ARRAYS):
+            StyleGAN_save_fields(iteration, img[0,0,:,:], img[0,1,:,:], img[0,2,:,:])
+
+        for i in range(NEXAMPLES):
+
+            #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], pow2)
+            divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], pow2)
             div[res] = divergence
             momU[res] = dUdt
             momV[res] = dVdt
 
-            # save values as numpy array
-            if (pow2==OUTPUT_DIM and USE_NUMPY_ARRAYS):
-                StyleGAN_save_fields(iteration, img[0,0,:,:], img[0,1,:,:], img[0,2,:,:])
-
             # show image
-            maxU = np.max(img[0,0,:,:])
-            minU = np.min(img[0,0,:,:])
-            maxV = np.max(img[0,1,:,:])
-            minV = np.min(img[0,1,:,:])
-            maxP = np.max(img[0,2,:,:])
-            minP = np.min(img[0,2,:,:])
+            maxU = np.max(img[i,0,:,:])
+            minU = np.min(img[i,0,:,:])
+            maxV = np.max(img[i,1,:,:])
+            minV = np.min(img[i,1,:,:])
+            maxP = np.max(img[i,2,:,:])
+            minP = np.min(img[i,2,:,:])
             imax = max(maxU, maxV, maxP)
             imin = min(minU, minV, minP)
-            img = np.uint8((img - imin)/(imax - imin)*255)
+            nimg = np.uint8((img[i,:,:,:] - imin)/(imax - imin)*255)
             if (NUM_CHANNELS>1):
-                img = np.transpose(img[0,:,:,:], axes=[1,2,0])
+                nimg = np.transpose(nimg, axes=[1,2,0])
             axs[i].axis('off')
             if (NUM_CHANNELS==1):
-                axs[i].imshow(img,cmap='gray')
+                axs[i].imshow(nimg,cmap='gray')
             else:
-                axs[i].imshow(img)
+                axs[i].imshow(nimg)
 
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')

@@ -18,16 +18,15 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './testloop/data/from_solver_all/'
+DATASET           = './testloop/data/CASE_NAME/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
-NEXAMPLES         = 1
-USE_NUMPY_ARRAYS  = True
-
+READ_NUMPY_ARRAYS = True
+SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
 OUTPUT_DIM        = 256
@@ -44,27 +43,23 @@ G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
+BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
+NEXAMPLES         = 4
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100
-PRINT_EVERY    = 10
-IMAGES_EVERY   = 10
-SAVE_EVERY     = 100
-BATCH_SIZE     = 1
+TOT_ITERATIONS = 100000
+PRINT_EVERY    = 100
+IMAGES_EVERY   = 1000
+SAVE_EVERY     = 100000
+BATCH_SIZE     = 4
 IRESTART       = False
 LR             = 3.0e-3
 DECAY_STEPS    = TOT_ITERATIONS/5
-DECAY_RATE     = 1.0
+DECAY_RATE     = CASE_DECAY_RATE
 STAIRCASE      = True
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:
     Gs_beta = 0.5**tf.math.divide(tf.cast(BATCH_SIZE, DTYPE), G_SMOOTH * 1000.0)
 else:
     Gs_beta = 0.0
-PROFILE           = False
-CONVERTTOTFRECORD = False
-USE_GPU           = True
-AUTOTUNE          = tf.data.experimental.AUTOTUNE
-NEXAMPLES         = 1
-BUFFER_SIZE       = 200 #same size of the number of images in DATASET
