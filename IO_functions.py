@@ -19,8 +19,9 @@ def cr(phi, i, j):
 
 # variable used during data loading
 U = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
-P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 V = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
+P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
+W = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 
 
 # define data augmentation
@@ -70,10 +71,10 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    P = data['P']
+    W = data['vor']
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
-    P = np.cast[DTYPE](P)
+    W = np.cast[DTYPE](W)
 
     img_out = []
     for res in range(RES_LOG2-1):
@@ -82,7 +83,7 @@ def StyleGAN_load_fields(file_path):
         s = pow2/OUTPUT_DIM
         data[0,:,:] = sc.ndimage.interpolation.zoom(U, s, order=3, mode='wrap')
         data[1,:,:] = sc.ndimage.interpolation.zoom(V, s, order=3, mode='wrap')
-        data[2,:,:] = sc.ndimage.interpolation.zoom(P, s, order=3, mode='wrap')
+        data[2,:,:] = sc.ndimage.interpolation.zoom(W, s, order=3, mode='wrap')
         img_out.append(data)
 
     return img_out
@@ -166,7 +167,7 @@ def adjust_dynamic_range(data, drange_in, drange_out):
     return data    
 
 
-def check_divergence(img, pow2):
+def check_divergence_wrongP_W(img, pow2):
 
     # initialize arrays
     U = img[0,:,:]

@@ -35,7 +35,8 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 #---------------------------- set flow pressure, velocity fields and BCs
 os.system("rm fields*")
 os.system("rm Energy_spectrum*")
-os.system("rm uvp_*")
+os.system("rm uvw_*")
+os.system("rm restart_*")
 
 
 # initial flow

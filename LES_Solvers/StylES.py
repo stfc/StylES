@@ -44,10 +44,11 @@ Z  = nc.zeros([N,N], dtype=DTYPE)   # zero array
 # clean up and declarations
 os.system("rm fields*")
 os.system("rm Energy_spectrum*")
-os.system("rm uvp_*")
+os.system("rm uvw_*")
+os.system("rm restart_*")
 
 pow2     = 2**(RES_LOG2-1)
-ipow22   = one/(pow2*pow2)
+ipow22   = one/(2*pow2*pow2)  #2 because we sum U and V residuals
 DiffCoef = np.full([pow2, pow2], Dc)
 NL_DNS   = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
 NL       = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
@@ -65,8 +66,8 @@ predictions  = synthesis_ave(dlatents, training=False)
 
 
 # find DNS and filtered fields
-UVP_DNS      = predictions[RES_LOG2-2]
-UVP          = filter(UVP_DNS, training=False)
+UVW_DNS      = predictions[RES_LOG2-2]
+UVW          = filter(UVW_DNS, training=False)
 
 
 # create variable synthesis model
@@ -78,13 +79,15 @@ wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # find DNS and LES fields
-U_DNS = UVP_DNS[0, 0, :, :].numpy()
-V_DNS = UVP_DNS[0, 1, :, :].numpy()
-P_DNS = UVP_DNS[0, 2, :, :].numpy()
+U_DNS = UVW_DNS[0, 0, :, :].numpy()
+V_DNS = UVW_DNS[0, 1, :, :].numpy()
+W_DNS = UVW_DNS[0, 2, :, :].numpy()
 
-U = UVP[0, 0, :, :].numpy()
-V = UVP[0, 1, :, :].numpy()
-P = UVP[0, 2, :, :].numpy()
+U = UVW[0, 0, :, :].numpy()
+V = UVW[0, 1, :, :].numpy()
+W = UVW[0, 2, :, :].numpy()
+
+P = nc.zeros([N,N], dtype=DTYPE)   # pressure
 B = nc.zeros([N,N], dtype=DTYPE)   # body force
 C = nc.zeros([N,N], dtype=DTYPE)   # passive scalar
 
@@ -286,10 +289,10 @@ while (tstep<totSteps and totTime<finalTime):
             with tf.GradientTape() as tape_DNS:
                 tape_DNS.watch(dlatents)
                 predictions = wl_synthesis(dlatents, training=False)
-                UVP_DNS     = predictions[RES_LOG2-2]
-                UVP         = filter(UVP_DNS, training=False)
-                resDNS      = tf.math.sqrt(tf.math.reduce_sum((UVP[0,0,:,:]-U)**2 \
-                            + (UVP[0,1,:,:]-V)**2 + (UVP[0,2,:,:]-P)**2))
+                UVW_DNS     = predictions[RES_LOG2-2]
+                UVW         = filter(UVW_DNS, training=False)
+                resDNS      =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:],U))
+                resDNS      = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:],V))
                 resDNS      = resDNS*ipow22
                 gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
                 opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))

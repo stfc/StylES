@@ -20,7 +20,7 @@ CORRECT_DIV = True
 #   6- check divergence
 #   7- find vorticity
 #   8- find momentum
-#   9- combine U,V and P in the single image "uvp.png"
+#   9- combine U,V and P in the single image "uvw.png"
 
 
 # clean up
@@ -30,7 +30,7 @@ os.system("rm " + PATH + "pres_BW.png")
 os.system("rm " + PATH + "divergence.png")
 os.system("rm " + PATH + "vorticity.png")
 os.system("rm " + PATH + "momentum.png")
-os.system("rm " + PATH + "uvp.png")
+os.system("rm " + PATH + "uvw.png")
 
 
 #============================== 1) load single fields
@@ -199,12 +199,12 @@ mom.save(PATH + "momentum.png")
 
 
 
-#============================== 9) find combined image uvp
-uvp = np.zeros([nc,nr,3])
-uvp[:,:,0] = velx
-uvp[:,:,1] = vely
-uvp[:,:,2] = pres
+#============================== 9) find combined image uvw
+uvw = np.zeros([nc,nr,3])
+uvw[:,:,0] = velx
+uvw[:,:,1] = vely
+uvw[:,:,2] = pres
 
-uvp = Image.fromarray(np.uint8(uvp*255))
-uvp.save(PATH + "uvp.png")
+uvw = Image.fromarray(np.uint8(uvw*255))
+uvw.save(PATH + "uvw.png")
 

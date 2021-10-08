@@ -45,8 +45,20 @@ def load_fields(filename='restart.npz'):
 def save_fields(totTime, it, U, V, P, C, B):
 
     #filename = "restart.npz"
+    #nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
+
     filename = "restart_" + str(it) + ".npz"
-    nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
+    maxU = np.max(U)
+    maxV = np.max(V)
+    minU = np.min(U)
+    minV = np.min(V)
+    maxVel = max(maxU, maxV)
+    minVel = min(minU, minV)
+    U_ = (U-minVel)/(maxVel-minVel)
+    V_ = (V-minVel)/(maxVel-minVel)
+    W = (cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0))
+    W = convert(W)
+    nc.savez(filename, U=U_, V=V_, vor=W)
 
 
 

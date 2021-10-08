@@ -144,7 +144,7 @@ if (READ_NUMPY_ARRAYS):
     orig = np.cast[np.float64](orig)
 else:
     # load image
-    orig = Image.open("../testloop/data/from_solver/uvp_0.png").convert('RGB')
+    orig = Image.open("../testloop/data/from_solver/uvw_0.png").convert('RGB')
 
     # convert to black and white, if needed
     if (NUM_CHANNELS==1):

@@ -8,14 +8,14 @@
             "name": "Python: Current File",
             "type": "python",
             "request": "launch",
-            // "program": "main.py",
-            // "cwd": "${workspaceFolder}/",
+            "program": "main.py",
+            "cwd": "${workspaceFolder}/",
             // "program": "LES_solver_staggered.py",
             // "cwd": "${workspaceFolder}/LES_Solvers/",
             // "program": "vorticity.py",
             // "cwd": "${workspaceFolder}/utilities/",
-            "program": "StylES.py",
-            "cwd": "${workspaceFolder}/LES_Solvers/",
+            // "program": "StylES.py",
+            // "cwd": "${workspaceFolder}/LES_Solvers/",
             "console": "integratedTerminal"
         }
     ]

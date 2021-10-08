@@ -55,12 +55,21 @@ def train_step(input, images):
         # find filter loss
         loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-3]))
 
+        # find vorticity loss
+        # loss_vor = 0.
+        # for i in range(BATCH_SIZE):
+        #     U     = g_images[RES_LOG2-2][i,0,:,:]
+        #     V     = g_images[RES_LOG2-2][i,1,:,:]
+        #     vor_t = g_images[RES_LOG2-2][i,2,:,:]
+        #     vor   = (cr(U, 0, 1) - cr(U, 0, -1)) - (cr(V, 1, 0) - cr(V, -1, 0))
+        #     loss_vor = loss_vor + tf.reduce_mean(tf.math.squared_difference(vor, vor_t))
+        # loss_gen = loss_gen + loss_vor
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis.trainable_variables)
-    gradients_of_filter        = fil_tape.gradient(loss_fil,   filter.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_filter        = fil_tape.gradient(loss_fil,          filter.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(loss_disc,        discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
     gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis ]

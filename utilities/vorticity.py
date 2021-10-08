@@ -31,14 +31,12 @@ for i in range(NIMG, 0, -1):
     filename = "./../images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
     temp = Image.open(filename).convert('RGB')
 
-    UVP = np.asarray(temp, dtype=np.float32)/255.0
-    U = UVP[:, :, 0]
-    V = UVP[:, :, 1]
-
+    UVW = np.asarray(temp, dtype=np.float32)/255.0
+    U = UVW[:, :, 0]
+    V = UVW[:, :, 1]
 
     # find vorticity
-    vor = (cr(U, 0, 1) - cr(U, 0, -1)) - (cr(V, 1, 0) - cr(V, -1, 0))
-
+    vor = (cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0))
     vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
     vor = Image.fromarray(np.uint8(vor*255))
     vor.save("vorticity_" + str(i) + ".png")
