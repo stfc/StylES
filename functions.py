@@ -215,6 +215,24 @@ class apply_noise(layers.Layer):
         return x + noise * tf.reshape(tf.cast(self.w, DTYPE), [1, -1, 1, 1])
 
 
+
+#-------------Layer wlatent
+class layer_wlatent(layers.Layer):
+    def __init__(self, x=None, **kwargs):
+        super(layer_wlatent, self).__init__()
+
+        wl_init = tf.ones_initializer()
+        self.wl = tf.Variable(
+            initial_value=wl_init(shape=x.shape[1:], dtype=DTYPE),
+            trainable=True,
+            name="wlatent"
+        )
+
+    def call(self, x):
+        return x*self.wl
+
+
+
 #-------------Instance normalization
 def instance_norm(x, epsilon=1e-8):
     assert len(x.shape) == 4  # NCHW

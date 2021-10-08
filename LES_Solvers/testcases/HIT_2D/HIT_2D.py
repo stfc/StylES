@@ -18,7 +18,7 @@ sys.path.insert(0, '../../TurboGenPY/')
 import spectra
 
 
-TEST_CASE = "HIT_2D_new"
+TEST_CASE = "HIT_2D"
 PASSIVE   = False
 RESTART   = False
 SAVE_UVP  = False

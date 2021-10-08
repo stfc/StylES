@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './testloop/data/CASE_NAME/'
+DATASET           = '../results/N256/data/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -44,19 +44,19 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
-NEXAMPLES         = 4
+NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
-PRINT_EVERY    = 100
+TOT_ITERATIONS = 10
+PRINT_EVERY    = 1
 IMAGES_EVERY   = 1000
-SAVE_EVERY     = 100000
-BATCH_SIZE     = 4
+SAVE_EVERY     = 10
+BATCH_SIZE     = 1
 IRESTART       = False
 LR             = 3.0e-3
 DECAY_STEPS    = TOT_ITERATIONS/5
-DECAY_RATE     = CASE_DECAY_RATE
+DECAY_RATE     = 1.0
 STAIRCASE      = True
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:

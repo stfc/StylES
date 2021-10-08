@@ -47,6 +47,7 @@ os.system("rm Energy_spectrum*")
 os.system("rm uvp_*")
 
 pow2     = 2**(RES_LOG2-1)
+ipow22   = one/(pow2*pow2)
 DiffCoef = np.full([pow2, pow2], Dc)
 NL_DNS   = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
 NL       = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
@@ -54,12 +55,26 @@ NL       = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
 
 # loading StyleGAN checkpoint and filter
 checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
-tf.random.set_seed(1)
+mapping_ave.trainable = False
+synthesis_ave.trainable = False
+
+tf.random.set_seed(16)
 input_random = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
 dlatents     = mapping_ave(input_random, training=False)
 predictions  = synthesis_ave(dlatents, training=False)
+
+
+# find DNS and filtered fields
 UVP_DNS      = predictions[RES_LOG2-2]
 UVP          = filter(UVP_DNS, training=False)
+
+
+# create variable synthesis model
+latents = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+wlatents = layer_wlatent(latents)
+nlatents = wlatents(latents) 
+outputs = synthesis_ave(nlatents, training=False)
+wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # find DNS and LES fields
@@ -129,36 +144,45 @@ while (tstep<totSteps and totTime<finalTime):
     if (PASSIVE):
         Co[:,:] = C[:,:]
 
-    # find non linear  terms
-    NL_DNS[0, 0, :, :] = U_DNS*U_DNS
-    NL_DNS[0, 1, :, :] = U_DNS*V_DNS
-    NL_DNS[0, 2, :, :] = V_DNS*V_DNS
-
-    NL = filter(NL_DNS, training=False)
-    UU = NL[0, 0, :, :].numpy()
-    UV = NL[0, 1, :, :].numpy()
-    VV = NL[0, 2, :, :].numpy()
-
-
     # start outer loop on SIMPLE convergence
     it = 0
     res = large
     while (res>toll and it<maxIt):
 
+        # find non linear  terms
+        NL_DNS[0, 0, :, :] = U_DNS*U_DNS
+        NL_DNS[0, 1, :, :] = U_DNS*V_DNS
+        NL_DNS[0, 2, :, :] = V_DNS*V_DNS
+
+        NL = filter(NL_DNS, training=False)
+        UU = NL[0, 0, :, :].numpy()
+        UV = NL[0, 1, :, :].numpy()
+        VV = NL[0, 2, :, :].numpy()
+
+        RsgsUU = UU - U*Uo
+        RsgsUV = UV - U*Vo
+        RsgsVU = UV - V*Uo
+        RsgsVV = VV - V*Vo
+
 
         #---------------------------- solve momentum equations
         # x-direction
-        Aw = DiffCoef
-        Ae = DiffCoef
-        As = DiffCoef
-        An = DiffCoef
+        Fw = A*rho*hf*(Uo            + cr(Uo, -1, 0))
+        Fe = A*rho*hf*(cr(Uo,  1, 0) + Uo           )
+        Fs = A*rho*hf*(Vo            + cr(Vo, -1, 0))
+        Fn = A*rho*hf*(cr(Vo,  0, 1) + cr(Vo, -1, 1))
+
+        Aw = Dc + hf*(nc.abs(Fw) + Fw)
+        Ae = Dc + hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*(nc.abs(Fs) + Fs)
+        An = Dc + hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
-        Ap = Ao + Aw + Ae + As + An
+        Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
         iApU = one/Ap
         sU  = Ao*Uo -(P - cr(P, -1, 0))*A + hf*(B + cr(B, -1, 0)) \
-            - rho*A*cr(UU, 1, 0) + rho*A*cr(UU, -1, 0)      \
-            - rho*A*cr(UV, 1, 0) + rho*A*cr(UV, -1, 0)
+            - rho*A*(cr(RsgsUU, 1, 0) - cr(RsgsUU, -1, 0))        \
+            - rho*A*(cr(RsgsUU, 1, 0) - cr(RsgsUV, -1, 0))
 
         itM  = 0
         resM = large
@@ -175,16 +199,22 @@ while (tstep<totSteps and totTime<finalTime):
 
 
         # y-direction
-        Aw = DiffCoef
-        Ae = DiffCoef
-        As = DiffCoef
-        An = DiffCoef
+        Fw = A*rho*hf*(Uo             + cr(Uo, 0, -1))
+        Fe = A*rho*hf*(cr(Uo,  1,  0) + cr(Uo, 1, -1))
+        Fs = A*rho*hf*(cr(Vo,  0, -1) + Vo           )
+        Fn = A*rho*hf*(Vo             + cr(Vo, 0,  1))
+
+        Aw = Dc + hf*(nc.abs(Fw) + Fw)
+        Ae = Dc + hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*(nc.abs(Fs) + Fs)
+        An = Dc + hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
+
         Ap  = Ao + Aw + Ae + As + An
         iApV = one/Ap
         sV  = Ao*Vo -(P - cr(P, 0, -1))*A + hf*(B + cr(B, 0, -1))  \
-            - rho*A*cr(VV, 1, 0) + rho*A*cr(VV, -1, 0)       \
-            - rho*A*cr(UV, 1, 0) + rho*A*cr(UV, -1, 0)
+            - rho*A*(cr(RsgsVU, 1, 0) - cr(RsgsVU, -1, 0))         \
+            - rho*A*(cr(RsgsVV, 1, 0) - cr(RsgsVV, -1, 0))
 
         itM  = 0
         resM = one
@@ -246,6 +276,26 @@ while (tstep<totSteps and totTime<finalTime):
         # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
 
+
+
+        #---------------------------- find DNS field
+        itDNS  = 0
+        resDNS = large
+        opt = tf.keras.optimizers.Adam(learning_rate=lrDNS)
+        while (resDNS>tollDNS and itDNS<maxItDNS):
+            with tf.GradientTape() as tape_DNS:
+                tape_DNS.watch(dlatents)
+                predictions = wl_synthesis(dlatents, training=False)
+                UVP_DNS     = predictions[RES_LOG2-2]
+                UVP         = filter(UVP_DNS, training=False)
+                resDNS      = tf.math.sqrt(tf.math.reduce_sum((UVP[0,0,:,:]-U)**2 \
+                            + (UVP[0,1,:,:]-V)**2 + (UVP[0,2,:,:]-P)**2))
+                resDNS      = resDNS*ipow22
+                gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
+                opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+                
+            itDNS = itDNS+1
+            print("DNS iterations:  it {0:3d}  residuals {1:3e}".format(itDNS, resDNS))
 
 
         #---------------------------- solve transport equation for passive scalar
@@ -318,7 +368,7 @@ while (tstep<totSteps and totTime<finalTime):
             resC_cpu, res_cpu, its, div_cpu))
 
 
-        if (TEST_CASE == "HIT_2D"):
+        if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
                 print_fields(U, V, P, C, tstep, dir)
                 plot_spectrum(U, V, L, tstep)

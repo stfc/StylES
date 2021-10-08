@@ -12,10 +12,10 @@
             // "cwd": "${workspaceFolder}/",
             // "program": "LES_solver_staggered.py",
             // "cwd": "${workspaceFolder}/LES_Solvers/",
-            "program": "vorticity.py",
-            "cwd": "${workspaceFolder}/utilities/",
-            // "program": "StylES.py",
-            // "cwd": "${workspaceFolder}/LES_Solvers/",
+            // "program": "vorticity.py",
+            // "cwd": "${workspaceFolder}/utilities/",
+            "program": "StylES.py",
+            "cwd": "${workspaceFolder}/LES_Solvers/",
             "console": "integratedTerminal"
         }
     ]
