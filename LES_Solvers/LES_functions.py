@@ -44,10 +44,10 @@ def load_fields(filename='restart.npz'):
 
 def save_fields(totTime, it, U, V, P, C, B):
 
-    #filename = "restart.npz"
-    #nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
+    filename = "restart.npz"
+    nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
 
-    filename = "restart_" + str(it) + ".npz"
+    filename = "fields_it{0:d}.npz".format(it)
     maxU = np.max(U)
     maxV = np.max(V)
     minU = np.min(U)
@@ -73,5 +73,5 @@ def plot_spectrum(U, V, L, tstep):
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
     plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)
 
-    filename = "Energy_spectrum_" + str(tstep) + ".txt"
+    filename = "Energy_spectrum_it{0:d}.txt".format(tstep)
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation

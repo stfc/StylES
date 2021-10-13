@@ -33,11 +33,14 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 
 
 #---------------------------- set flow pressure, velocity fields and BCs
-os.system("rm fields*")
-os.system("rm Energy_spectrum*")
-os.system("rm uvw_*")
-os.system("rm restart_*")
 
+# clean up and declarations
+os.system("rm Energy_spectrum.png")
+#os.system("rm restart.npz")
+os.system("rm Energy_spectrum_it*")
+os.system("rm fields_it*")
+os.system("rm plots_it*")
+os.system("rm uvw_it*")
 
 # initial flow
 totTime = zero
@@ -46,9 +49,10 @@ if (RESTART):
 else:
     U, V, P, C, B, totTime = init_fields()
 
-print_fields(U, V, P, C, 0, dir)
+print_fields(U, V, P, C, 0, N)
 
-
+# log file for TensorBoard
+train_summary_writer = tf.summary.create_file_writer("./logs/")
 
 # find face velocities first guess as forward difference (i.e. on side east and north)
 Ue = hf*(cr(U, 1, 0) + U)
@@ -84,6 +88,12 @@ if (tstep%print_res == 0):
 
 # plot spectrum
 plot_spectrum(U, V, L, tstep)
+
+# track center point velocities and pressure
+with train_summary_writer.as_default():
+    tf.summary.scalar("DNS/probe_U", U[N//2, N//2], step=tstep)
+    tf.summary.scalar("DNS/probe_V", V[N//2, N//2], step=tstep)
+    tf.summary.scalar("DNS/probe_P", P[N//2, N//2], step=tstep)
 
 
 # start loop
@@ -285,26 +295,30 @@ while (tstep<totSteps and totTime<finalTime):
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
-
+        # track center point velocities and pressure
+        with train_summary_writer.as_default():
+            tf.summary.scalar("DNS/probe_U", U[N//2, N//2], step=tstep)
+            tf.summary.scalar("DNS/probe_V", V[N//2, N//2], step=tstep)
+            tf.summary.scalar("DNS/probe_P", P[N//2, N//2], step=tstep)
 
         if (TEST_CASE == "HIT_2D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
         else:
     
             # save images
             if (tstep%print_img == 0):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
 
             # write checkpoint
             if (tstep%print_ckp == 0):
@@ -319,7 +333,7 @@ while (tstep<totSteps and totTime<finalTime):
 # end of the simulation
 
 # save images
-print_fields(U, V, P, C, tstep, dir)
+print_fields(U, V, P, C, tstep, N)
 
 # write checkpoint
 save_fields(totTime, tstep, U, V, P, C, B)

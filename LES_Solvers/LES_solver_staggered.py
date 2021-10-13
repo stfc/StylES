@@ -26,16 +26,20 @@ Po = nc.zeros([N,N], dtype=DTYPE)   # old pressure field
 Co = nc.zeros([N,N], dtype=DTYPE)   # old passive scalar
 pc = nc.zeros([N,N], dtype=DTYPE)  # pressure correction
 Z  = nc.zeros([N,N], dtype=DTYPE)
+DNS_cv = np.zeros([totSteps+1, 4])
 
 
 
 
 #---------------------------- set flow pressure, velocity fields and BCs
-os.system("rm fields*")
-os.system("rm Energy_spectrum*")
-os.system("rm uvw_*")
-os.system("rm restart_*")
 
+# clean up and declarations
+os.system("rm Energy_spectrum.png")
+#os.system("rm restart.npz")
+os.system("rm Energy_spectrum_it*")
+os.system("rm fields_it*")
+os.system("rm plots_it*")
+os.system("rm uvw_it*")
 
 # initial flow
 totTime = zero
@@ -44,7 +48,9 @@ if (RESTART):
 else:
     U, V, P, C, B, totTime = init_fields()
 
-print_fields(U, V, P, C, 0, dir)
+# print fields
+print_fields(U, V, P, C, 0, N)
+
 
 
 
@@ -77,6 +83,14 @@ if (tstep%print_res == 0):
 
 # plot spectrum
 plot_spectrum(U, V, L, tstep)
+
+# track center point velocities and pressure
+DNS_cv[tstep,0] = totTime
+DNS_cv[tstep,1] = U[N//2, N//2]
+DNS_cv[tstep,2] = V[N//2, N//2]
+DNS_cv[tstep,3] = P[N//2, N//2]
+
+
 
 # start loop
 while (tstep<totSteps and totTime<finalTime):
@@ -275,24 +289,31 @@ while (tstep<totSteps and totTime<finalTime):
             resC_cpu, res_cpu, its, div_cpu))
 
 
+        # track center point velocities and pressure
+        DNS_cv[tstep,0] = totTime
+        DNS_cv[tstep,1] = U[N//2, N//2]
+        DNS_cv[tstep,2] = V[N//2, N//2]
+        DNS_cv[tstep,3] = P[N//2, N//2]
+
+
         if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
                 plot_spectrum(U, V, L, tstep)
 
         else:
     
             # save images
             if (tstep%print_img == 0):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U, V, P, C, tstep, N)
 
             # write checkpoint
             if (tstep%print_ckp == 0):
@@ -307,12 +328,17 @@ while (tstep<totSteps and totTime<finalTime):
 # end of the simulation
 
 # save images
-print_fields(U, V, P, C, tstep, dir)
+print_fields(U, V, P, C, tstep, N)
 
 # write checkpoint
 save_fields(totTime, tstep, U, V, P, C, B)
 
 # print spectrum
 plot_spectrum(U, V, L, tstep)
+
+# save center values
+filename = "DNS_center_values" + ".txt"
+np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+
 
 print("Simulation succesfully completed!")

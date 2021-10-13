@@ -8,7 +8,7 @@ from LES_functions  import *
 
 
 
-def print_fields(U_, V_, P_, C_, it, dir=0):
+def print_fields(U_, V_, P_, C_, it, N, name=""):
 
     #---------------------------------- find vorticity
     W_ = nc.zeros([N,N], dtype=DTYPE)
@@ -99,7 +99,7 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
         ax8.title.set_text('vorticity')
 
     # save images
-    plt.savefig("fields_it_{0:d}.png".format(it), bbox_inches='tight', pad_inches=0)    
+    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
     plt.close()
 
 
@@ -129,7 +129,7 @@ def print_fields(U_, V_, P_, C_, it, dir=0):
             img[:,:,2] = (img[:,:,2] - minW)/(maxW - minW)
 
         img = Image.fromarray(np.uint8(img*255), 'RGB')
-        filename = "uvw_" + str(it) + ".png"
+        filename = "uvw_it{0:d}.png".format(it)
         size = N, N
         img.thumbnail(size)
         img.save(filename)

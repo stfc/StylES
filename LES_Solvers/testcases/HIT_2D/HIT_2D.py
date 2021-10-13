@@ -20,14 +20,14 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = False
-SAVE_UVW  = True
+RESTART   = True
+SAVE_UVW  = False
 finalTime = 0.16
-totSteps  = 100000
-print_res = 10
-print_img = 100
-print_ckp = 10
-print_spe = totSteps+1
+totSteps  = 10
+print_res = 1
+print_img = 1
+print_ckp = totSteps+1
+print_spe = 1
 N         = 256      # number of points   [-]
 iNN       = one/(N*N)
 

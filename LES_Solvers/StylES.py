@@ -29,29 +29,42 @@ tstart = time.time()
 
 
 #---------------------------- define arrays
-Uo = nc.zeros([N,N], dtype=DTYPE)   # old x-velocity
-Vo = nc.zeros([N,N], dtype=DTYPE)   # old y-velocity
-Po = nc.zeros([N,N], dtype=DTYPE)   # old pressure field
-Co = nc.zeros([N,N], dtype=DTYPE)   # old passive scalar
-pc = nc.zeros([N,N], dtype=DTYPE)   # pressure correction
-Z  = nc.zeros([N,N], dtype=DTYPE)   # zero array
+NLES = int(N/2)
+Uo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old x-velocity
+Vo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old y-velocity
+Po = nc.zeros([NLES,NLES], dtype=DTYPE)   # old pressure field
+Co = nc.zeros([NLES,NLES], dtype=DTYPE)   # old passive scalar
+pc = nc.zeros([NLES,NLES], dtype=DTYPE)   # pressure correction
+Z  = nc.zeros([NLES,NLES], dtype=DTYPE)   # zero array
+C  = np.zeros([NLES,NLES], dtype=DTYPE)   # scalar
+B  = np.zeros([NLES,NLES], dtype=DTYPE)   # body force
+P  = np.zeros([NLES,NLES], dtype=DTYPE)   # body force
 
+DNS_cv = np.zeros([totSteps+1, 4])
+LES_cv = np.zeros([totSteps+1, 4])
+U_diff = np.zeros([OUTPUT_DIM, OUTPUT_DIM], dtype=DTYPE)
+V_diff = np.zeros([OUTPUT_DIM, OUTPUT_DIM], dtype=DTYPE)
 
 
 
 #---------------------------- initialize fields
 
 # clean up and declarations
-os.system("rm fields*")
-os.system("rm Energy_spectrum*")
-os.system("rm uvw_*")
-os.system("rm restart_*")
+os.system("rm Energy_spectrum.png")
+#os.system("rm restart.npz")
+os.system("rm Energy_spectrum_it*")
+os.system("rm fields_it*")
+os.system("rm plots_it*")
+os.system("rm uvw_it*")
 
-pow2     = 2**(RES_LOG2-1)
-ipow22   = one/(2*pow2*pow2)  #2 because we sum U and V residuals
-DiffCoef = np.full([pow2, pow2], Dc)
-NL_DNS   = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
-NL       = np.zeros([BATCH_SIZE, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
+pow2      = 2**(RES_LOG2-1)
+ipow22    = one/(2*pow2*pow2)  #2 because we sum U and V residuals
+iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  #2 because we sum U and V residuals  
+DiffCoef  = np.full([pow2, pow2], Dc)
+NL_DNS    = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
+NL        = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
+
+tf.random.set_seed(1)
 
 
 # loading StyleGAN checkpoint and filter
@@ -59,42 +72,110 @@ checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
 mapping_ave.trainable = False
 synthesis_ave.trainable = False
 
-tf.random.set_seed(16)
-input_random = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
-dlatents     = mapping_ave(input_random, training=False)
-predictions  = synthesis_ave(dlatents, training=False)
-
-
-# find DNS and filtered fields
-UVW_DNS      = predictions[RES_LOG2-2]
-UVW          = filter(UVW_DNS, training=False)
-
 
 # create variable synthesis model
-latents = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
-wlatents = layer_wlatent(latents)
-nlatents = wlatents(latents) 
-outputs = synthesis_ave(nlatents, training=False)
+latents      = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+wlatents     = layer_wlatent(latents)
+nlatents     = wlatents(latents) 
+outputs      = synthesis_ave(nlatents, training=False)
 wl_synthesis = tf.keras.Model(latents, outputs)
 
+# define learnin rate schedule and optimizer
+if (lrDNS_POLICY=="EXPONENTIAL"):
+    lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=lrDNS,
+        decay_steps=lrDNS_STEP,
+        decay_rate=lrDNS_RATE,
+        staircase=lrDNS_EXP_ST)
 
-# find DNS and LES fields
+elif (lrDNS_POLICY=="PIECEWISE"):
+    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lrDNS_BOUNDS, lrDNS_VALUES)
+
+opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
+
+# log file for TensorBoard
+train_summary_writer = tf.summary.create_file_writer("./logs/")
+
+
+# initial flow
+if (RESTART):
+
+    # find DNS and LES fields from given field
+    U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()
+    print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNS_org")
+
+    itDNS        = 0
+    resDNS       = large
+    input_random = tf.random.uniform([1, LATENT_SIZE])
+    dlatents     = mapping_ave(input_random, training=False)
+    while (resDNS>tollDNS and itDNS<maxItDNS):
+        with tf.GradientTape() as tape_DNS:
+            tape_DNS.watch(dlatents)
+            predictions   = wl_synthesis(dlatents, training=False)
+            UVW_DNS       = predictions[RES_LOG2-2]
+            resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,0,:,:], U_DNS))
+            resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,1,:,:], V_DNS))
+            resDNS        = resDNS*iOUTDIM22
+            gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
+            opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+
+        if (itDNS%100 == 0):
+            lr = lr_schedule(itDNS)
+            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+            # U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
+            # V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
+            # print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNSfromDNS")
+
+        with train_summary_writer.as_default():
+            tf.summary.scalar("residuals", resDNS, step=itDNS)
+            tf.summary.scalar("lr", lr, step=itDNS)
+
+        itDNS = itDNS+1
+
+else:
+
+    # find DNS and LES fields from random input 
+    totTime = zero
+    P_DNS = nc.zeros([N,N], dtype=DTYPE)   # pressure
+    B_DNS = nc.zeros([N,N], dtype=DTYPE)   # body force
+    C_DNS = nc.zeros([N,N], dtype=DTYPE)   # passive scalar
+
+    input_random = tf.random.uniform([1, LATENT_SIZE])
+    dlatents     = mapping_ave(input_random, training=False)
+    predictions  = synthesis_ave(dlatents, training=False)
+    UVW_DNS      = predictions[RES_LOG2-2]
+
+
+# save difference between initial DNS and provided DNS fields
+U_diff[:,:] = U_DNS[:,:] - UVW_DNS[0, 0, :, :].numpy()
+V_diff[:,:] = V_DNS[:,:] - UVW_DNS[0, 1, :, :].numpy()
+
+print_fields(U_diff, V_diff, P_DNS, C_DNS, 0, N, name="diff_DNS")
+
+
+# find DNS field
 U_DNS = UVW_DNS[0, 0, :, :].numpy()
 V_DNS = UVW_DNS[0, 1, :, :].numpy()
-W_DNS = UVW_DNS[0, 2, :, :].numpy()
+
+n_DNS = np.zeros([1, 3, OUTPUT_DIM, OUTPUT_DIM])
+n_DNS[0,0,:,:] = U_DNS[:,:]
+n_DNS[0,1,:,:] = V_DNS[:,:]
+n_DNS[0,2,:,:] = P_DNS[:,:]
+
+UVW_DNS = tf.convert_to_tensor(n_DNS)
+
+
+# find LES field
+UVW     = filter(UVW_DNS, training=False)
 
 U = UVW[0, 0, :, :].numpy()
 V = UVW[0, 1, :, :].numpy()
-W = UVW[0, 2, :, :].numpy()
-
-P = nc.zeros([N,N], dtype=DTYPE)   # pressure
-B = nc.zeros([N,N], dtype=DTYPE)   # body force
-C = nc.zeros([N,N], dtype=DTYPE)   # passive scalar
+P = UVW[0, 2, :, :].numpy()
 
 
 # print fields
-print_fields(U, V, P, C, 0, dir)
-
+print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNS")
+print_fields(U, V, P, C, 0, NLES, name="LES")
 
 
 
@@ -107,20 +188,16 @@ resP_cpu = zero
 resC_cpu = zero
 res_cpu  = zero
 its      = 0
-totTime  = zero
-
 
 # check divergence
 div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
 div = div*iNN
 div_cpu = convert(div)
 
-
 # find new delt based on Courant number
 cdelt = CNum*dl/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
 delt = convert(cdelt)
 delt = min(delt, maxDelt)
-
 
 # print values
 tend = time.time()
@@ -131,10 +208,19 @@ if (tstep%print_res == 0):
     .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
     resC_cpu, res_cpu, its, div_cpu))
 
-
 # plot spectrum
 plot_spectrum(U, V, L, tstep)
 
+# track center point velocities and pressure
+DNS_cv[tstep,0] = totTime
+DNS_cv[tstep,1] = U_DNS[N//2, N//2]
+DNS_cv[tstep,2] = V_DNS[N//2, N//2]
+DNS_cv[tstep,3] = P_DNS[N//2, N//2]
+
+LES_cv[tstep,0] = totTime
+LES_cv[tstep,1] = U[NLES//2, NLES//2]
+LES_cv[tstep,2] = V[NLES//2, NLES//2]
+LES_cv[tstep,3] = P[NLES//2, NLES//2]
 
 # start loop
 while (tstep<totSteps and totTime<finalTime):
@@ -162,23 +248,33 @@ while (tstep<totSteps and totTime<finalTime):
         UV = NL[0, 1, :, :].numpy()
         VV = NL[0, 2, :, :].numpy()
 
-        RsgsUU = UU - U*Uo
-        RsgsUV = UV - U*Vo
-        RsgsVU = UV - V*Uo
-        RsgsVV = VV - V*Vo
+        # RsgsUU = UU - U*Uo
+        # RsgsUV = UV - U*Vo
+        # RsgsVU = UV - V*Uo
+        # RsgsVV = VV - V*Vo
+
+        RsgsUU = UU
+        RsgsUV = UV
+        RsgsVU = UV
+        RsgsVV = VV
 
 
         #---------------------------- solve momentum equations
         # x-direction
-        Fw = A*rho*hf*(Uo            + cr(Uo, -1, 0))
-        Fe = A*rho*hf*(cr(Uo,  1, 0) + Uo           )
-        Fs = A*rho*hf*(Vo            + cr(Vo, -1, 0))
-        Fn = A*rho*hf*(cr(Vo,  0, 1) + cr(Vo, -1, 1))
+        # Fw = A*rho*hf*(Uo            + cr(Uo, -1, 0))
+        # Fe = A*rho*hf*(cr(Uo,  1, 0) + Uo           )
+        # Fs = A*rho*hf*(Vo            + cr(Vo, -1, 0))
+        # Fn = A*rho*hf*(cr(Vo,  0, 1) + cr(Vo, -1, 1))
 
-        Aw = Dc + hf*(nc.abs(Fw) + Fw)
-        Ae = Dc + hf*(nc.abs(Fe) - Fe)
-        As = Dc + hf*(nc.abs(Fs) + Fs)
-        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Fw = zero
+        Fe = zero
+        Fs = zero
+        Fn = zero
+
+        Aw = DiffCoef + hf*(nc.abs(Fw) + Fw)
+        Ae = DiffCoef + hf*(nc.abs(Fe) - Fe)
+        As = DiffCoef + hf*(nc.abs(Fs) + Fs)
+        An = DiffCoef + hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
@@ -192,25 +288,31 @@ while (tstep<totSteps and totTime<finalTime):
         while (resM>tollM and itM<maxIt):
 
             dd = sU + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0)
-            U = solver_TDMAcyclic(-As, Ap, -An, dd, N)
+            U = solver_TDMAcyclic(-As, Ap, -An, dd, NLES)
             U = (sU + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1))*iApU
             resM = nc.sum(nc.abs(Ap*U - sU - Aw*cr(U, -1, 0) - Ae*cr(U, 1, 0) - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
             resM = resM*iNN
             resM_cpu = convert(resM)
-            # print("x-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
+            if ((itM+1)%101 == 0):
+                print("x-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
             itM = itM+1
 
 
         # y-direction
-        Fw = A*rho*hf*(Uo             + cr(Uo, 0, -1))
-        Fe = A*rho*hf*(cr(Uo,  1,  0) + cr(Uo, 1, -1))
-        Fs = A*rho*hf*(cr(Vo,  0, -1) + Vo           )
-        Fn = A*rho*hf*(Vo             + cr(Vo, 0,  1))
+        # Fw = A*rho*hf*(Uo             + cr(Uo, 0, -1))
+        # Fe = A*rho*hf*(cr(Uo,  1,  0) + cr(Uo, 1, -1))
+        # Fs = A*rho*hf*(cr(Vo,  0, -1) + Vo           )
+        # Fn = A*rho*hf*(Vo             + cr(Vo, 0,  1))
 
-        Aw = Dc + hf*(nc.abs(Fw) + Fw)
-        Ae = Dc + hf*(nc.abs(Fe) - Fe)
-        As = Dc + hf*(nc.abs(Fs) + Fs)
-        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Fw = zero
+        Fe = zero
+        Fs = zero
+        Fn = zero
+
+        Aw = DiffCoef + hf*(nc.abs(Fw) + Fw)
+        Ae = DiffCoef + hf*(nc.abs(Fe) - Fe)
+        As = DiffCoef + hf*(nc.abs(Fs) + Fs)
+        An = DiffCoef + hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap  = Ao + Aw + Ae + As + An
@@ -224,13 +326,14 @@ while (tstep<totSteps and totTime<finalTime):
         while (resM>tollM and itM<maxIt):
 
             dd = sV + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0)
-            V = solver_TDMAcyclic(-As, Ap, -An, dd, N)
+            V = solver_TDMAcyclic(-As, Ap, -An, dd, NLES)
             V = (sV + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1))*iApV
             resM = nc.sum(nc.abs(Ap*V - sV - Aw*cr(V, -1, 0) - Ae*cr(V, 1, 0) - As*cr(V, 0, -1) - An*cr(V, 0, 1)))
 
             resM = resM*iNN
             resM_cpu = convert(resM)
-            # print("y-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(it, resM_cpu))
+            if ((itM+1)%101 == 0):
+                print("y-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
             itM = itM+1
 
 
@@ -252,14 +355,15 @@ while (tstep<totSteps and totTime<finalTime):
         while (resP>tollP and itP<maxIt):
 
             dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
-            pc = solver_TDMAcyclic(-As, Ap, -An, dd, N)
+            pc = solver_TDMAcyclic(-As, Ap, -An, dd, NLES)
             pc = (So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0) + As*cr(pc, 0, -1) + An*cr(pc, 0, 1))*iApP
 
             resP = nc.sum(nc.abs(Ap*pc - So - Aw*cr(pc, -1, 0) - Ae*cr(pc, 1, 0) - As*cr(pc, 0, -1) - An*cr(pc, 0, 1)))
             resP = resP*iNN
 
             resP_cpu = convert(resP)
-            # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
+            if ((itP+1)%101 == 0):
+                print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
             itP = itP+1
 
 
@@ -276,68 +380,91 @@ while (tstep<totSteps and totTime<finalTime):
         res = nc.sum(nc.abs(So))
         res = res*iNN
         res_cpu = convert(res)
-        # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
-
-
-
-
-        #---------------------------- find DNS field
-        itDNS  = 0
-        resDNS = large
-        opt = tf.keras.optimizers.Adam(learning_rate=lrDNS)
-        while (resDNS>tollDNS and itDNS<maxItDNS):
-            with tf.GradientTape() as tape_DNS:
-                tape_DNS.watch(dlatents)
-                predictions = wl_synthesis(dlatents, training=False)
-                UVW_DNS     = predictions[RES_LOG2-2]
-                UVW         = filter(UVW_DNS, training=False)
-                resDNS      =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:],U))
-                resDNS      = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:],V))
-                resDNS      = resDNS*ipow22
-                gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
-                opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
-                
-            itDNS = itDNS+1
-            print("DNS iterations:  it {0:3d}  residuals {1:3e}".format(itDNS, resDNS))
-
-
-        #---------------------------- solve transport equation for passive scalar
-        if (PASSIVE):
-
-            # solve iteratively
-            Fw = A*rho*cr(U, -1, 0)
-            Fe = A*rho*U
-            Fs = A*rho*cr(V, 0, -1)
-            Fn = A*rho*V
-
-            Aw = Dc + hf*(nc.abs(Fw) + Fw)
-            Ae = Dc + hf*(nc.abs(Fe) - Fe)
-            As = Dc + hf*(nc.abs(Fs) + Fs)
-            An = Dc + hf*(nc.abs(Fn) - Fn)
-            Ao = rho*A*dl/delt
-
-            Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
-            iApC = one/Ap
-
-            itC  = 0
-            resC = large
-            while (resC>tollC and itC<maxIt):
-                dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
-                C = solver_TDMAcyclic(-As, Ap, -An, dd, N)
-                C = (Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1))*iApC
-
-                resC = nc.sum(nc.abs(Ap*C - Ao*Co - Aw*cr(C, -1, 0) - Ae*cr(C, 1, 0) - As*cr(C, 0, -1) - An*cr(C, 0, 1)))
-                resC = resC*iNN
-                resC_cpu = convert(resC)
-                # print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(itC, resC_cpu))
-                itC = itC+1
-
-            # find integral of passive scalar
-            totSca = convert(nc.sum(C))
-            maxSca = convert(nc.max(C))
-            print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
+        if ((it+1)%101 == 0):
+            print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
         it = it+1
+
+
+
+    #---------------------------- find DNS field
+    itDNS  = 0
+    resDNS = large
+    # lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
+    #     initial_learning_rate=lrDNS*0.1,
+    #     decay_steps=lrDNS_STEP,
+    #     decay_rate=lrDNS_RATE,
+    #     staircase=lrDNS_EXP_ST)
+    # opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
+    while (resDNS>tollDNS and itDNS<maxItDNS):
+        with tf.GradientTape() as tape_DNS:
+            tape_DNS.watch(dlatents)
+            predictions = wl_synthesis(dlatents, training=True)
+            UVW_DNS     = predictions[RES_LOG2-2]
+            UVW         = filter(UVW_DNS, training=False)
+            resDNS      =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
+            resDNS      = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
+            resDNS      = resDNS*ipow22
+            gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
+            opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+
+        if ((itDNS+1)%101 == 0):
+            lr = lr_schedule(itDNS)
+            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+            # U_DNS = UVW_DNS[0, 0, :, :].numpy()
+            # V_DNS = UVW_DNS[0, 1, :, :].numpy()
+            # print_fields(U_DNS, V_DNS, P_DNS, C_DNS, itDNS, N, name="DNSfromLES")
+            # aa = input()
+
+        # with train_summary_writer.as_default():
+        #     tf.summary.scalar("LES/residuals", resDNS, step=itDNS)
+        #     tf.summary.scalar("LES/lr", lr, step=itDNS)
+
+        itDNS = itDNS+1
+
+    # save new DNS field
+    U_DNS = UVW_DNS[0, 0, :, :].numpy()
+    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+
+
+
+
+    #---------------------------- solve transport equation for passive scalar
+    if (PASSIVE):
+
+        # solve iteratively
+        Fw = A*rho*cr(U, -1, 0)
+        Fe = A*rho*U
+        Fs = A*rho*cr(V, 0, -1)
+        Fn = A*rho*V
+
+        Aw = Dc + hf*(nc.abs(Fw) + Fw)
+        Ae = Dc + hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*(nc.abs(Fs) + Fs)
+        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Ao = rho*A*dl/delt
+
+        Ap = Ao + (Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs))
+        iApC = one/Ap
+
+        itC  = 0
+        resC = large
+        while (resC>tollC and itC<maxIt):
+            dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
+            C = solver_TDMAcyclic(-As, Ap, -An, dd, NLES)
+            C = (Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1))*iApC
+
+            resC = nc.sum(nc.abs(Ap*C - Ao*Co - Aw*cr(C, -1, 0) - Ae*cr(C, 1, 0) - As*cr(C, 0, -1) - An*cr(C, 0, 1)))
+            resC = resC*iNN
+            resC_cpu = convert(resC)
+            if ((itC+1)%101 == 0):
+                print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(itC, resC_cpu))
+            itC = itC+1
+
+        # find integral of passive scalar
+        totSca = convert(nc.sum(C))
+        maxSca = convert(nc.max(C))
+        print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
 
 
 
@@ -346,7 +473,6 @@ while (tstep<totSteps and totTime<finalTime):
     if (it==maxIt):
         print("Attention: SIMPLE solver not converged!!!")
         exit()
-
     else:
         # find new delt based on Courant number
         cdelt = CNum*dl/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
@@ -370,45 +496,67 @@ while (tstep<totSteps and totTime<finalTime):
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
+        # track center values of DNS and LES fields
+        DNS_cv[tstep,0] = totTime
+        DNS_cv[tstep,1] = U_DNS[N//2, N//2]
+        DNS_cv[tstep,2] = V_DNS[N//2, N//2]
+        DNS_cv[tstep,3] = P_DNS[N//2, N//2]
 
+        LES_cv[tstep,0] = totTime
+        LES_cv[tstep,1] = U[NLES//2, NLES//2]
+        LES_cv[tstep,2] = V[NLES//2, NLES//2]
+        LES_cv[tstep,3] = P[NLES//2, NLES//2]
+
+        # print fields and spectrum
         if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                print_fields(U, V, P, C, tstep, NLES, name="LES")
+                plot_spectrum(U_DNS, V_DNS, L, tstep)
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                print_fields(U, V, P, C, tstep, NLES, name="LES")
+                plot_spectrum(U_DNS, V_DNS, L, tstep)
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U, V, P, C, tstep, dir)
-                plot_spectrum(U, V, L, tstep)
-
+                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                print_fields(U, V, P, C, tstep, NLES, name="LES")
+                plot_spectrum(U_DNS, V_DNS, L, tstep)
         else:
-    
             # save images
             if (tstep%print_img == 0):
-                print_fields(U, V, P, C, tstep, dir)
+                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                print_fields(U, V, P, C, tstep, NLES, name="LES")
 
             # write checkpoint
             if (tstep%print_ckp == 0):
                 save_fields(totTime, tstep, U, V, P, C, B)
 
-
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U, V, L, tstep)
+                plot_spectrum(U_DNS, V_DNS, L, tstep)
 
 
-# end of the simulation
+
+
+#---------------------------- end of the simulation
 
 # save images
-print_fields(U, V, P, C, tstep, dir)
+print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+print_fields(U, V, P, C, tstep, NLES, name="LES")
 
 # write checkpoint
 save_fields(totTime, tstep, U, V, P, C, B)
 
 # print spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U_DNS, V_DNS, L, tstep)
+
+# save center values
+filename = "DNSfromLES_center_values" + ".txt"
+np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')
+
+filename = "LES_center_values" + ".txt"
+np.savetxt(filename, np.c_[LES_cv[0:tstep+1,0], LES_cv[0:tstep+1,1], LES_cv[0:tstep+1,2], LES_cv[0:tstep+1,3]], fmt='%1.4e')
 
 print("Simulation succesfully completed!")
