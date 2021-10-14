@@ -80,6 +80,14 @@ nlatents     = wlatents(latents)
 outputs      = synthesis_ave(nlatents, training=False)
 wl_synthesis = tf.keras.Model(latents, outputs)
 
+# latents       = tf.keras.Input(shape=[G_LAYERS-2, LATENT_SIZE])
+# wlatents      = layer_wlatent(latents)
+# nlatents      = wlatents(latents) 
+# latents_const = tf.ones(shape=[2, LATENT_SIZE])
+# flatents      = tf.concat(nlatents, latents_const)
+# outputs       = synthesis_ave(flatents, training=False)
+# wl_synthesis  = tf.keras.Model(latents, outputs)
+
 # define learnin rate schedule and optimizer
 if (lrDNS_POLICY=="EXPONENTIAL"):
     lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
@@ -398,7 +406,6 @@ while (tstep<totSteps and totTime<finalTime):
     # opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     while (resDNS>tollDNS and itDNS<maxItDNS):
         with tf.GradientTape() as tape_DNS:
-            tape_DNS.watch(dlatents)
             predictions = wl_synthesis(dlatents, training=True)
             UVW_DNS     = predictions[RES_LOG2-2]
             UVW         = filter(UVW_DNS, training=False)
@@ -408,9 +415,13 @@ while (tstep<totSteps and totTime<finalTime):
             gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
             opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 
-        if ((itDNS+1)%101 == 0):
+        resFil =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], predictions[RES_LOG2-3][0,0,:,:]))
+        resFil = resFil + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], predictions[RES_LOG2-3][0,1,:,:]))
+        resFil = resFil*ipow22
+
+        if ((itDNS)%1 == 0):
             lr = lr_schedule(itDNS)
-            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resFil, lr))
             # U_DNS = UVW_DNS[0, 0, :, :].numpy()
             # V_DNS = UVW_DNS[0, 1, :, :].numpy()
             # print_fields(U_DNS, V_DNS, P_DNS, C_DNS, itDNS, N, name="DNSfromLES")

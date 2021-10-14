@@ -99,6 +99,7 @@ def print_fields(U_, V_, P_, C_, it, N, name=""):
         ax8.title.set_text('vorticity')
 
     # save images
+    plt.suptitle(name)
     plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
     plt.close()
 
@@ -133,3 +134,70 @@ def print_fields(U_, V_, P_, C_, it, N, name=""):
         size = N, N
         img.thumbnail(size)
         img.save(filename)
+
+
+
+
+
+
+
+
+
+def print_fields_2(U_, V_, it, N, name=""):
+
+    U = convert(U_)
+    V = convert(V_)
+
+
+    #---------------------------------- plot surfaces
+    fig, axs = plt.subplots(1, 2, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
+
+    ax1 = axs[0]
+    ax2 = axs[1]
+ 
+    velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud')
+    fig.colorbar(velx, ax=ax1)
+    ax1.title.set_text('X-vel')
+    ax1.set_aspect(1)
+
+    vely = ax2.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud')
+    fig.colorbar(vely, ax=ax2)
+    ax2.title.set_text('Y-vel')
+    ax2.set_aspect(1)
+
+    # save images
+    plt.suptitle(name)
+    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
+    plt.close()
+
+
+
+
+def print_fields_1(U_, V_, it, N, name=""):
+    
+    #---------------------------------- find vorticity
+    W_ = nc.zeros([N,N], dtype=DTYPE)
+    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dl - (cr(U_, 0, 1) - cr(U_, 0, -1))/dl
+
+    U = convert(U_)
+    V = convert(V_)
+    W = convert(W_)
+
+
+    #---------------------------------- plot surfaces
+    fig, ax1 = plt.subplots(1, 1, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
+
+    vort = ax1.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
+    fig.colorbar(vort, ax=ax1)
+    ax1.title.set_text('vorticity')
+    ax1.set_aspect(1)
+
+    # save images
+    plt.suptitle(name)
+    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
+    plt.close()
+
+
+
