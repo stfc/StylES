@@ -5,25 +5,17 @@ sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers/')
 sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D/')
 
-from LES_modules    import *
-from LES_constants  import *
-from LES_parameters import *
-from LES_functions  import *
-from LES_plot       import *
+from LES_plot import *
 
-from parameters import *
-from functions import *
 from MSG_StyleGAN_tf2 import *
-from train import *
-from PIL import Image
 
 
 
 
 # clean up, declarations and initialization
-NIP = 10   # number of interpolation points 
+NIP = 5   # number of interpolation points 
 os.system("rm plots_it*")
-
+CHECK_FILTER = False
 
 
 # loading StyleGAN checkpoint and filter
@@ -41,7 +33,7 @@ wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # # print different fields (to check quality and find 2 different seeds)
-# for k in range(100):
+# for k in range(20):
 #     tf.random.set_seed(k)
 #     input_random = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
 #     wlatents     = mapping_ave(input_random, training=False)
@@ -57,7 +49,7 @@ wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # find first wlatent space
-tf.random.set_seed(1)
+tf.random.set_seed(14)
 input_random0 = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
 wlatents0     = mapping_ave(input_random0, training=False)
 
@@ -69,7 +61,6 @@ wlatents1     = mapping_ave(input_random1, training=False)
 
 
 # Change style as interpolation between the 2 wlatent space
-cont = 0
 for st in range(G_LAYERS):
     rand0 = wlatents0[:, st:st+1, :]
     rand1 = wlatents1[:, st:st+1, :]
@@ -87,9 +78,20 @@ for st in range(G_LAYERS):
         UVW_DNS     = predictions[RES_LOG2-2]
         U_DNS = UVW_DNS[0, 0, :, :].numpy()
         V_DNS = UVW_DNS[0, 1, :, :].numpy()
-        filename = "styles_" + str(st) + "_" + str(i) + "_" + str(cont)
-        print_fields_1(U_DNS, V_DNS, 0, N, name=filename)
-        cont=cont+1
+
+        if (CHECK_FILTER):
+            UVW_DNS = predictions[RES_LOG2-2]
+            UVW     = filter(UVW_DNS, training=False)
+            UVW_LES = predictions[RES_LOG2-3]
+            U       = UVW_LES[0, 0, :, :].numpy()
+            V       = UVW_LES[0, 1, :, :].numpy()
+            resFil  =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
+            resFil  = resFil + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
+            resFil  = resFil*4/(2*OUTPUT_DIM*OUTPUT_DIM)
+            print("Differences between actual filter and trained filter {0:6.3e}".format(resFil.numpy()))
+        else:
+            filename = "styles_" + str(st) + "_" + str(i)
+            print_fields_1(U_DNS, V_DNS, 0, N, name=filename)
 
         print("done for style " + str(st) + " i " + str(i))
 
