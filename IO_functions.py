@@ -90,7 +90,7 @@ def StyleGAN_load_fields(file_path):
 
 def process_path_numpy_arrays(path):
     img = tf.numpy_function(StyleGAN_load_fields, \
-        [path], [tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32, tf.float32])
+        [path], [DTYPE, DTYPE, DTYPE, DTYPE, DTYPE, DTYPE, DTYPE])
     return img
 
 

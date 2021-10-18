@@ -398,38 +398,19 @@ while (tstep<totSteps and totTime<finalTime):
     #---------------------------- find DNS field
     itDNS  = 0
     resDNS = large
-    # lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
-    #     initial_learning_rate=lrDNS*0.1,
-    #     decay_steps=lrDNS_STEP,
-    #     decay_rate=lrDNS_RATE,
-    #     staircase=lrDNS_EXP_ST)
-    # opt = tf.keras.optimizers.Adam(learning_rate=lr_schedule)
     while (resDNS>tollDNS and itDNS<maxItDNS):
         with tf.GradientTape() as tape_DNS:
             predictions = wl_synthesis(dlatents, training=True)
-            UVW_DNS     = predictions[RES_LOG2-2]
-            UVW         = filter(UVW_DNS, training=False)
-            resDNS      =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
-            resDNS      = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
-            resDNS      = resDNS*ipow22
+            UVW    = predictions[RES_LOG2-3]
+            resDNS =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
+            resDNS = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
+            resDNS = resDNS*ipow22
             gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
             opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 
-        resFil =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], predictions[RES_LOG2-3][0,0,:,:]))
-        resFil = resFil + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], predictions[RES_LOG2-3][0,1,:,:]))
-        resFil = resFil*ipow22
-
-        if ((itDNS)%1 == 0):
+        if ((itDNS+1)%101 == 0):
             lr = lr_schedule(itDNS)
-            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resFil, lr))
-            # U_DNS = UVW_DNS[0, 0, :, :].numpy()
-            # V_DNS = UVW_DNS[0, 1, :, :].numpy()
-            # print_fields(U_DNS, V_DNS, P_DNS, C_DNS, itDNS, N, name="DNSfromLES")
-            # aa = input()
-
-        # with train_summary_writer.as_default():
-        #     tf.summary.scalar("LES/residuals", resDNS, step=itDNS)
-        #     tf.summary.scalar("LES/lr", lr, step=itDNS)
+            print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
 
         itDNS = itDNS+1
 

@@ -94,13 +94,13 @@ def make_synthesis_model():
     use_pixel_norm    = False        # Disable pixelwise feature vector normalization
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
-    use_noise         = False         # Enable noise inputs
-    randomize_noise   = False         # True = randomize noise inputs every time (non-deterministic),
+    use_noise         = False        # Enable noise inputs
+    randomize_noise   = False        # True = randomize noise inputs every time (non-deterministic),
                                      # False = read noise inputs from variables.
     use_styles        = True         # Enable style inputs                             
     blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
                                      # None = no filtering.
-    fused_scale=False               # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+    fused_scale       = False        # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
 
 
     # Inputs
@@ -218,9 +218,9 @@ def make_filter_model(f_res):
 
     # inner parameters
     use_wscale  = True        # Enable equalized learning rate
-    blur_filter = [1, 4, 6, 4, 1] # Low-pass filter to apply when resampling activations. 
+    blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
                               # None = no filtering.
-    fused_scale =False        # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+    fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
 
     # inner functions
     def blur(in_x):
@@ -260,14 +260,14 @@ def make_filter_model(f_res):
 #-------------------------------------define discriminator
 def make_discriminator_model():
 
-    use_wscale         = True # Enable equalized learning rate
-    label_size         = 0    # Dimensionality of the labels, 0 if no labels. Overridden based on dataset
-    mbstd_group_size   = 4    # Group size for the minibatch standard deviation layer, 0 = disable.
-    mbstd_num_features = 1    # Number of features for the minibatch standard deviation layer.
-    blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
-                              # None = no filtering.
-    fused_scale=False        # True = fused convolution + scaling, 
-                              # False = separate ops, 'auto' = decide automatically.
+    use_wscale         = True        # Enable equalized learning rate
+    label_size         = 0           # Dimensionality of the labels, 0 if no labels. Overridden based on dataset
+    mbstd_group_size   = 4           # Group size for the minibatch standard deviation layer, 0 = disable.
+    mbstd_num_features = 1           # Number of features for the minibatch standard deviation layer.
+    blur_filter        = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+                                     # None = no filtering.
+    fused_scale        = False       # True = fused convolution + scaling, 
+                                     # False = separate ops, 'auto' = decide automatically.
 
     def blur(in_x):
         return blur2d(in_x, blur_filter) if blur_filter else in_x

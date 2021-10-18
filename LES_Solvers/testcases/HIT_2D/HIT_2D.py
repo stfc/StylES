@@ -20,14 +20,14 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = True
+RESTART   = False
 SAVE_UVW  = False
 finalTime = 0.16
-totSteps  = 10
-print_res = 1
-print_img = 1
-print_ckp = totSteps+1
-print_spe = 1
+totSteps  = 100000
+print_res = 10
+print_img = totSteps+1
+print_ckp = 100
+print_spe = totSteps+1
 N         = 256      # number of points   [-]
 iNN       = one/(N*N)
 
@@ -46,10 +46,10 @@ dir       = 1               # cross direction for plotting results
 
 
 
-def init_fields():
+def init_fields(seed):
 
     # set variables
-    cp.random.seed(0)
+    cp.random.seed(seed)
 
     E = cp.zeros([M], dtype=DTYPE)  # enery spectrum
     k = cp.zeros([M], dtype=DTYPE)  # wave number

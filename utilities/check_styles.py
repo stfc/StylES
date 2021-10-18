@@ -32,20 +32,20 @@ outputs      = synthesis_ave(nlatents, training=False)
 wl_synthesis = tf.keras.Model(latents, outputs)
 
 
-# # print different fields (to check quality and find 2 different seeds)
-# for k in range(20):
-#     tf.random.set_seed(k)
-#     input_random = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
-#     wlatents     = mapping_ave(input_random, training=False)
-#     predictions  = wl_synthesis(wlatents, training=False)
-#     UVW_DNS      = predictions[RES_LOG2-2]
-#     U_DNS = UVW_DNS[0, 0, :, :].numpy()
-#     V_DNS = UVW_DNS[0, 1, :, :].numpy()
-#     P_DNS = UVW_DNS[0, 2, :, :].numpy()
-#     filename = "styles_" + str(k)
-#     print_fields_1(U_DNS, V_DNS, 0, N, name=filename)
-#     print ("seed " + str(k))
-# exit()
+# print different fields (to check quality and find 2 different seeds)
+for k in range(20):
+    tf.random.set_seed(k)
+    input_random = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
+    wlatents     = mapping_ave(input_random, training=False)
+    predictions  = wl_synthesis(wlatents, training=False)
+    UVW_DNS      = predictions[RES_LOG2-2]
+    U_DNS = UVW_DNS[0, 0, :, :].numpy()
+    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+    P_DNS = UVW_DNS[0, 2, :, :].numpy()
+    filename = "styles_" + str(k)
+    print_fields_1(U_DNS, V_DNS, 0, N, name=filename)
+    print ("seed " + str(k))
+exit()
 
 
 # find first wlatent space

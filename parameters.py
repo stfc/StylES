@@ -14,11 +14,11 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './results/N256/data/'
+DATASET           = './results/N256_10k/data/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -32,7 +32,7 @@ SAVE_NUMPY_ARRAYS = False
 OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
-BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
+BLUR_FILTER       = [1, 4, 6, 4, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
 GAIN              = np.sqrt(2.0)
 FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
@@ -48,11 +48,11 @@ NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 20000
+TOT_ITERATIONS = 100000
 PRINT_EVERY    = 100
 IMAGES_EVERY   = 1000
 SAVE_EVERY     = 10000
-BATCH_SIZE     = 1
+BATCH_SIZE     = 4
 IRESTART       = False
 LR             = 3.0e-3
 DECAY_STEPS    = TOT_ITERATIONS/5

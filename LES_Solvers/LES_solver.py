@@ -47,7 +47,7 @@ totTime = zero
 if (RESTART):
     U, V, P, C, B, totTime = load_fields()
 else:
-    U, V, P, C, B, totTime = init_fields()
+    U, V, P, C, B, totTime = init_fields(0)
 
 print_fields(U, V, P, C, 0, N)
 
@@ -323,7 +323,6 @@ while (tstep<totSteps and totTime<finalTime):
             # write checkpoint
             if (tstep%print_ckp == 0):
                 save_fields(totTime, tstep, U, V, P, C, B)
-
 
             # print spectrum
             if (tstep%print_spe == 0):
