@@ -166,6 +166,7 @@ def train(dataset, LR, train_summary_writer):
                 tf.summary.scalar('loss/gen',        mtr[1], step=it)
                 tf.summary.scalar('loss/filter',     mtr[2], step=it)
                 tf.summary.scalar('loss/r1_penalty', mtr[3], step=it)
+                tf.summary.scalar('loss/lr',         lr, step=it)
 
 
         #print images

@@ -51,3 +51,37 @@ plot './utilities/Energy_spectrum_it2.txt'   using 1:2 with lines title '16x16',
      './utilities/Energy_spectrum_it5.txt'   using 1:2 with lines title '128x128', \
      './utilities/Energy_spectrum_it6.txt'   using 1:2 with lines title '256x256', \
      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N256/Energy_spectrum_97te.txt' using 1:2 with circles title 't = 97te'
+
+
+#------------------------------check latent space
+# do for [i=0:99] {
+#    filename = sprintf('spectrum_%d.png',i)
+#    set output filename
+#    plot './energy_spectrum_latents/Energy_spectrum_lat_'.i.'_res_16.txt'   using 1:2 with lines title '16', \
+#         './energy_spectrum_latents/Energy_spectrum_lat_'.i.'_res_32.txt'   using 1:2 with lines title '32', \
+#         './energy_spectrum_latents/Energy_spectrum_lat_'.i.'_res_64.txt'   using 1:2 with lines title '64', \
+#         './energy_spectrum_latents/Energy_spectrum_lat_'.i.'_res_128.txt'  using 1:2 with lines title '128', \
+#         './energy_spectrum_latents/Energy_spectrum_lat_'.i.'_res_256.txt'  using 1:2 with lines title '256', \
+#         './Energy_spectrum_N256_9te.txt'                                      using 1:2 with circles title '9\t_e   L\&D', \
+#         './Energy_spectrum_N256_24te.txt'                                     using 1:2 with circles title '24\t_e  L\&D', \
+#         './Energy_spectrum_N256_97te.txt'                                     using 1:2 with circles title '97\t_e  L\&D', \
+#         './Energy_spectrum_N256_134te.txt'                                    using 1:2 with circles title '134\t_e L\&D'
+# }
+
+#------------------------------check styles
+#do for [i=0:13] {
+#   filename = sprintf('spectrum_%d.png',i)
+#   set output filename
+#   plot './energy_spectrum_styles/Energy_spectrum_styles_'.i.'_level_0.txt'   using 1:2 with lines title '0', \
+#        './energy_spectrum_styles/Energy_spectrum_styles_'.i.'_level_1.txt'   using 1:2 with lines title '1', \
+#        './energy_spectrum_styles/Energy_spectrum_styles_'.i.'_level_2.txt'   using 1:2 with lines title '2', \
+#        './energy_spectrum_styles/Energy_spectrum_styles_'.i.'_level_3.txt'   using 1:2 with lines title '3', \
+#        './energy_spectrum_styles/Energy_spectrum_styles_'.i.'_level_4.txt'   using 1:2 with lines title '4', \
+#       './Energy_spectrum_N256_9te.txt'                                      using 1:2 with circles title '9\t_e   L\&D', \
+#       './Energy_spectrum_N256_24te.txt'                                     using 1:2 with circles title '24\t_e  L\&D', \
+#       './Energy_spectrum_N256_97te.txt'                                     using 1:2 with circles title '97\t_e  L\&D', \
+#       './Energy_spectrum_N256_134te.txt'                                    using 1:2 with circles title '134\t_e L\&D'
+#}
+#
+
+
