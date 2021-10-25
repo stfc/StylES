@@ -20,10 +20,10 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = False
+RESTART   = True
 SAVE_UVW  = False
-finalTime = 0.16
-totSteps  = 100000
+finalTime = 0.010396104
+totSteps  = 0
 print_res = 10
 print_img = totSteps+1
 print_ckp = 100

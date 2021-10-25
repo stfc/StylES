@@ -62,7 +62,7 @@ def save_fields(totTime, it, U, V, P, C, B):
 
 
 
-def plot_spectrum(U, V, L, tstep):
+def plot_spectrum(U, V, L, it, res, N, name=""):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -71,7 +71,9 @@ def plot_spectrum(U, V, L, tstep):
     plt.xscale('log')
     plt.yscale('log')
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
-    plt.savefig("Energy_spectrum.png".format(tstep), bbox_inches='tight', pad_inches=0)
+    plt.savefig("Energy_spectrum_it{0:d}.png".format(it), bbox_inches='tight', pad_inches=0)
+    if (res==N):
+        plt.close()
 
-    filename = "Energy_spectrum_it{0:d}.txt".format(tstep)
+    filename = "Energy_spectrum_" + name + ".txt"
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation

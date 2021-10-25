@@ -102,7 +102,8 @@ elif (lrDNS_POLICY=="PIECEWISE"):
 opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 
 # log file for TensorBoard
-train_summary_writer = tf.summary.create_file_writer("./logs/")
+dir_train_log        = 'logs/DNS_solver/'
+train_summary_writer = tf.summary.create_file_writer(dir_train_log)
 
 
 # initial flow
@@ -118,7 +119,6 @@ if (RESTART):
     dlatents     = mapping_ave(input_random, training=False)
     while (resDNS>tollDNS and itDNS<maxItDNS):
         with tf.GradientTape() as tape_DNS:
-            tape_DNS.watch(dlatents)
             predictions   = wl_synthesis(dlatents, training=False)
             UVW_DNS       = predictions[RES_LOG2-2]
             resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,0,:,:], U_DNS))
@@ -130,9 +130,9 @@ if (RESTART):
         if (itDNS%100 == 0):
             lr = lr_schedule(itDNS)
             print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
-            # U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
-            # V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
-            # print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNSfromDNS")
+            U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
+            V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
+            print_fields(U_DNS_t, V_DNS_t, P_DNS, C_DNS, 0, N, name="DNSfromDNS")
 
         with train_summary_writer.as_default():
             tf.summary.scalar("residuals", resDNS, step=itDNS)

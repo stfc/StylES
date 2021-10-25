@@ -232,6 +232,28 @@ class layer_wlatent(layers.Layer):
         return x*self.wl
 
 
+#-------------Layer wlatent variable
+class layer_wlatent_variable(layers.Layer):
+    def __init__(self, x=None, **kwargs):
+        super(layer_wlatent, self).__init__()
+
+        wl_init = tf.ones_initializer()
+        self.wl = tf.Variable(
+            initial_value=wl_init(shape=(7, 512), dtype=DTYPE),
+            trainable=True,
+            name="wlatent"
+        )
+
+        self.nwl = tf.Variable(
+            initial_value=wl_init(shape=(7, 512), dtype=DTYPE),
+            trainable=False,
+            name="nwlatent"
+        )
+
+    def call(self, x):
+        x = tf.concat([x[:,0:7,:]*self.wl, x[:,7:G_LAYERS,:]*self.nwl], 1) 
+        return x
+
 
 #-------------Instance normalization
 def instance_norm(x, epsilon=1e-8):
@@ -504,3 +526,52 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
     return tf.nn.conv2d(x, w, strides=strides, padding="VALID", data_format="NCHW")
 
+
+
+
+def VGG_loss(imgA, imgB, VGG_extractor):
+
+    timgA   = tf.transpose(imgA, [0, 3, 2, 1])
+    feaA_3  = VGG_extractor(timgA)[3]
+    feaA_6  = VGG_extractor(timgA)[6]
+    feaA_10 = VGG_extractor(timgA)[10]
+    feaA_14 = VGG_extractor(timgA)[14]
+    feaA_18 = VGG_extractor(timgA)[18]
+
+    feaA_3, _  = tf.linalg.normalize(feaA_3,  axis=[-2, -1])  # the [-2, -1] is to make sure they are
+    feaA_6, _  = tf.linalg.normalize(feaA_6,  axis=[-2, -1])  # normalized only by 2D matrix
+    feaA_10, _ = tf.linalg.normalize(feaA_10, axis=[-2, -1])
+    feaA_14, _ = tf.linalg.normalize(feaA_14, axis=[-2, -1])
+    feaA_18, _ = tf.linalg.normalize(feaA_18, axis=[-2, -1])
+
+    timgB   = tf.transpose(imgB, [0, 3, 2, 1])
+    feaB_3  = VGG_extractor(timgB)[3]
+    feaB_6  = VGG_extractor(timgB)[6]
+    feaB_10 = VGG_extractor(timgB)[10]
+    feaB_14 = VGG_extractor(timgB)[14]
+    feaB_18 = VGG_extractor(timgB)[18]
+
+    feaB_3, _  = tf.linalg.normalize(feaB_3,  axis=[-2, -1])  # the [-2, -1] is to make sure they are
+    feaB_6, _  = tf.linalg.normalize(feaB_6,  axis=[-2, -1])  # normalized only by 2D matrix
+    feaB_10, _ = tf.linalg.normalize(feaB_10, axis=[-2, -1])
+    feaB_14, _ = tf.linalg.normalize(feaB_14, axis=[-2, -1])
+    feaB_18, _ = tf.linalg.normalize(feaB_18, axis=[-2, -1])
+
+    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], imgB[0,0:2,:,:]))
+
+    loss_fea_3  = tf.math.reduce_mean(tf.math.squared_difference(feaA_3,  feaB_3))
+    loss_fea_6  = tf.math.reduce_mean(tf.math.squared_difference(feaA_6,  feaB_6))
+    loss_fea_10 = tf.math.reduce_mean(tf.math.squared_difference(feaA_10, feaB_10))
+    loss_fea_14 = tf.math.reduce_mean(tf.math.squared_difference(feaA_14, feaB_14))
+    loss_fea_18 = tf.math.reduce_mean(tf.math.squared_difference(feaA_18, feaB_18))
+    loss_fea = loss_fea_3 + loss_fea_6 + loss_fea_10 + loss_fea_14 + loss_fea_18
+
+    losses = []
+    losses.append(loss_pix)
+    losses.append(loss_fea_3)
+    losses.append(loss_fea_6)
+    losses.append(loss_fea_10)
+    losses.append(loss_fea_14)
+    losses.append(loss_fea_18)
+
+    return losses

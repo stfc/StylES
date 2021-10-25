@@ -1,12 +1,14 @@
-set terminal svg
-set output "energy.svg"
-set terminal svg enhanced background rgb 'white'
+#set terminal svg
+#set output "./utilities/energy.svg"
+#set terminal svg enhanced background rgb 'white'
 
 set logscale x
 set logscale y
 
 set yrange [1e-10:1]
 set xrange [10:1e4]
+#set yrange [1e-10:0.05]
+#set xrange [10:700]
 
 set grid
 
@@ -29,13 +31,13 @@ set style circle radius screen 0.003
 #      # 'testcases/HIT_2D/ld_spectrum_9te.txt'                  using 1:(1e5*$1**(-4)) with lines lc 'black' title 'k^-4'
 
 
-# plot '../results/2D_DNS_ReT60_N256/Energy_spectrum_134te.txt'   using 1:2 with lines title 'N256',    \
-#      '../results/2D_DNS_ReT60_N512/Energy_spectrum_134te.txt'   using 1:2 with lines title 'N512',    \
-#      '../results/2D_DNS_ReT60_N1024/Energy_spectrum_134te.txt'  using 1:2 with lines title 'N1024',   \
-#      '../results/2D_DNS_ReT60_N2048/Energy_spectrum_134te.txt'  using 1:2 with lines title 'N2048',   \
-#      '../results/2D_DNS_ReT60_N4096/Energy_spectrum_134te.txt'  using 1:2 with lines title 'N4096',   \
-#      '../results/2D_DNS_ReT60_N8192/Energy_spectrum_134te.txt'  using 1:2 with lines title 'N8192',   \
-#      'testcases/HIT_2D/ld_spectrum_134te.txt'                   using 1:2 with circles title 't = 0.9 (L\&D)'
+# plot '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N256/Energy_spectrum_9te.txt'   using 1:2 with lines title 'N256',    \
+#      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N512/Energy_spectrum_9te.txt'   using 1:2 with lines title 'N512',    \
+#      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N1024/Energy_spectrum_9te.txt'  using 1:2 with lines title 'N1024',   \
+#      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N2048/Energy_spectrum_9te.txt'  using 1:2 with lines title 'N2048',   \
+#      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N4096/Energy_spectrum_9te.txt'  using 1:2 with lines title 'N4096',   \
+#      '../../results/decayisoturb_2D/DNS/2D_DNS_ReT60_N8192/Energy_spectrum_9te.txt'  using 1:2 with lines title 'N8192',   \
+#      './LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'                            using 1:2 with circles title 't = 9te (L\&D)'
 
 
 # plot 'DNS_center_values.txt' using 1:2 with lines title 'DNS_org U', \
