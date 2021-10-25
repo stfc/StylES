@@ -85,7 +85,6 @@ for st in range(G_LAYERS):
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
 
         if (CHECK_FILTER):
-            UVW_DNS = predictions[RES_LOG2-2]
             UVW     = filter(UVW_DNS, training=False)
             UVW_LES = predictions[RES_LOG2-3]
             U       = UVW_LES[0, 0, :, :].numpy()
