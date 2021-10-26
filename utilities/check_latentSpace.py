@@ -14,7 +14,7 @@ from MSG_StyleGAN_tf2 import *
 
 
 # local flags
-CHECK      = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
+CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 NL         = 100         # number of different latent vectors randomly selected
 

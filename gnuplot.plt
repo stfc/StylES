@@ -5,7 +5,7 @@
 set logscale x
 set logscale y
 
-set yrange [1e-10:1]
+set yrange [1e-10:10]
 set xrange [10:1e4]
 #set yrange [1e-10:0.05]
 #set xrange [10:700]

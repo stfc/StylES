@@ -58,22 +58,20 @@ def save_fields(totTime, it, U, V, P, C, B):
     V_ = (V-minVel)/(maxVel-minVel)
     W = (cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0))
     W = convert(W)
-    nc.savez(filename, U=U_, V=V_, vor=W)
+    nc.savez(filename, U=U_, V=V_)
 
 
 
-def plot_spectrum(U, V, L, it, res, N, name=""):
+def plot_spectrum(U, V, L, it, name="", close=False):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
     knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
-    plt.xscale('log')
-    plt.yscale('log')
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
-    plt.savefig("Energy_spectrum_it{0:d}.png".format(it), bbox_inches='tight', pad_inches=0)
-    if (res==N):
+    plt.savefig("Energy_spectrum.png", bbox_inches='tight', pad_inches=0)
+    if (close):
         plt.close()
 
-    filename = "Energy_spectrum_" + name + ".txt"
+    filename = "Energy_spectrum_it{0:d}.txt".format(it)
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation

@@ -14,11 +14,11 @@ import os
 
 
 # General parameters
-DTYPE = "float64"        # Data type to use for activations and outputs.
+DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = '../../results/N256_10k/data/'
+DATASET           = '../../data/N1048/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -51,7 +51,7 @@ NEXAMPLES         = 1
 TOT_ITERATIONS = 100000
 PRINT_EVERY    = 100
 IMAGES_EVERY   = 1000
-SAVE_EVERY     = 10000
+SAVE_EVERY     = TOT_ITERATIONS
 BATCH_SIZE     = 4
 IRESTART       = False
 LR             = 3.0e-3

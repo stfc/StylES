@@ -34,8 +34,8 @@ DNS_cv = np.zeros([totSteps+1, 4])
 #---------------------------- set flow pressure, velocity fields and BCs
 
 # clean up and declarations
-os.system("rm Energy_spectrum.png")
 #os.system("rm restart.npz")
+os.system("rm Energy_spectrum.png")
 os.system("rm Energy_spectrum_it*")
 os.system("rm fields_it*")
 os.system("rm plots_it*")
@@ -117,10 +117,10 @@ while (tstep<totSteps and totTime<finalTime):
         Fs = A*rho*hf*(Vo            + cr(Vo, -1, 0))
         Fn = A*rho*hf*(cr(Vo,  0, 1) + cr(Vo, -1, 1))
 
-        Aw = Dc + hf*(nc.abs(Fw) + Fw)
-        Ae = Dc + hf*(nc.abs(Fe) - Fe)
-        As = Dc + hf*(nc.abs(Fs) + Fs)
-        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Aw = Dc + hf*Fw  # hf*(nc.abs(Fw) + Fw)
+        Ae = Dc - hf*Fe  # hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*Fs  # hf*(nc.abs(Fs) + Fs)
+        An = Dc - hf*Fn  # hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
@@ -147,10 +147,10 @@ while (tstep<totSteps and totTime<finalTime):
         Fs = A*rho*hf*(cr(Vo,  0, -1) + Vo           )
         Fn = A*rho*hf*(Vo             + cr(Vo, 0,  1))
 
-        Aw = Dc + hf*(nc.abs(Fw) + Fw)
-        Ae = Dc + hf*(nc.abs(Fe) - Fe)
-        As = Dc + hf*(nc.abs(Fs) + Fs)
-        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Aw = Dc + hf*Fw  # hf*(nc.abs(Fw) + Fw)
+        Ae = Dc - hf*Fe  # hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*Fs  # hf*(nc.abs(Fs) + Fs)
+        An = Dc - hf*Fn  # hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap  = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
