@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = '../../data/N1048/'
+DATASET           = '../../data/N1024/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -29,7 +29,7 @@ READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 1024
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 4, 6, 4, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -49,15 +49,15 @@ NEXAMPLES         = 1
 
 # Training hyper-parameters
 TOT_ITERATIONS = 100000
-PRINT_EVERY    = 100
-IMAGES_EVERY   = 1000
-SAVE_EVERY     = TOT_ITERATIONS
-BATCH_SIZE     = 4
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
+SAVE_EVERY     = 10000
+BATCH_SIZE     = 1
 IRESTART       = False
 LR             = 3.0e-3
-DECAY_STEPS    = TOT_ITERATIONS/5
-DECAY_RATE     = 1.0
-STAIRCASE      = True
+DECAY_STEPS    = TOT_ITERATIONS
+DECAY_RATE     = 0.1
+STAIRCASE      = False
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:
     Gs_beta = 0.5**tf.math.divide(tf.cast(BATCH_SIZE, DTYPE), G_SMOOTH * 1000.0)

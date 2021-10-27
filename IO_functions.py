@@ -7,11 +7,6 @@ from functions import *
 from MSG_StyleGAN_tf2 import *
 from train import *
 
-#-------------------------------------------- local functions
-
-# roll (this is also in LES_functions, but cannot be used with CuPy)
-def cr(phi, i, j):
-    return np.roll(phi, (-i, -j), axis=(0,1))
 
 
 
@@ -71,16 +66,17 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    W = data['vor']
+    W = data['W']
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
     W = np.cast[DTYPE](W)
+    DIM_DATA, _ = U.shape
 
     img_out = []
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)
         data = np.zeros([3, pow2, pow2], dtype=DTYPE)
-        s = pow2/OUTPUT_DIM
+        s = pow2/DIM_DATA
         data[0,:,:] = sc.ndimage.interpolation.zoom(U, s, order=3, mode='wrap')
         data[1,:,:] = sc.ndimage.interpolation.zoom(V, s, order=3, mode='wrap')
         data[2,:,:] = sc.ndimage.interpolation.zoom(W, s, order=3, mode='wrap')
@@ -89,8 +85,10 @@ def StyleGAN_load_fields(file_path):
     return img_out
 
 def process_path_numpy_arrays(path):
-    img = tf.numpy_function(StyleGAN_load_fields, \
-        [path], [DTYPE, DTYPE, DTYPE, DTYPE, DTYPE, DTYPE, DTYPE])
+    list = []
+    for i in range(RES_LOG2-1):
+        list.append(DTYPE)
+    img = tf.numpy_function(StyleGAN_load_fields, [path], list)
     return img
 
 
@@ -179,12 +177,12 @@ def check_divergence_wrongP_W(img, pow2):
     Dc = nu/dl*A
 
     # find Rhie-Chow interpolation (PWIM)
-    Ue = hf*(U + cr(U, 1, 0))
-    Vn = hf*(V + cr(V, 1, 0))
+    Ue = hf*(U + nr(U, 1, 0))
+    Vn = hf*(V + nr(V, 1, 0))
 
-    Fw = A*rho*cr(Ue, -1, 0)
+    Fw = A*rho*nr(Ue, -1, 0)
     Fe = A*rho*Ue
-    Fs = A*rho*cr(Vn, 0, -1)
+    Fs = A*rho*nr(Vn, 0, -1)
     Fn = A*rho*Vn
 
     Aw = Dc + hf*(np.abs(Fw) + Fw)
@@ -196,36 +194,36 @@ def check_divergence_wrongP_W(img, pow2):
     Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
     iApM = 1.e0/Ap
 
-    deltpX1 = hf*(cr(P, 1, 0) - cr(P, -1, 0))
-    deltpX2 = hf*(cr(P, 2, 0) - P)    
-    deltpX3 = (P - cr(P,  1, 0))
+    deltpX1 = hf*(nr(P, 1, 0) - nr(P, -1, 0))
+    deltpX2 = hf*(nr(P, 2, 0) - P)    
+    deltpX3 = (P - nr(P,  1, 0))
 
-    deltpY1 = hf*(cr(P, 0, 1) - cr(P, 0, -1))
-    deltpY2 = hf*(cr(P, 0, 2) - P)
-    deltpY3 = (P - cr(P, 0,  1))
+    deltpY1 = hf*(nr(P, 0, 1) - nr(P, 0, -1))
+    deltpY2 = hf*(nr(P, 0, 2) - P)
+    deltpY3 = (P - nr(P, 0,  1))
 
-    Ue = hf*(cr(U, 1, 0) + U)                 \
+    Ue = hf*(nr(U, 1, 0) + U)                 \
         + hf*deltpX1*iApM*A                   \
-        + hf*deltpX2*cr(iApM, 1, 0)*A         \
-        + hf*deltpX3*(cr(iApM, 1, 0) + iApM)*A
+        + hf*deltpX2*nr(iApM, 1, 0)*A         \
+        + hf*deltpX3*(nr(iApM, 1, 0) + iApM)*A
 
-    Vn = hf*(cr(V, 0, 1) + V)                 \
+    Vn = hf*(nr(V, 0, 1) + V)                 \
         + hf*deltpY1*iApM*A                   \
-        + hf*deltpY2*cr(iApM, 0, 1)*A         \
-        + hf*deltpY3*(cr(iApM, 0, 1) + iApM)*A
+        + hf*deltpY2*nr(iApM, 0, 1)*A         \
+        + hf*deltpY3*(nr(iApM, 0, 1) + iApM)*A
 
     # check divergence
-    div = rho*A*np.sum(np.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+    div = rho*A*np.sum(np.abs(nr(Ue, -1, 0) - Ue + nr(Vn, 0, -1) - Vn))
     div = div*iNN
 
     # find dU/dt term
-    sU = - hf*(cr(P, 1, 0) - cr(P, -1, 0))*A
-    dUdt = np.sum(np.abs(sU + Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1)))
+    sU = - hf*(nr(P, 1, 0) - nr(P, -1, 0))*A
+    dUdt = np.sum(np.abs(sU + Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1)))
     dUdt = dUdt*iNN
 
     # find dV/dt term
-    sV = - hf*(cr(P, 0, 1) - cr(P, 0, -1))*A
-    dVdt = np.sum(np.abs(sV + Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1)))
+    sV = - hf*(nr(P, 0, 1) - nr(P, 0, -1))*A
+    dVdt = np.sum(np.abs(sV + Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1)))
     dVdt = dVdt*iNN
 
     return div, dUdt, dVdt
@@ -243,33 +241,33 @@ def check_divergence_staggered(img, pow2):
     Dc = nu/dl*A
 
     # check divergence
-    div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
+    div = rho*A*np.sum(np.abs(nr(U, 1, 0) - U + nr(V, 0, 1) - V))
     div = div*iNN
 
     # x-direction
-    Fw = A*rho*hf*(U            + cr(U, -1, 0))
-    Fe = A*rho*hf*(cr(U,  1, 0) + U           )
-    Fs = A*rho*hf*(V            + cr(V, -1, 0))
-    Fn = A*rho*hf*(cr(V,  0, 1) + cr(V, -1, 1))
+    Fw = A*rho*hf*(U            + nr(U, -1, 0))
+    Fe = A*rho*hf*(nr(U,  1, 0) + U           )
+    Fs = A*rho*hf*(V            + nr(V, -1, 0))
+    Fn = A*rho*hf*(nr(V,  0, 1) + nr(V, -1, 1))
 
-    Aw = Dc + hf*(np.abs(Fw) + Fw)
-    Ae = Dc + hf*(np.abs(Fe) - Fe)
-    As = Dc + hf*(np.abs(Fs) + Fs)
-    An = Dc + hf*(np.abs(Fn) - Fn)
-    dUdt = np.sum(np.abs(Aw*cr(U, -1, 0) + Ae*cr(U, 1, 0) + As*cr(U, 0, -1) + An*cr(U, 0, 1) - (P - cr(P, -1, 0))*A))
+    Aw = Dc + hf*Fw #hf*(np.abs(Fw) + Fw)
+    Ae = Dc - hf*Fe #hf*(np.abs(Fe) - Fe)
+    As = Dc + hf*Fs #hf*(np.abs(Fs) + Fs)
+    An = Dc - hf*Fn #hf*(np.abs(Fn) - Fn)
+    dUdt = np.sum(np.abs(Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1) - (P - nr(P, -1, 0))*A))
     dUdt = dUdt*iNN
 
     # y-direction
-    Fw = A*rho*hf*(U             + cr(U, 0, -1))
-    Fe = A*rho*hf*(cr(U,  1,  0) + cr(U, 1, -1))
-    Fs = A*rho*hf*(cr(V,  0, -1) + V           )
-    Fn = A*rho*hf*(V             + cr(V, 0,  1))
+    Fw = A*rho*hf*(U             + nr(U, 0, -1))
+    Fe = A*rho*hf*(nr(U,  1,  0) + nr(U, 1, -1))
+    Fs = A*rho*hf*(nr(V,  0, -1) + V           )
+    Fn = A*rho*hf*(V             + nr(V, 0,  1))
 
-    Aw = Dc + hf*(np.abs(Fw) + Fw)
-    Ae = Dc + hf*(np.abs(Fe) - Fe)
-    As = Dc + hf*(np.abs(Fs) + Fs)
-    An = Dc + hf*(np.abs(Fn) - Fn)
-    dVdt = np.sum(np.abs(Aw*cr(V, -1, 0) + Ae*cr(V, 1, 0) + As*cr(V, 0, -1) + An*cr(V, 0, 1) - (P - cr(P, 0, -1))*A))
+    Aw = Dc + hf*Fw #hf*(np.abs(Fw) + Fw)
+    Ae = Dc - hf*Fe #hf*(np.abs(Fe) - Fe)
+    As = Dc + hf*Fs #hf*(np.abs(Fs) + Fs)
+    An = Dc - hf*Fn #hf*(np.abs(Fn) - Fn)
+    dVdt = np.sum(np.abs(Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1) - (P - nr(P, 0, -1))*A))
     dVdt = dVdt*iNN
 
     return div, dUdt, dVdt

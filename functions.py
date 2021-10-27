@@ -36,6 +36,13 @@ TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
 TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
 
 
+#------------------------------ general functions
+def tr(phi, i, j):
+    return tf.roll(phi, (-i, -j), axis=(0,1))
+
+def nr(phi, i, j):
+    return np.roll(phi, (-i, -j), axis=(0,1))
+
 
 
 #------------------------------ functions to build StyleGAN network
