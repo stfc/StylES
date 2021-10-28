@@ -285,7 +285,7 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         nr = np.int(np.sqrt(NEXAMPLES))
         nc = np.int(NEXAMPLES/nr)
         # to maintain a fixed figure size
-        dpi = 367
+        dpi = 1463  # 1024 pixel on a 1024x1024 image
         fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi, squeeze=False, frameon=False, tight_layout=True)
         #fig, axs = plt.subplots(nr,nc, squeeze=False)
         #plt.subplots_adjust(wspace=0.01, hspace=0.01)
@@ -314,13 +314,9 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
             imax = max(maxU, maxV, maxP)
             imin = min(minU, minV, minP)
             nimg = np.uint8((img[i,:,:,:] - imin)/(imax - imin)*255)
-            if (NUM_CHANNELS>1):
-                nimg = np.transpose(nimg, axes=[1,2,0])
+            nimg = np.transpose(nimg, axes=[1,2,0])
             axs[i].axis('off')
-            if (NUM_CHANNELS==1):
-                axs[i].imshow(nimg,cmap='gray')
-            else:
-                axs[i].imshow(nimg)
+            axs[i].imshow(nimg,cmap='Blues')
 
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')

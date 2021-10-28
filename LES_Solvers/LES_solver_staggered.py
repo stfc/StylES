@@ -12,6 +12,8 @@ from LES_functions  import *
 from LES_plot       import *
 from LES_lAlg       import *
 
+from testcases.HIT_2D.HIT_2D import *
+
 
 
 # start timing
@@ -35,8 +37,9 @@ DNS_cv = np.zeros([totSteps+1, 4])
 
 # clean up and declarations
 #os.system("rm restart.npz")
+os.system("rm DNS_center_values.txt")
 os.system("rm Energy_spectrum.png")
-os.system("rm Energy_spectrum_it*")
+os.system("rm energy_spectrum_it*")
 os.system("rm fields_it*")
 os.system("rm plots_it*")
 os.system("rm uvw_it*")
@@ -49,8 +52,10 @@ else:
     U, V, P, C, B, totTime = init_fields(0)
 
 # print fields
-print_fields(U, V, P, C, 0, N)
-
+if (TEST_CASE=="HIT_2D_L&D"):
+    print_fields(U, V, P, C, N, "plots_0te.png")
+else:
+    print_fields(U, V, P, C, N, "plots_it0.png")
 
 
 
@@ -82,7 +87,7 @@ if (tstep%print_res == 0):
     resC_cpu, res_cpu, its, div_cpu))
 
 # plot spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U, V, L, "energy_spectrum_it{0:d}".format(tstep) + ".txt")
 
 # track center point velocities and pressure
 DNS_cv[tstep,0] = totTime
@@ -298,42 +303,51 @@ while (tstep<totSteps and totTime<finalTime):
 
         if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_9te.png")
+                plot_spectrum(U, V, L,      "energy_spectrum_9te.txt")
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_24te.png")
+                plot_spectrum(U, V, L,      "energy_spectrum_24te.txt")
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_97te.png")
+                plot_spectrum(U, V, L,      "energy_sprectrum_97te.txt")
 
+            if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
+                print_fields(U, V, P, C, N, "plots_134te.png")
+                plot_spectrum(U, V, L,      "energy_sprectrum_134te.txt")
         else:
     
+            tail = "it{0:d}".format(tstep)
+
             # save images
             if (tstep%print_img == 0):
-                print_fields(U, V, P, C, tstep, N)
+                print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
             # write checkpoint
             if (tstep%print_ckp == 0):
-                save_fields(totTime, tstep, U, V, P, C, B)
+                W = find_vorticity(U, V, dl)
+                save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U, V, L, tstep)
+                plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
 
 
 # end of the simulation
 
+tail = "it{0:d}".format(tstep)
+
 # save images
-print_fields(U, V, P, C, tstep, N)
+print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
 # write checkpoint
-save_fields(totTime, tstep, U, V, P, C, B)
+W = find_vorticity(U, V, dl)
+save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
 # print spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
 
 # save center values
 filename = "DNS_center_values" + ".txt"

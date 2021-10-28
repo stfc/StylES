@@ -6,14 +6,14 @@ from LES_parameters import *
 
 from LES_functions  import *
 
+from testcases.HIT_2D.HIT_2D import *
 
 
-def print_fields(U_, V_, P_, C_, it, N, name="", \
+def print_fields(U_, V_, P_, C_, N, filename, \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, Cmin=None, Cmax=None, Wmin=None, Wmax=None):
 
     #---------------------------------- find vorticity
-    W_ = nc.zeros([N,N], dtype=DTYPE)
-    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dl - (cr(U_, 0, 1) - cr(U_, 0, -1))/dl
+    W_ = find_vorticity(U_, V_, dl)
 
     U = convert(U_)
     V = convert(V_)
@@ -105,8 +105,8 @@ def print_fields(U_, V_, P_, C_, it, N, name="", \
         ax8.title.set_text('vorticity')
 
     # save images
-    plt.suptitle(name)
-    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
+    plt.suptitle(filename)
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 
 
@@ -136,9 +136,9 @@ def print_fields(U_, V_, P_, C_, it, N, name="", \
             img[:,:,2] = (img[:,:,2] - minW)/(maxW - minW)
 
         img = Image.fromarray(np.uint8(img*255), 'RGB')
-        filename = "uvw_it{0:d}.png".format(it)
         size = N, N
         img.thumbnail(size)
+        filename = filename.replace("plots","uvw")
         img.save(filename)
 
 
@@ -149,7 +149,7 @@ def print_fields(U_, V_, P_, C_, it, N, name="", \
 
 
 
-def print_fields_2(U_, V_, it, N, name="", Umin=None, Umax=None, Vmin=None, Vmax=None):
+def print_fields_2(U_, V_, N, filename, Umin=None, Umax=None, Vmin=None, Vmax=None):
 
     U = convert(U_)
     V = convert(V_)
@@ -174,17 +174,16 @@ def print_fields_2(U_, V_, it, N, name="", Umin=None, Umax=None, Vmin=None, Vmax
 
     # save images
     plt.suptitle(name)
-    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 
 
 
 
-def print_fields_1(U_, V_, it, N, name="", Wmin=None, Wmax=None):
+def print_fields_1(U_, V_, N, filename, Wmin=None, Wmax=None):
     
     #---------------------------------- find vorticity
-    W_ = nc.zeros([N,N], dtype=DTYPE)
-    W_ = (cr(V_, 1, 0) - cr(V_, -1, 0))/dl - (cr(U_, 0, 1) - cr(U_, 0, -1))/dl
+    W_ = find_vorticity(U_, V_, dl)
 
     U = convert(U_)
     V = convert(V_)
@@ -202,7 +201,7 @@ def print_fields_1(U_, V_, it, N, name="", Wmin=None, Wmax=None):
 
     # save images
     plt.suptitle(name)
-    plt.savefig("plots_it{0:d}_".format(it) + name + ".png", bbox_inches='tight', pad_inches=0)    
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 
 

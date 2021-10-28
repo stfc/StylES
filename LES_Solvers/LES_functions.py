@@ -29,6 +29,11 @@ def cr(phi, i, j):
     return nc.roll(phi, (-i, -j), axis=(0,1))
 
 
+def find_vorticity(U, V, dl):
+    W = ((cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0)))/dl
+    return W
+
+
 def load_fields(filename='restart.npz'):
     data = nc.load(filename)
     ctotTime = data['t']
@@ -42,12 +47,12 @@ def load_fields(filename='restart.npz'):
     return U, V, P, C, B, totTime
 
 
-def save_fields(totTime, it, U, V, P, C, B):
+def save_fields(totTime, U, V, P, C, B, W, filename):
 
-    filename = "restart.npz"
-    nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B)
+    # save restart file
+    nc.savez("restart.npz", t=totTime, U=U, V=V, P=P, C=C, B=B)
 
-    filename = "fields_it{0:d}.npz".format(it)
+    # save field for StyleGAN training
     maxU = np.max(U)
     maxV = np.max(V)
     minU = np.min(U)
@@ -56,13 +61,16 @@ def save_fields(totTime, it, U, V, P, C, B):
     minVel = min(minU, minV)
     U_ = (U-minVel)/(maxVel-minVel)
     V_ = (V-minVel)/(maxVel-minVel)
-    W = (cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0))
-    W = convert(W)
-    nc.savez(filename, U=U_, V=V_)
+
+    maxW = np.max(W)
+    minW = np.min(W)
+    W_ = (W-minW)/(maxW-minW)
+
+    nc.savez(filename, U=U_, V=V_, W=W_)
 
 
 
-def plot_spectrum(U, V, L, it, name="", close=False):
+def plot_spectrum(U, V, L, filename, close=False):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -73,5 +81,4 @@ def plot_spectrum(U, V, L, it, name="", close=False):
     if (close):
         plt.close()
 
-    filename = "Energy_spectrum_it{0:d}.txt".format(it)
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation

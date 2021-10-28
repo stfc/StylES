@@ -24,9 +24,7 @@ from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
 from IO_functions import *
-
-
-
+from LES_Solvers.testcases.HIT_2D.HIT_2D import dl
 
 
 #-------------------------------------define training step and loop
@@ -56,18 +54,16 @@ def train_step(input, images):
         loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-3]))
 
         # find vorticity loss
-        # loss_vor = 0.
-        # for i in range(BATCH_SIZE):
-        #     U     = g_images[RES_LOG2-2][i,0,:,:]
-        #     V     = g_images[RES_LOG2-2][i,1,:,:]
-        #     vor_t = g_images[RES_LOG2-2][i,2,:,:]
-        #     vor   = (cr(U, 0, 1) - cr(U, 0, -1)) - (cr(V, 1, 0) - cr(V, -1, 0))
-        #     loss_vor = loss_vor + tf.reduce_mean(tf.math.squared_difference(vor, vor_t))
-        # loss_gen = loss_gen + loss_vor
+        U  = g_images[RES_LOG2-2][:,0,:,:]
+        V  = g_images[RES_LOG2-2][:,1,:,:]
+        W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
+        Wt =  ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))/dl
+        loss_vor = tf.reduce_mean(tf.math.squared_difference(W, Wt))
+        loss_gen_vor = loss_gen + loss_vor
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen_vor, mapping.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen_vor, synthesis.trainable_variables)
     gradients_of_filter        = fil_tape.gradient(loss_fil,          filter.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(loss_disc,        discriminator.trainable_variables)
 
@@ -95,7 +91,7 @@ def train_step(input, images):
             new_weight = old_weight[j] * Gs_beta + (1-Gs_beta) * up_weight[j]
             synthesis_ave.layers[i].weights[j] = new_weight
 
-    metrics = [loss_disc, loss_gen, loss_fil, r1_penalty]
+    metrics = [loss_disc, loss_gen, loss_vor, loss_fil, r1_penalty]
 
     return metrics
 
@@ -112,7 +108,7 @@ def train(dataset, LR, train_summary_writer):
     tf.random.set_seed(1)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
     lr = LR
-    mtr = np.zeros([4], dtype=np.float32)
+    mtr = np.zeros([5], dtype=DTYPE)
 
 
     #save first images
@@ -136,27 +132,23 @@ def train(dataset, LR, train_summary_writer):
         image_batch = next(iter(dataset))
         mtr = train_step(input_batch, image_batch)
 
-        # adjust learning rate
-        config = lr_schedule.get_config()
-        if config["staircase"]:
-            p = tf.floor(it/config["decay_steps"])
-            lr = tf.multiply(config["initial_learning_rate"], tf.pow(config["decay_rate"], p))
-
-
-        #print losses
+        # print losses
         if it % PRINT_EVERY == 0:
             tend = time.time()
+            lr = lr_schedule(it)
             print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
                 'loss_disc {3:6.1e}, ' \
                 'loss_gen {4:6.1e}, ' \
-                'loss_filter {5:6.1e}, ' \
-                'r1_penalty {6:6.1e}, ' \
-                'lr {7:6.1e}, ' \
+                'loss_vor {5:6.1e}, ' \
+                'loss_filter {6:6.1e}, ' \
+                'r1_penalty {7:6.1e}, ' \
+                'lr {8:6.1e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
                 mtr[2], \
                 mtr[3], \
+                mtr[4], \
                 lr))
             tint = tend
 
@@ -164,12 +156,13 @@ def train(dataset, LR, train_summary_writer):
             with train_summary_writer.as_default():
                 tf.summary.scalar('loss/disc',       mtr[0], step=it)
                 tf.summary.scalar('loss/gen',        mtr[1], step=it)
-                tf.summary.scalar('loss/filter',     mtr[2], step=it)
-                tf.summary.scalar('loss/r1_penalty', mtr[3], step=it)
-                tf.summary.scalar('loss/lr',         lr, step=it)
+                tf.summary.scalar('loss/vor',        mtr[2], step=it)
+                tf.summary.scalar('loss/filter',     mtr[3], step=it)
+                tf.summary.scalar('loss/r1_penalty', mtr[4], step=it)
+                tf.summary.scalar('loss/lr',         lr,     step=it)
 
 
-        #print images
+        # print images
         if (it+1) % IMAGES_EVERY == 0:    
             div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
             with train_summary_writer.as_default():
@@ -187,7 +180,9 @@ def train(dataset, LR, train_summary_writer):
             checkpoint.save(file_prefix = CHKP_PREFIX)
 
 
-    # end of the training
+    # end of the training: save checkpoint and print divergence
+    checkpoint.save(file_prefix = CHKP_PREFIX)
+
     print("Total divergencies, dUdt and dVdt for each resolution are:")
     for res in range(RES_LOG2-1):
         pow2 = 2**(res+2)

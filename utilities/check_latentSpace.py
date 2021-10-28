@@ -16,20 +16,20 @@ from MSG_StyleGAN_tf2 import *
 # local flags
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
-NL         = 100         # number of different latent vectors randomly selected
+NL         = 1         # number of different latent vectors randomly selected
 
 
 # local parameters
-UMIN = -2.0
-UMAX =  2.0
-VMIN = -2.0
-VMAX =  2.0
+UMIN = -1.0
+UMAX =  1.0
+VMIN = -1.0
+VMAX =  1.0
 PMIN = -1000.0
 PMAX =  1000.0
 CMIN =  0.0
 CMAX =  1.0
-WMIN = -200.0
-WMAX =  200.0
+WMIN = -500.0
+WMAX =  500.0
 
 
 # clean up
@@ -101,7 +101,7 @@ for k in range(NL):
 
         # load DNS and LES fields from a given field (restart.npz file)
         U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()
-        print_fields_1(U_DNS, V_DNS, 0, N, name="DNS_org", Wmin=WMIN, Wmax=WMAX)
+        print_fields_1(U_DNS, V_DNS, 0, N, name="DNS_org.png", Wmin=WMIN, Wmax=WMAX)
 
         # start iteration search latent space
         itDNS        = 0
@@ -130,7 +130,7 @@ for k in range(NL):
                 print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  lr {3:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), lr))
                 U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
                 V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
-                print_fields_1(U_DNS_t, V_DNS_t, 0, N, name="DNSfromDNS", Wmin=WMIN, Wmax=WMAX)
+                print_fields_1(U_DNS_t, V_DNS_t, N, name="DNSfromDNS_it{0:d}".format(itDNS) + ".png", Wmin=WMIN, Wmax=WMAX)
 
             itDNS = itDNS+1
 
@@ -147,17 +147,19 @@ for k in range(NL):
 
 
     # write fields and energy spectra
+    closePlot=False
     for kk in range(2, RES_LOG2-1):
         UVW_DNS = predictions[kk]
         res = 2**(kk+2)
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
 
-        if (CHECK=="LATENTS"):
-            filename = "lat_" + str(k) + "_res_" + str(res)
-        else:
-            filename = "lat_" + str(k) + "_res_" + str(res)
-        print_fields(U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, 0, res, name=filename, \
-            Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
-        plot_spectrum(U_DNS_t, V_DNS_t, L, k, res, OUTPUT_DIM, name=filename)
+        filename = "plots_lat_" + str(k) + "_res_" + str(res)
+        print_fields_2(U_DNS_t, V_DNS_t, res, filename)
+
+        filename = "energy_spectrum_lat_" + str(k) + "_res_" + str(res)
+        if (kk== RES_LOG2-2):
+            closePlot=True
+        plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+
     print ("done lantent " + str(k))

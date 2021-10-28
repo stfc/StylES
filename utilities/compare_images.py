@@ -23,17 +23,20 @@ import importlib
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers')
+sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
 
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
-from matplotlib import gridspec
-from mpl_toolkits.axes_grid1 import make_axes_locatable
-from parameters import OUTPUT_DIM, READ_NUMPY_ARRAYS, NUM_CHANNELS, TOT_ITERATIONS, IMAGES_EVERY
-from LES_Solvers.testcases.HIT_2D.HIT_2D import L, rho
-from functions import StyleGAN_load_fields
+from testcases.HIT_2D.HIT_2D import L, rho
+from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS
+from IO_functions import StyleGAN_load_fields
 
-#-------------------------------- define parameters
-NIMG = 1              # number of images to use for statistical values
+
+
+#-------------------------------- local parameters
+FILE_REAL  = "../LES_Solvers/uvw_it400.png"
+FILE_STYLE = "../LES_Solvers/uvw_it500.png"
+
 
 
 #-------------------------------- define functions
@@ -52,7 +55,7 @@ def compare_images(imageA, imageB, title):
         s = ssim(imageA, imageB, multichannel=True)
 
 
-    # check divergence for real image
+    # check divergence for DNS image
     U = imageA[:,:,0]
     V = imageA[:,:,1]
     pow2 = imageA.shape[0]
@@ -61,9 +64,9 @@ def compare_images(imageA, imageB, title):
     A = dl
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
     div = div*iNN
-    print("Divergence for real image", div)
+    print("Divergence for DNS image", div)
 
-    # check divergence for fake image
+    # check divergence for style image
     U = imageB[:,:,0]
     V = imageB[:,:,1]
     pow2 = imageB.shape[0]
@@ -72,58 +75,113 @@ def compare_images(imageA, imageB, title):
     A = dl
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
     div = div*iNN
-    print("Divergence for fake image", div)
+    print("Divergence for style image", div)
 
+    # find differences and min-max
+    imageD = imageA - imageB
+
+    minUA = np.min(imageA[:,:,0])
+    minUB = np.min(imageB[:,:,0])
+    minU  = min(minUA, minUB)
+    minVA = np.min(imageA[:,:,1])
+    minVB = np.min(imageB[:,:,1])
+    minV  = min(minVA, minVB)
+    minWA = np.min(imageA[:,:,2])
+    minWB = np.min(imageB[:,:,2])
+    minW  = min(minWA, minWB)
+
+    maxUA = np.max(imageA[:,:,0])
+    maxUB = np.max(imageB[:,:,0])
+    maxU  = max(maxUA, maxUB)
+    maxVA = np.max(imageA[:,:,1])
+    maxVB = np.max(imageB[:,:,1])
+    maxV  = max(maxVA, maxVB)
+    maxWA = np.max(imageA[:,:,2])
+    maxWB = np.max(imageB[:,:,2])
+    maxW  = max(maxWA, maxWB)
 
     # setup figures
-    imgA = np.uint8((imageA - np.min(imageA))/(np.max(imageA) - np.min(imageA))*255)
-    imgB = np.uint8((imageB - np.min(imageB))/(np.max(imageB) - np.min(imageB))*255)
-    fig = plt.figure(title)
-    spec = gridspec.GridSpec(ncols=4, nrows=1, width_ratios=[10, 10, 10, 1])
+    fig, ax = plt.subplots(4, 3, figsize=(10,10))
 
-    # show first image
-    ax = fig.add_subplot(spec[0])
-    if (NUM_CHANNELS==1):
-        plt.imshow(imgA, cmap = plt.cm.gray)
-    else:
-        plt.imshow(imgA)
-    plt.axis("off")
-    plt.title("Real")
+    # show DNS image
+    sub = ax[0,0] 
+    im = sub.imshow(imageA[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
+    sub.axis("off")
+    sub.set_title("DNS U")
+    plt.colorbar(im, ax=sub)
 
-    # show the second image
-    ax = fig.add_subplot(spec[1])
-    if (NUM_CHANNELS==1):
-        plt.imshow(imgB, cmap = plt.cm.gray)
-    else:
-        plt.imshow(imgB)
-    plt.axis("off")
-    plt.title("StyleLES")
+    sub = ax[1,0]
+    im = sub.imshow(imageA[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
+    sub.axis("off")
+    sub.set_title("DNS V")
+    plt.colorbar(im, ax=sub)
 
-    # show the third image
-    ax = fig.add_subplot(spec[2])
-    diff = (imageA - imageB)
-    maxDiff = np.max(diff)
-    minDiff = np.min(diff)
-    if (minDiff==maxDiff):
-        img_diff = Image.fromarray(np.uint8(diff*255))  # identical images!
-    else:
-        nDiff = (diff - minDiff)/(maxDiff-minDiff)
-        img_diff = Image.fromarray(np.uint8(nDiff*255))
-    if (NUM_CHANNELS==1):
-        img_diff = img_diff.convert("L")
-    plt.imshow(img_diff)
-    plt.axis("off")
-    plt.title("diff")
+    sub = ax[2,0]
+    im = sub.imshow(imageA[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
+    sub.axis("off")
+    sub.set_title("DNS W")
+    plt.colorbar(im, ax=sub)
 
-    # show the colormap
-    #divider = make_axes_locatable(ax)
-    #cax = divider.append_axes("right", size="10%", pad=0.05)
+    sub = ax[3,0]
+    im = sub.imshow(imageA, cmap="plasma")
+    sub.axis("off")
+    sub.set_title("DNS")
+    plt.colorbar(im, ax=sub)
 
-    cax = fig.add_subplot(spec[3])    
-    plt.colorbar(cax=cax)
-    plt.clim(minDiff,maxDiff)
+
+    # show the StyleGAN image
+    sub = ax[0,1] 
+    im = sub.imshow(imageB[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
+    sub.axis("off")
+    sub.set_title("StyleGAN U")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[1,1]
+    im = sub.imshow(imageB[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
+    sub.axis("off")
+    sub.set_title("StyleGAN V")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[2,1]
+    im = sub.imshow(imageB[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
+    sub.axis("off")
+    sub.set_title("StyleGAN W")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[3,1]
+    im = sub.imshow(imageB, cmap="plasma")
+    sub.axis("off")
+    sub.set_title("StyleGAN")
+    plt.colorbar(im, ax=sub)
+
+
+    # show the differences
+    sub = ax[0,2] 
+    im = sub.imshow(imageD[:,:,0], cmap="jet")
+    sub.axis("off")
+    sub.set_title("diff U")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[1,2]
+    im = sub.imshow(imageD[:,:,1], cmap="jet")
+    sub.axis("off")
+    sub.set_title("diff V")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[2,2]
+    im = sub.imshow(imageD[:,:,2], cmap="jet")
+    sub.axis("off")
+    sub.set_title("diff W")
+    plt.colorbar(im, ax=sub)
+
+    sub = ax[3,2]
+    im = sub.imshow((imageD-np.min(imageD))/(np.max(imageD)-np.min(imageD)), cmap="jet")
+    sub.axis("off")
+    sub.set_title("diff")
+    plt.colorbar(im, ax=sub)
+
+
     plt.suptitle("Statistical differences MSE: %.4f, SSIM: %.4f" % (m, s))
-
     fig.savefig(title, bbox_inches='tight', pad_inches=0)
 
 
@@ -138,13 +196,20 @@ def trim(im):
 
 
 #-------------------------------- starts comparison
-if (READ_NUMPY_ARRAYS):
-    orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
-    orig[:,:,0], orig[:,:,1], orig[:,:,2] = StyleGAN_load_fields("../testloop/data/from_solver/restart_N32.npz")
-    orig = np.cast[np.float64](orig)
-else:
+if (FILE_REAL.endswith('.npz')):
+
+    # load numpy array
+    orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+    img_in = StyleGAN_load_fields(FILE_REAL)
+    orig[:,:,0] = img_in[-1][0,:,:]
+    orig[:,:,1] = img_in[-1][1,:,:]
+    orig[:,:,2] = img_in[-1][2,:,:]
+    orig = np.cast[DTYPE](orig)
+
+elif (FILE_REAL.endswith('.png')):
+
     # load image
-    orig = Image.open("../testloop/data/from_solver/uvw_0.png").convert('RGB')
+    orig = Image.open(FILE_REAL).convert('RGB')
 
     # convert to black and white, if needed
     if (NUM_CHANNELS==1):
@@ -157,51 +222,41 @@ else:
     orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
 
     # convert to numpy array
-    orig = np.asarray(orig, dtype=np.float32)
+    orig = np.asarray(orig, dtype=DTYPE)
     orig = orig/255.0
 
 
-# load fake images
-if (READ_NUMPY_ARRAYS):
+# load style images
+if (FILE_STYLE.endswith('.npz')):
 
-    atemp = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=np.float64)
-    for i in range(NIMG, 0, -1):
-        val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
-        filename = "./../images/image_{:d}x{:d}/fields_it_{:06d}.npz".format(OUTPUT_DIM, OUTPUT_DIM, val)
-        atemp[:,:,0], atemp[:,:,1], atemp[:,:,2] = StyleGAN_load_fields(filename)
-        atemp = np.cast[np.float64](atemp)
-        if (i==NIMG):
-            ttemp = atemp
-        else:
-            ttemp = ttemp + atemp
-    fake = ttemp/NIMG
+    style = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+    img_in = StyleGAN_load_fields(FILE_STYLE)
+    style[:,:,0] = img_in[-1][0,:,:]
+    style[:,:,1] = img_in[-1][1,:,:]
+    style[:,:,2] = img_in[-1][2,:,:]
+    style = np.cast[DTYPE](style)
 
 else:
 
-    for i in range(NIMG, 0, -1):
-        val = TOT_ITERATIONS - IMAGES_EVERY*(i-1)
-        filename = "./../images/image_{:d}x{:d}/it_{:06d}.png".format(OUTPUT_DIM, OUTPUT_DIM, val)
-        temp = Image.open(filename).convert('RGB')
-        if (NUM_CHANNELS==1):
-            temp = temp.convert("L")
-        #temp = trim(temp)
-        temp = temp.resize((OUTPUT_DIM,OUTPUT_DIM))
-        atemp = np.asarray(temp, dtype=np.float32)    
-        if (i==NIMG):
-            ttemp = atemp
-        else:
-            ttemp = ttemp + atemp
+    # load image
+    style = Image.open(FILE_STYLE).convert('RGB')
 
-    ttemp = ttemp/NIMG
-    fake = Image.fromarray(np.uint8(ttemp))
+    # convert to black and white, if needed
     if (NUM_CHANNELS==1):
-        fake = fake.convert("L")
-    fake = (np.asarray(fake, dtype=np.float32))/255.0
+        style = style.convert("L")
 
-    
+    # remove white spaces
+    #style = trim(style)
+
+    # resize images
+    style = style.resize((OUTPUT_DIM,OUTPUT_DIM))
+
+    # convert to numpy array
+    style = np.asarray(style, dtype=DTYPE)
+    style = style/255.0
 
 
 
 # compare the images
-compare_images(orig, fake, "diff.png")
+compare_images(orig, style, "diff.png")
 

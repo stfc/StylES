@@ -1,6 +1,3 @@
-from testcases.HIT_2D.HIT_2D import *
-
-
 # define runtime parameters
 DEBUG      = False
 PATH       = "./"
@@ -22,10 +19,5 @@ lrDNS_STEP   = maxItDNS     # exponential policy decay step
 lrDNS_EXP_ST = False      # exponential policy staircase
 lrDNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
 lrDNS_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
-
-
-# find case dependent parameters
-A  = dl        # Area                              [m2] 
-Dc = nu/dl*A   # diffusion conductance term in x
 
 

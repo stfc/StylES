@@ -7,9 +7,7 @@ import cupy as cp
 from LES_modules    import *
 from LES_constants  import *
 from LES_parameters import *
-
-from LES_functions  import *
-
+from LES_functions  import * 
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
@@ -21,28 +19,30 @@ import spectra
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
 RESTART   = False
-SAVE_UVW  = False
-finalTime = 0.010396104
-totSteps  = 10000000
+SAVE_UVW  = True
+finalTime = 0.152751599
+totSteps  = 100
 print_res = 10
-print_img = totSteps+1
+print_img = 10
 print_ckp = 10
-print_spe = totSteps+1
-N         = 1024      # number of points   [-]
+print_spe = 10
+N         = 32      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
-rho       = 1.0e0          # density                    [kg/m3]
-nu        = 1.87e-4        # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
-Re        = 60             # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
-M         = 1000           # number of modes
-METHOD    = 0              # 0-In house, 1-Saad git repo, 2-OpenFOAM
+rho       = 1.0e0     # density                    [kg/m3]
+nu        = 1.87e-4   # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
+Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
+M         = 1000      # number of modes
+METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
 L         = 0.95      # system dimension   [m]
 dl        = L/N
-CNum      = 0.5        # Courant number 
+A         = dl        # Area [m2] 
+Dc        = nu/dl*A   # diffusion conductance term in x
+CNum      = 0.5       # Courant number 
 delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
 maxDelt   = 1.0e-4
-dir       = 1               # cross direction for plotting results
+dir       = 1         # cross direction for plotting results
 
 
 
@@ -61,7 +61,7 @@ def init_fields(seed):
     # find k and E
     km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
-    inputspec = 'ld_spectrum_0te'
+    inputspec = 'ld_spectrum'
     especf = getattr(spectra, inputspec)().evaluate
     km_cpu = cp.asnumpy(km)
     E_cpu = especf(km_cpu)
@@ -80,10 +80,10 @@ def init_fields(seed):
     plt.plot(km_cpu, ykm4_cpu, '-', linewidth=0.5, markersize=2)
 
     plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
-    #plt.xscale("log")
-    #plt.yscale("log")
-    plt.xlim([0.0e0, 600])        
-    plt.ylim([1.0e-7, 0.2])
+    plt.xscale("log")
+    plt.yscale("log")
+    #plt.xlim([0.0e0, 600])        
+    #plt.ylim([1.0e-7, 0.2])
     plt.grid(True, which='both')
     plt.legend(('k^-3', 'k^-4', 'input'),  loc='upper right')
     plt.savefig("Energy_spectrum.png")

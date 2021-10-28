@@ -69,6 +69,7 @@ wlatents1     = mapping_ave(input_random1, training=False)
 for st in range(G_LAYERS):
     rand0 = wlatents0[:, st:st+1, :]
     rand1 = wlatents1[:, st:st+1, :]
+    closePlot = False
     for i in range(NIP):
         clatents = (1.-i/float(NIP-1))*rand0 + i/float(NIP-1)*rand1 
 
@@ -85,6 +86,7 @@ for st in range(G_LAYERS):
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
 
         if (CHECK_FILTER):
+    
             UVW     = filter(UVW_DNS, training=False)
             UVW_LES = predictions[RES_LOG2-3]
             U       = UVW_LES[0, 0, :, :].numpy()
@@ -93,10 +95,16 @@ for st in range(G_LAYERS):
             resFil  = resFil + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
             resFil  = resFil*4/(2*OUTPUT_DIM*OUTPUT_DIM)
             print("Differences between actual filter and trained filter {0:6.3e}".format(resFil.numpy()))
+
         else:
-            filename = "styles_" + str(st) + "_level_" + str(i)
-            print_fields(U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, 0, OUTPUT_DIM, name=filename, \
+
+            filename = "plots_sty_" + str(st) + "_lev_" + str(i)
+            print_fields(U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, OUTPUT_DIM, filename, \
                 Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
-            plot_spectrum(U_DNS_t, V_DNS_t, L, st, i, NIP-1, name=filename)
+
+            filename = "energy_spectrum_sty_" + str(st) + "_lev_" + str(i)
+            if (i == NIP-1):
+                closePlot=True
+            plot_spectrum(U_DNS_t, V_DNS_t, L, name=filename, close=closePlot)
 
         print("done for style " + str(st) + " i " + str(i))
