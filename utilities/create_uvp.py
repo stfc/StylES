@@ -136,7 +136,7 @@ print("Minx and max divergencies are:      ", minDiv, maxDiv)
 
 #============================== 7) find vorticity
 vor = np.zeros([nc,nr])
-vor = find_vorticity(U, V, dl)
+vor = find_vorticity(U, V)
 vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
 vor = Image.fromarray(np.uint8(cm.gist_earth(vor)*255))
 vor.save(PATH + "vorticity.png")

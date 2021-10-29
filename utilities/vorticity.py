@@ -36,7 +36,7 @@ for i in range(NIMG, 0, -1):
     V = UVW[:, :, 1]
 
     # find vorticity
-    vor = find_vorticity(U, V, dl)
+    vor = find_vorticity(U, V)
     vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
     vor = Image.fromarray(np.uint8(vor*255))
     vor.save("vorticity_" + str(i) + ".png")

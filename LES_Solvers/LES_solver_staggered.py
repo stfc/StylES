@@ -327,7 +327,7 @@ while (tstep<totSteps and totTime<finalTime):
 
             # write checkpoint
             if (tstep%print_ckp == 0):
-                W = find_vorticity(U, V, dl)
+                W = find_vorticity(U, V)
                 save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
             # print spectrum
@@ -343,7 +343,7 @@ tail = "it{0:d}".format(tstep)
 print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
 # write checkpoint
-W = find_vorticity(U, V, dl)
+W = find_vorticity(U, V)
 save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
 # print spectrum

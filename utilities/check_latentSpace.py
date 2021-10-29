@@ -15,8 +15,9 @@ from MSG_StyleGAN_tf2 import *
 
 # local flags
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 NL         = 1         # number of different latent vectors randomly selected
+LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
+FILE_REAL  = "../../../data/N1024_1runs/fields2/uvw_it2742.png"
 
 
 # local parameters
@@ -28,14 +29,17 @@ PMIN = -1000.0
 PMAX =  1000.0
 CMIN =  0.0
 CMAX =  1.0
-WMIN = -500.0
-WMAX =  500.0
+WMIN = -1000.0
+WMAX =  1000.0
 
 
 # clean up
-os.system("rm Energy_spectrum*")
+os.system("rm Energy_spectrum.png")
+os.system("rm energy_spectrum_*")
+os.system("rm DNS_org.png")
+os.system("rm DNSfromDNS_it*.png")
+os.system("rm uvw_lat*.png")
 os.system("rm -rf log*")
-os.system("rm plots_it*")
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(1)
@@ -99,9 +103,37 @@ for k in range(NL):
     # load initial flow
     if (LOAD_FIELD):
 
-        # load DNS and LES fields from a given field (restart.npz file)
-        U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()
-        print_fields_1(U_DNS, V_DNS, 0, N, name="DNS_org.png", Wmin=WMIN, Wmax=WMAX)
+        if (FILE_REAL.endswith('.npz')):
+            
+            # load numpy array
+            orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+            img_in = StyleGAN_load_fields(FILE_REAL)
+            orig[:,:,0] = img_in[-1][0,:,:]
+            orig[:,:,1] = img_in[-1][1,:,:]
+            orig[:,:,2] = img_in[-1][2,:,:]
+            orig = np.cast[DTYPE](orig)
+
+        elif (FILE_REAL.endswith('.png')):
+
+            # load image
+            orig = Image.open(FILE_REAL).convert('RGB')
+
+            # convert to black and white, if needed
+            if (NUM_CHANNELS==1):
+                orig = orig.convert("L")
+
+            # remove white spaces
+            #orig = trim(orig)
+
+            # resize images
+            orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
+
+            # convert to numpy array
+            orig = np.asarray(orig, dtype=DTYPE)
+
+        U_DNS = orig[:,:,0]
+        V_DNS = orig[:,:,1]
+        print_fields_1(U_DNS, V_DNS, N, "DNS_org.png", Wmin=WMIN, Wmax=WMAX)
 
         # start iteration search latent space
         itDNS        = 0
@@ -130,7 +162,7 @@ for k in range(NL):
                 print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  lr {3:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), lr))
                 U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
                 V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
-                print_fields_1(U_DNS_t, V_DNS_t, N, name="DNSfromDNS_it{0:d}".format(itDNS) + ".png", Wmin=WMIN, Wmax=WMAX)
+                print_fields_1(U_DNS_t, V_DNS_t, N, "DNSfromDNS_it{0:d}".format(itDNS) + ".png", Wmin=WMIN, Wmax=WMAX)
 
             itDNS = itDNS+1
 
@@ -153,11 +185,13 @@ for k in range(NL):
         res = 2**(kk+2)
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
+        W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-        filename = "plots_lat_" + str(k) + "_res_" + str(res)
-        print_fields_2(U_DNS_t, V_DNS_t, res, filename)
+        filename = "plots_lat_" + str(k) + "_res_" + str(res) + ".png"
+        print_fields(U_DNS_t, V_DNS_t, W_DNS_t, W_DNS_t, res, filename, \
+            Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Wmin=WMIN, Wmax=WMAX)
 
-        filename = "energy_spectrum_lat_" + str(k) + "_res_" + str(res)
+        filename = "energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk== RES_LOG2-2):
             closePlot=True
         plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)

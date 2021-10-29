@@ -17,6 +17,7 @@
 import matplotlib.pyplot as plt
 import numpy as np
 import sys
+import os
 import importlib
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
@@ -33,13 +34,14 @@ from IO_functions import StyleGAN_load_fields
 
 
 
-#-------------------------------- local parameters
-FILE_REAL  = "../LES_Solvers/uvw_it400.png"
-FILE_STYLE = "../LES_Solvers/uvw_it500.png"
+#-------------------------------- local variables, initialization and functions
+FILE_REAL  = "../../../data/N1024/fields2/uvw_it2742.png"
+FILE_STYLE = "../images/image_1024x1024/it_050000.png"
 
 
+os.system("rm diff.png")
 
-#-------------------------------- define functions
+
 def cr(phi, i, j):
     return np.roll(phi, (-i, -j), axis=(0,1))
 
@@ -58,9 +60,9 @@ def compare_images(imageA, imageB, title):
     # check divergence for DNS image
     U = imageA[:,:,0]
     V = imageA[:,:,1]
-    pow2 = imageA.shape[0]
-    iNN  = 1.0e0/(pow2*pow2)
-    dl = L/pow2
+    res = imageA.shape[0]
+    iNN  = 1.0e0/(res*res)
+    dl = L/res
     A = dl
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
     div = div*iNN
@@ -69,9 +71,9 @@ def compare_images(imageA, imageB, title):
     # check divergence for style image
     U = imageB[:,:,0]
     V = imageB[:,:,1]
-    pow2 = imageB.shape[0]
-    iNN  = 1.0e0/(pow2*pow2)
-    dl = L/pow2
+    res = imageB.shape[0]
+    iNN  = 1.0e0/(res*res)
+    dl = L/res
     A = dl
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
     div = div*iNN

@@ -27,8 +27,8 @@ from IO_functions import *
 # clean folders
 os.system("rm -rf logs/*")
 os.system("rm -rf images/*")
-for res in range(2,RES_LOG2+1):
-    cmd="mkdir -p images/image_{:d}x{:d}".format(2**res,2**res)
+for reslog in range(2,RES_LOG2+1):
+    cmd="mkdir -p images/image_{:d}x{:d}".format(2**reslog,2**reslog)
     os.system(cmd)
 
 current_time         = datetime.datetime.now().strftime("%Y%m%d-%H%M%S")

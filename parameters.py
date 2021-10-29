@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = '../../data/N1024/fields2/'
+DATASET           = '../../data/N256_1runs/uvw/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -29,7 +29,7 @@ READ_NUMPY_ARRAYS = False
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
+OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 4, 6, 4, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.

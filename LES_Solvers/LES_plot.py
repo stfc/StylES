@@ -13,7 +13,7 @@ def print_fields(U_, V_, P_, C_, N, filename, \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, Cmin=None, Cmax=None, Wmin=None, Wmax=None):
 
     #---------------------------------- find vorticity
-    W_ = find_vorticity(U_, V_, dl)
+    W_ = find_vorticity(U_, V_)
 
     U = convert(U_)
     V = convert(V_)
@@ -126,14 +126,14 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         maxVel = max(maxU, maxV)
         minVel = min(minU, minV)
         if (maxVel!=minVel):
-            img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel)
-            img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel)
+            img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel + small)
+            img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel + small)
 
         # normalize vorticity
         maxW = np.max(img[:,:,2])
         minW = np.min(img[:,:,2])
         if (maxW!=minW):
-            img[:,:,2] = (img[:,:,2] - minW)/(maxW - minW)
+            img[:,:,2] = (img[:,:,2] - minW)/(maxW - minW + small)
 
         img = Image.fromarray(np.uint8(img*255), 'RGB')
         size = N, N
@@ -173,7 +173,7 @@ def print_fields_2(U_, V_, N, filename, Umin=None, Umax=None, Vmin=None, Vmax=No
     ax2.set_aspect(1)
 
     # save images
-    plt.suptitle(name)
+    plt.suptitle(filename)
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 
@@ -183,7 +183,7 @@ def print_fields_2(U_, V_, N, filename, Umin=None, Umax=None, Vmin=None, Vmax=No
 def print_fields_1(U_, V_, N, filename, Wmin=None, Wmax=None):
     
     #---------------------------------- find vorticity
-    W_ = find_vorticity(U_, V_, dl)
+    W_ = find_vorticity(U_, V_)
 
     U = convert(U_)
     V = convert(V_)
@@ -200,7 +200,7 @@ def print_fields_1(U_, V_, N, filename, Wmin=None, Wmax=None):
     ax1.set_aspect(1)
 
     # save images
-    plt.suptitle(name)
+    plt.suptitle(filename)
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 

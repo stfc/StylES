@@ -57,10 +57,10 @@ os.system("rm fields_it*")
 os.system("rm plots_it*")
 os.system("rm uvw_it*")
 
-pow2      = 2**(RES_LOG2-1)
-ipow22    = one/(2*pow2*pow2)  #2 because we sum U and V residuals
+res      = 2**(RES_LOG2-1)
+ires2    = one/(2*res*res)  #2 because we sum U and V residuals
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  #2 because we sum U and V residuals  
-DiffCoef  = np.full([pow2, pow2], Dc)
+DiffCoef  = np.full([res, res], Dc)
 NL_DNS    = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
 NL        = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
 
@@ -404,7 +404,7 @@ while (tstep<totSteps and totTime<finalTime):
             UVW    = predictions[RES_LOG2-3]
             resDNS =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
             resDNS = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
-            resDNS = resDNS*ipow22
+            resDNS = resDNS*ires2
             gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
             opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 

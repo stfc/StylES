@@ -137,11 +137,11 @@ def train(dataset, LR, train_summary_writer):
             tend = time.time()
             lr = lr_schedule(it)
             print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
-                'loss_disc {3:6.1e}, ' \
-                'loss_gen {4:6.1e}, ' \
-                'loss_vor {5:6.1e}, ' \
-                'loss_filter {6:6.1e}, ' \
-                'r1_penalty {7:6.1e}, ' \
+                'l_disc {3:6.1e}, ' \
+                'l_gen {4:6.1e}, ' \
+                'l_vor {5:6.1e}, ' \
+                'l_filter {6:6.1e}, ' \
+                'r1 {7:6.1e}, ' \
                 'lr {8:6.1e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
@@ -184,9 +184,9 @@ def train(dataset, LR, train_summary_writer):
     checkpoint.save(file_prefix = CHKP_PREFIX)
 
     print("Total divergencies, dUdt and dVdt for each resolution are:")
-    for res in range(RES_LOG2-1):
-        pow2 = 2**(res+2)
-        print("{:4d}x{:4d}:   {:03e}   {:03e}   {:03e}".format(pow2, pow2, div[res], momU[res], momV[res]))
+    for reslog in range(RES_LOG2-1):
+        res = 2**(reslog+2)
+        print("{:4d}x{:4d}:   {:03e}   {:03e}   {:03e}".format(res, res, div[reslog], momU[reslog], momV[reslog]))
     print("\n")
 
 

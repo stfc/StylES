@@ -47,8 +47,8 @@ def decode_img(img):
   
     #resize the image to the desired size.
     img_out = []
-    for res in range(2, RES_LOG2 + 1):
-        r_img = tf.image.resize(img, [2**res, 2**res])
+    for reslog in range(2, RES_LOG2 + 1):
+        r_img = tf.image.resize(img, [2**reslog, 2**reslog])
         r_img = tf.transpose(r_img)
         img_out.append(r_img)
     
@@ -73,10 +73,10 @@ def StyleGAN_load_fields(file_path):
     DIM_DATA, _ = U.shape
 
     img_out = []
-    for res in range(RES_LOG2-1):
-        pow2 = 2**(res+2)
-        data = np.zeros([3, pow2, pow2], dtype=DTYPE)
-        s = pow2/DIM_DATA
+    for reslog in range(RES_LOG2-1):
+        res = 2**(reslog+2)
+        data = np.zeros([3, res, res], dtype=DTYPE)
+        s = res/DIM_DATA
         data[0,:,:] = sc.ndimage.interpolation.zoom(U, s, order=3, mode='wrap')
         data[1,:,:] = sc.ndimage.interpolation.zoom(V, s, order=3, mode='wrap')
         data[2,:,:] = sc.ndimage.interpolation.zoom(W, s, order=3, mode='wrap')
@@ -165,14 +165,14 @@ def adjust_dynamic_range(data, drange_in, drange_out):
     return data    
 
 
-def check_divergence_wrongP_W(img, pow2):
+def check_divergence_wrongP_W(img, res):
 
     # initialize arrays
     U = img[0,:,:]
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
-    dl = L/pow2
+    dl = L/res
     A = dl
     Dc = nu/dl*A
 
@@ -229,14 +229,14 @@ def check_divergence_wrongP_W(img, pow2):
     return div, dUdt, dVdt
 
 
-def check_divergence_staggered(img, pow2):
+def check_divergence_staggered(img, res):
     
     # initialize arrays
     U = img[0,:,:]
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
-    dl = L/pow2
+    dl = L/res
     A = dl
     Dc = nu/dl*A
 
@@ -280,8 +280,8 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
-    for res in range(RES_LOG2-1):
-        pow2 = 2**(res+2)
+    for reslog in range(RES_LOG2-1):
+        res = 2**(reslog+2)
         nr = np.int(np.sqrt(NEXAMPLES))
         nc = np.int(NEXAMPLES/nr)
         # to maintain a fixed figure size
@@ -290,35 +290,37 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         #fig, axs = plt.subplots(nr,nc, squeeze=False)
         #plt.subplots_adjust(wspace=0.01, hspace=0.01)
         axs = axs.ravel()
-        img = predictions[res]
+        img = predictions[reslog]
 
         # save the highest dimension and first image of the batch as numpy array
-        if (pow2==OUTPUT_DIM and SAVE_NUMPY_ARRAYS):
+        if (res==OUTPUT_DIM and SAVE_NUMPY_ARRAYS):
             StyleGAN_save_fields(iteration, img[0,0,:,:], img[0,1,:,:], img[0,2,:,:])
 
         for i in range(NEXAMPLES):
 
-            #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], pow2)
-            divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], pow2)
-            div[res] = divergence
-            momU[res] = dUdt
-            momV[res] = dVdt
+            #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], res)
+            divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
+            div[reslog] = divergence
+            momU[reslog] = dUdt
+            momV[reslog] = dVdt
 
-            # show image
-            maxU = np.max(img[i,0,:,:])
-            minU = np.min(img[i,0,:,:])
-            maxV = np.max(img[i,1,:,:])
-            minV = np.min(img[i,1,:,:])
-            maxP = np.max(img[i,2,:,:])
-            minP = np.min(img[i,2,:,:])
-            imax = max(maxU, maxV, maxP)
-            imin = min(minU, minV, minP)
-            nimg = np.uint8((img[i,:,:,:] - imin)/(imax - imin)*255)
-            nimg = np.transpose(nimg, axes=[1,2,0])
+            # save image after normalization
+            nimg = np.zeros([3, res, res], dtype=DTYPE)
+
+            maxUV = np.max(img[i,0:2,:,:])
+            minUV = np.min(img[i,0:2,:,:])
+            nimg[0:2,:,:] = (img[i,0:2,:,:] - minUV)/(maxUV - minUV)
+
+            maxW = np.max(img[i,2,:,:])
+            minW = np.min(img[i,2,:,:])
+            nimg[2,:,:] = (img[i,2,:,:] - minW)/(maxW - minW)
+
+            nimg = np.uint8(nimg*255)
+            nimg = np.transpose(nimg, axes=[2,1,0])
             axs[i].axis('off')
             axs[i].imshow(nimg,cmap='Blues')
 
-        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(pow2,pow2,iteration), bbox_inches='tight', pad_inches=0)
+        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')
 
     return div, momU, momV

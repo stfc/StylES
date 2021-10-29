@@ -12,6 +12,9 @@ from LES_functions  import *
 from LES_plot       import *
 from LES_lAlg       import *
 
+from testcases.HIT_2D.HIT_2D import *
+
+
 
 
 # start timing
@@ -28,6 +31,7 @@ Ue = nc.zeros([N,N], dtype=DTYPE)  # face x-velocities
 Vn = nc.zeros([N,N], dtype=DTYPE)  # face y-velocities  
 pc = nc.zeros([N,N], dtype=DTYPE)  # pressure correction
 Z  = nc.zeros([N,N], dtype=DTYPE)
+DNS_cv = np.zeros([totSteps+1, 4])
 
 
 
@@ -35,9 +39,10 @@ Z  = nc.zeros([N,N], dtype=DTYPE)
 #---------------------------- set flow pressure, velocity fields and BCs
 
 # clean up and declarations
-os.system("rm Energy_spectrum.png")
 #os.system("rm restart.npz")
-os.system("rm Energy_spectrum_it*")
+os.system("rm DNS_center_values.txt")
+os.system("rm Energy_spectrum.png")
+os.system("rm energy_spectrum_it*")
 os.system("rm fields_it*")
 os.system("rm plots_it*")
 os.system("rm uvw_it*")
@@ -49,10 +54,12 @@ if (RESTART):
 else:
     U, V, P, C, B, totTime = init_fields(0)
 
-print_fields(U, V, P, C, 0, N)
+# print fields
+if (TEST_CASE=="HIT_2D_L&D"):
+    print_fields(U, V, P, C, N, "plots_0te.png")
+else:
+    print_fields(U, V, P, C, N, "plots_it0.png")
 
-# log file for TensorBoard
-train_summary_writer = tf.summary.create_file_writer("./logs/")
 
 # find face velocities first guess as forward difference (i.e. on side east and north)
 Ue = hf*(cr(U, 1, 0) + U)
@@ -68,7 +75,7 @@ res_cpu  = zero
 its      = 0
 
 # check divergence
-div = rho*A*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+div = rho*A*nc.sum(nc.abs(Ue - cr(Ue, -1, 0) + Vn - cr(Vn, 0, -1)))
 div = div*iNN
 div_cpu = convert(div)
 
@@ -87,13 +94,14 @@ if (tstep%print_res == 0):
     resC_cpu, res_cpu, its, div_cpu))
 
 # plot spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U, V, L, "energy_spectrum_it{0:d}".format(tstep) + ".txt")
 
 # track center point velocities and pressure
-with train_summary_writer.as_default():
-    tf.summary.scalar("DNS/probe_U", U[N//2, N//2], step=tstep)
-    tf.summary.scalar("DNS/probe_V", V[N//2, N//2], step=tstep)
-    tf.summary.scalar("DNS/probe_P", P[N//2, N//2], step=tstep)
+DNS_cv[tstep,0] = totTime
+DNS_cv[tstep,1] = U[N//2, N//2]
+DNS_cv[tstep,2] = V[N//2, N//2]
+DNS_cv[tstep,3] = P[N//2, N//2]
+
 
 
 # start loop
@@ -120,10 +128,10 @@ while (tstep<totSteps and totTime<finalTime):
         Fs = A*rho*cr(Vn, 0, -1)
         Fn = A*rho*Vn
 
-        Aw = Dc + hf*(nc.abs(Fw) + Fw)
-        Ae = Dc + hf*(nc.abs(Fe) - Fe)
-        As = Dc + hf*(nc.abs(Fs) + Fs)
-        An = Dc + hf*(nc.abs(Fn) - Fn)
+        Aw = Dc + hf*Fw  # hf*(nc.abs(Fw) + Fw)
+        Ae = Dc - hf*Fe  # hf*(nc.abs(Fe) - Fe)
+        As = Dc + hf*Fs  # hf*(nc.abs(Fs) + Fs)
+        An = Dc - hf*Fn  # hf*(nc.abs(Fn) - Fn)
         Ao = rho*A*dl/delt
 
         Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
@@ -282,7 +290,7 @@ while (tstep<totSteps and totTime<finalTime):
         its = it
 
         # check divergence
-        div = rho*A*nc.sum(nc.abs(cr(Ue, -1, 0) - Ue + cr(Vn, 0, -1) - Vn))
+        div = rho*A*nc.sum(nc.abs(Ue - cr(Ue, -1, 0) + Vn - cr(Vn, 0, -1)))
         div = div*iNN
         div_cpu = convert(div)  
 
@@ -295,49 +303,65 @@ while (tstep<totSteps and totTime<finalTime):
             .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
             resC_cpu, res_cpu, its, div_cpu))
 
-        # track center point velocities and pressure
-        with train_summary_writer.as_default():
-            tf.summary.scalar("DNS/probe_U", U[N//2, N//2], step=tstep)
-            tf.summary.scalar("DNS/probe_V", V[N//2, N//2], step=tstep)
-            tf.summary.scalar("DNS/probe_P", P[N//2, N//2], step=tstep)
 
-        if (TEST_CASE == "HIT_2D"):
+        # track center point velocities and pressure
+        DNS_cv[tstep,0] = totTime
+        DNS_cv[tstep,1] = U[N//2, N//2]
+        DNS_cv[tstep,2] = V[N//2, N//2]
+        DNS_cv[tstep,3] = P[N//2, N//2]
+
+
+        if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_9te.png")
+                plot_spectrum(U, V, L,      "energy_spectrum_9te.txt")
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_24te.png")
+                plot_spectrum(U, V, L,      "energy_spectrum_24te.txt")
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U, V, P, C, tstep, N)
-                plot_spectrum(U, V, L, tstep)
+                print_fields(U, V, P, C, N, "plots_97te.png")
+                plot_spectrum(U, V, L,      "energy_sprectrum_97te.txt")
 
+            if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
+                print_fields(U, V, P, C, N, "plots_134te.png")
+                plot_spectrum(U, V, L,      "energy_sprectrum_134te.txt")
         else:
     
+            tail = "it{0:d}".format(tstep)
+
             # save images
             if (tstep%print_img == 0):
-                print_fields(U, V, P, C, tstep, N)
+                print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
             # write checkpoint
             if (tstep%print_ckp == 0):
-                save_fields(totTime, tstep, U, V, P, C, B)
+                W = find_vorticity(U, V)
+                save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U, V, L, tstep)
+                plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
 
 
 # end of the simulation
 
+tail = "it{0:d}".format(tstep)
+
 # save images
-print_fields(U, V, P, C, tstep, N)
+print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
 # write checkpoint
-save_fields(totTime, tstep, U, V, P, C, B)
+W = find_vorticity(U, V)
+save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
 # print spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
+
+# save center values
+filename = "DNS_center_values" + ".txt"
+np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+
 
 print("Simulation succesfully completed!")

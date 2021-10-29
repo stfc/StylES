@@ -29,8 +29,8 @@ def cr(phi, i, j):
     return nc.roll(phi, (-i, -j), axis=(0,1))
 
 
-def find_vorticity(U, V, dl):
-    W = ((cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0)))/dl
+def find_vorticity(U, V):
+    W = ((cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0)))
     return W
 
 
@@ -59,12 +59,12 @@ def save_fields(totTime, U, V, P, C, B, W, filename):
     minV = np.min(V)
     maxVel = max(maxU, maxV)
     minVel = min(minU, minV)
-    U_ = (U-minVel)/(maxVel-minVel)
-    V_ = (V-minVel)/(maxVel-minVel)
+    U_ = (U - minVel)/(maxVel - minVel + small)
+    V_ = (V - minVel)/(maxVel - minVel + small)
 
     maxW = np.max(W)
     minW = np.min(W)
-    W_ = (W-minW)/(maxW-minW)
+    W_ = (W - minW)/(maxW - minW + small)
 
     nc.savez(filename, U=U_, V=V_, W=W_)
 
@@ -76,6 +76,8 @@ def plot_spectrum(U, V, L, filename, close=False):
 
     knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
+    plt.xscale("log")
+    plt.yscale("log")
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
     plt.savefig("Energy_spectrum.png", bbox_inches='tight', pad_inches=0)
     if (close):

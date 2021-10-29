@@ -110,8 +110,8 @@ def make_synthesis_model():
     # Noise inputs
     noise_inputs = []
     for ldx in range(G_LAYERS):
-        res = ldx // 2 + 2
-        shape = [1, 2**res, 2**res]
+        reslog = ldx // 2 + 2
+        shape = [1, 2**reslog, 2**reslog]
         lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
         noise = lnoise(dlatents)
         noise_inputs.append(noise)
@@ -422,10 +422,10 @@ def gradient_penalty(x):
 # image_in = np.array(image_in)
 # image_in = tf.image.convert_image_dtype(image_in, DTYPE)
 # image = []
-# for res in range(2, RES_LOG2 + 1):
-#     r_img = tf.image.resize(image_in, [2**res, 2**res])
+# for reslog in range(2, RES_LOG2 + 1):
+#     r_img = tf.image.resize(image_in, [2**reslog, 2**reslog])
 #     r_img = tf.transpose(r_img)
-#     if (res==RES_LOG2):
+#     if (reslog==RES_LOG2):
 #         image_ref = r_img
 #     r_img = tf.expand_dims(r_img, axis=0).shape.as_list()
 #     image.append(r_img)

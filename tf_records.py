@@ -37,8 +37,8 @@ def decode_img(img):
     
     #resize the image to the desired size.
     img_out = []
-    for res in range(2, RES_LOG2 + 1):
-        r_img = tf.image.resize(img, [2**res, 2**res])
+    for reslog in range(2, RES_LOG2 + 1):
+        r_img = tf.image.resize(img, [2**reslog, 2**reslog])
         r_img = tf.transpose(r_img)
         img_out.append(r_img)
         
@@ -84,8 +84,8 @@ def write_tf_records():
                 img = tf.image.rgb_to_grayscale(img)
             img = tf.image.convert_image_dtype(img, DTYPE)
             img_out = []
-            for res in range(2, RES_LOG2 + 1):
-                r_img = tf.image.resize(img, [2**res, 2**res])
+            for reslog in range(2, RES_LOG2 + 1):
+                r_img = tf.image.resize(img, [2**reslog, 2**reslog])
                 r_img = tf.transpose(r_img)
                 r_img = tf.io.serialize_tensor(r_img)
                 img_out.append(r_img)
@@ -111,8 +111,8 @@ def read_tfrecord(data_record):
     record = tf.io.parse_single_example(data_record, feature_description)
     
     images_out = []
-    for res in range(2, RES_LOG2 + 1):
-        dim = 2**res
+    for reslog in range(2, RES_LOG2 + 1):
+        dim = 2**reslog
         rec_name = 'image_' + str(dim)
         image = tf.io.parse_tensor(record[rec_name],  out_type = DTYPE)
         image = tf.reshape(image, [3, dim, dim])
