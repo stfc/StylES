@@ -39,10 +39,10 @@ DNS_cv = np.zeros([totSteps+1, 4])
 #os.system("rm restart.npz")
 os.system("rm DNS_center_values.txt")
 os.system("rm Energy_spectrum.png")
-os.system("rm energy_spectrum_it*")
-os.system("rm fields_it*")
-os.system("rm plots_it*")
-os.system("rm uvw_it*")
+os.system("rm energy_spectrum*")
+os.system("rm fields*")
+os.system("rm plots*")
+os.system("rm uvw*")
 
 # initial flow
 totTime = zero
@@ -87,7 +87,11 @@ if (tstep%print_res == 0):
     resC_cpu, res_cpu, its, div_cpu))
 
 # plot spectrum
-plot_spectrum(U, V, L, "energy_spectrum_it{0:d}".format(tstep) + ".txt")
+if (TEST_CASE == "HIT_2D_L&D"):
+    plot_spectrum(U, V, L, "energy_spectrum_0te.txt")
+else:
+    plot_spectrum(U, V, L, "energy_spectrum_it0.txt")
+
 
 # track center point velocities and pressure
 DNS_cv[tstep,0] = totTime
@@ -312,11 +316,11 @@ while (tstep<totSteps and totTime<finalTime):
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
                 print_fields(U, V, P, C, N, "plots_97te.png")
-                plot_spectrum(U, V, L,      "energy_sprectrum_97te.txt")
+                plot_spectrum(U, V, L,      "energy_spectrum_97te.txt")
 
             if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
                 print_fields(U, V, P, C, N, "plots_134te.png")
-                plot_spectrum(U, V, L,      "energy_sprectrum_134te.txt")
+                plot_spectrum(U, V, L,      "energy_spectrum_134te.txt")
         else:
     
             tail = "it{0:d}".format(tstep)
@@ -337,21 +341,23 @@ while (tstep<totSteps and totTime<finalTime):
 
 # end of the simulation
 
-tail = "it{0:d}".format(tstep)
+if (TEST_CASE != "HIT_2D_L&D"):
 
-# save images
-print_fields(U, V, P, C, N, "plots_" + tail + ".png")
+    tail = "it{0:d}".format(tstep)
 
-# write checkpoint
-W = find_vorticity(U, V)
-save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
+    # save images
+    print_fields(U, V, P, C, N, "plots_" + tail + ".png")
 
-# print spectrum
-plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
+    # write checkpoint
+    W = find_vorticity(U, V)
+    save_fields(totTime, U, V, P, C, B, W, "fields_" + tail + ".npz")
 
-# save center values
-filename = "DNS_center_values" + ".txt"
-np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+    # print spectrum
+    plot_spectrum(U, V, L, "energy_spectrum_" + tail + ".txt")
+
+    # save center values
+    filename = "DNS_center_values" + ".txt"
+    np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
 
 
 print("Simulation succesfully completed!")

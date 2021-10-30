@@ -26,14 +26,14 @@ print_res = 100
 print_img = 100
 print_ckp = 100
 print_spe = 100
-N         = 256      # number of points   [-]
+N         = 1024      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rho       = 1.0e0     # density                    [kg/m3]
 nu        = 1.87e-4   # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
 Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
-M         = 1000      # number of modes
+M         = 5000      # number of modes
 METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
 L         = 0.95      # system dimension   [m]
 dl        = L/N
@@ -55,12 +55,13 @@ def init_fields(seed):
     k = cp.zeros([M], dtype=DTYPE)  # wave number
 
     # find max and min wave numbers
-    k0   = 100.0 #two*pi/L     #same in each direction
-    kmax = 600.0 #pi/(L/N)  #same in each direction
+    k0   = two*pi/L     #same in each direction
+    kmax = pi/dl  #same in each direction
+    print('Generate data from: ', k0, ' to ', kmax ,' wave numbers')
 
     # find k and E
-    km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
+    km = k0 + hf*dk + nc.arange(0, M)*dk
     inputspec = 'ld_spectrum'
     especf = getattr(spectra, inputspec)().evaluate
     km_cpu = cp.asnumpy(km)
@@ -98,46 +99,43 @@ def init_fields(seed):
         C = cp.zeros([N,N], dtype=DTYPE)
         B = cp.zeros([N,N], dtype=DTYPE)
 
-        xyp  = cp.linspace(hf*dl, L-hf*dl, N)
-        X, Y = cp.meshgrid(xyp, xyp)
+        # compute random angles
+        psi = nc.random.uniform(-pi / 2.0, pi / 2.0, M)
 
+        #   wavenumber vector from random angles
+        theta = nc.random.uniform(zero, two*nc.pi, M)
+        kx = cos(theta)*km
+        ky = sin(theta)*km
 
-        # find random angles
-        nu      = cp.random.uniform(zero, one, M)
-        thetaM  = cp.arccos(two*nu - one);
-        psi     = cp.random.uniform(-pi*hf, pi*hf, M)
+        # create divergence vector
+        ktx = sin(kx*dl*hf)/dl
+        kty = sin(ky*dl*hf)/dl
 
-        # compute km
-        kxm = sin(thetaM)
-        kym = cos(thetaM)
+        # Enforce Mass Conservation
+        sxm = -kty
+        sym = ktx
+        
+        smag = sqrt(sxm*sxm + sym*sym)
+        sxm = sxm/smag
+        sym = sym/smag
 
-        # compute kt
-        kxt = two/dl*sin(hf*km*kxm*dl)
-        kyt = two/dl*sin(hf*km*kym*dl)
+        # verify that the wave vector and sigma are perpendicular
+        kk = nc.sum(ktx * sxm + kty * sym)
+        print('Orthogonality of k and sigma (divergence in wave space):', kk)
 
-        # compute the unit vectors
-        sigmax =-kyt
-        sigmay = kxt
-        sigma = sqrt(sigmax*sigmax + sigmay*sigmay)
-        sigmax =  sigmax/sigma
-        sigmay =  sigmay/sigma
+        # generate turbulence at cell centers
+        um = sqrt(E*dk)
 
-        # verify orthogonality
-        # kk = cp.sum(kxt*sigmax + kyt*sigmay)
-        # print(" Orthogonality is ",kk) 
-
-        # find energy levels
-        qm = sqrt(E*dk)
-
-        # compute u, v and w
-        for kk in range(M):
-            arg = km[kk]*(kxm[kk]*X + kym[kk]*Y - psi[kk])
-
-            bmx = two * qm[kk] * cos(arg - kxm[kk] * hf*dl)
-            bmy = two * qm[kk] * cos(arg - kym[kk] * hf*dl)
-
-            U = U + bmx * sigmax[kk]
-            V = V + bmy * sigmay[kk]
+        xc = dl*hf + nc.arange(0, N)*dl
+        yc = dl*hf + nc.arange(0, N)*dl
+        for j in range(0, N):
+            for i in range(0, N):
+                # for every grid point (i,j,k) do the fourier summation
+                arg = kx*xc[i] + ky*yc[j]  - psi
+                bmx = two*um*cos(arg - kx*dl*hf)
+                bmy = two*um*cos(arg - ky*dl*hf)
+                U[i,j] = nc.sum(bmx*sxm)
+                V[i,j] = nc.sum(bmy*sym)
 
 
         # find spectrum

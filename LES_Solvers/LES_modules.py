@@ -1,5 +1,5 @@
 # switch between numpy and cupy
-USE_GPU = False
+USE_GPU = True
 
 if (USE_GPU):
     import cupy as nc
