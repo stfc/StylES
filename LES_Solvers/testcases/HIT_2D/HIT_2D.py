@@ -16,7 +16,7 @@ sys.path.insert(0, '../../TurboGenPY/')
 import spectra
 
 
-TEST_CASE = "HIT_2D"
+TEST_CASE = "HIT_2D_L&D"
 PASSIVE   = False
 RESTART   = False
 SAVE_UVW  = True
@@ -26,14 +26,14 @@ print_res = 100
 print_img = 100
 print_ckp = 100
 print_spe = 100
-N         = 1024      # number of points   [-]
+N         = 256      # number of points   [-]
 iNN       = one/(N*N)
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rho       = 1.0e0     # density                    [kg/m3]
 nu        = 1.87e-4   # dynamic viscosity          [Pa*s]  This should be found from Re. See excel file.
 Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
-M         = 5000      # number of modes
+M         = 1000      # number of modes
 METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
 L         = 0.95      # system dimension   [m]
 dl        = L/N
@@ -56,12 +56,11 @@ def init_fields(seed):
 
     # find max and min wave numbers
     k0   = two*pi/L     #same in each direction
-    kmax = pi/dl  #same in each direction
-    print('Generate data from: ', k0, ' to ', kmax ,' wave numbers')
+    kmax = pi/(L/N)  #same in each direction
 
     # find k and E
+    km = cp.linspace(k0, kmax, M)
     dk = (kmax-k0)/M
-    km = k0 + hf*dk + nc.arange(0, M)*dk
     inputspec = 'ld_spectrum'
     especf = getattr(spectra, inputspec)().evaluate
     km_cpu = cp.asnumpy(km)
@@ -81,10 +80,10 @@ def init_fields(seed):
     plt.plot(km_cpu, ykm4_cpu, '-', linewidth=0.5, markersize=2)
 
     plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
-    plt.xscale("log")
-    plt.yscale("log")
-    #plt.xlim([0.0e0, 600])        
-    #plt.ylim([1.0e-7, 0.2])
+    #plt.xscale("log")
+    #plt.yscale("log")
+    plt.xlim([1.0e0, 600])        
+    plt.ylim([1.0e-7, 0.1])
     plt.grid(True, which='both')
     plt.legend(('k^-3', 'k^-4', 'input'),  loc='upper right')
     plt.savefig("Energy_spectrum.png")
@@ -99,43 +98,46 @@ def init_fields(seed):
         C = cp.zeros([N,N], dtype=DTYPE)
         B = cp.zeros([N,N], dtype=DTYPE)
 
-        # compute random angles
-        psi = nc.random.uniform(-pi / 2.0, pi / 2.0, M)
+        xyp  = cp.linspace(hf*dl, L-hf*dl, N)
+        X, Y = cp.meshgrid(xyp, xyp, indexing='ij')
 
-        #   wavenumber vector from random angles
-        theta = nc.random.uniform(zero, two*nc.pi, M)
-        kx = cos(theta)*km
-        ky = sin(theta)*km
 
-        # create divergence vector
-        ktx = sin(kx*dl*hf)/dl
-        kty = sin(ky*dl*hf)/dl
+        # find random angles
+        nu      = cp.random.uniform(zero, one, M)
+        thetaM  = cp.arccos(two*nu - one)
+        psi     = cp.random.uniform(-pi*hf, pi*hf, M)
 
-        # Enforce Mass Conservation
-        sxm = -kty
-        sym = ktx
-        
-        smag = sqrt(sxm*sxm + sym*sym)
-        sxm = sxm/smag
-        sym = sym/smag
+        # compute km
+        kxm = sin(thetaM)
+        kym = cos(thetaM)
 
-        # verify that the wave vector and sigma are perpendicular
-        kk = nc.sum(ktx * sxm + kty * sym)
-        print('Orthogonality of k and sigma (divergence in wave space):', kk)
+        # compute kt
+        kxt = two/dl*sin(hf*km*kxm*dl)
+        kyt = two/dl*sin(hf*km*kym*dl)
 
-        # generate turbulence at cell centers
-        um = sqrt(E*dk)
+        # compute the unit vectors
+        sigmax =-kyt
+        sigmay = kxt
+        sigma = sqrt(sigmax*sigmax + sigmay*sigmay)
+        sigmax =  sigmax/sigma
+        sigmay =  sigmay/sigma
 
-        xc = dl*hf + nc.arange(0, N)*dl
-        yc = dl*hf + nc.arange(0, N)*dl
-        for j in range(0, N):
-            for i in range(0, N):
-                # for every grid point (i,j,k) do the fourier summation
-                arg = kx*xc[i] + ky*yc[j]  - psi
-                bmx = two*um*cos(arg - kx*dl*hf)
-                bmy = two*um*cos(arg - ky*dl*hf)
-                U[i,j] = nc.sum(bmx*sxm)
-                V[i,j] = nc.sum(bmy*sym)
+        # verify orthogonality
+        # kk = cp.sum(kxt*sigmax + kyt*sigmay)
+        # print(" Orthogonality is ",kk) 
+
+        # find energy levels
+        qm = sqrt(E*dk)
+
+        # compute u, v and w
+        for kk in range(M):
+            arg = km[kk]*(kxm[kk]*X + kym[kk]*Y) + psi[kk]
+
+            bmx = two * qm[kk] * cos(arg - km[kk] * kxm[kk] * hf*dl)
+            bmy = two * qm[kk] * cos(arg - km[kk] * kym[kk] * hf*dl)
+
+            U = U + bmx * sigmax[kk]
+            V = V + bmy * sigmay[kk]
 
 
         # find spectrum
