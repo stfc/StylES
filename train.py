@@ -53,12 +53,12 @@ def train_step(input, images):
         # find filter loss
         loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-3]))
 
-        # find vorticity loss
-        U  = g_images[RES_LOG2-2][:,0,:,:]
-        V  = g_images[RES_LOG2-2][:,1,:,:]
-        W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
-        Wt =  ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))/dl
-        loss_vor = tf.reduce_mean(tf.math.squared_difference(W, Wt))
+        # # find vorticity loss
+        # U  = g_images[RES_LOG2-2][:,0,:,:]
+        # V  = g_images[RES_LOG2-2][:,1,:,:]
+        # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
+        # Wt =  ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))/dl
+        loss_vor = 0. #tf.reduce_mean(tf.math.squared_difference(W, Wt))
         loss_gen_vor = loss_gen + loss_vor
 
     #apply gradients
@@ -180,9 +180,7 @@ def train(dataset, LR, train_summary_writer):
             checkpoint.save(file_prefix = CHKP_PREFIX)
 
 
-    # end of the training: save checkpoint and print divergence
-    checkpoint.save(file_prefix = CHKP_PREFIX)
-
+    # end of the training
     print("Total divergencies, dUdt and dVdt for each resolution are:")
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
