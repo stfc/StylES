@@ -64,6 +64,30 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         ax4.set_aspect(1)
 
 
+    colors = plt.cm.jet(np.linspace(0,1,11))
+    if ("4" in filename):
+        lineColor = colors[0]
+    if ("8" in filename):
+        lineColor = colors[1]
+    if ("16" in filename):
+        lineColor = colors[2]
+    if ("32" in filename):
+        lineColor = colors[3]
+    if ("64" in filename):
+        lineColor = colors[4]
+    if ("128" in filename):
+        lineColor = colors[5]
+    if ("256" in filename):
+        lineColor = colors[6]
+    if ("512" in filename):
+        lineColor = colors[7]
+    if ("1024" in filename):
+        lineColor = colors[8]
+    if ("2048" in filename):
+        lineColor = colors[9]
+    if ("4096" in filename):
+        lineColor = colors[10]
+
 
     #---------------------------------- plot centerlines
     if (dir==0):    # x-direction
@@ -83,24 +107,25 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         yC = C[:,hdim]
         yW = W[:,hdim]
 
-    velx = ax5.plot(x,yU)
+
+    velx = ax5.plot(x, yU, color=lineColor)
     ax5.set_ylim([Umin, Umax])
     ax5.title.set_text('X-vel')
 
-    vely = ax6.plot(x,yV)
+    vely = ax6.plot(x, yV, color=lineColor)
     ax6.set_ylim([Vmin, Vmax])
     ax6.title.set_text('Y-vel')
 
-    pres = ax7.plot(x,yP)
+    pres = ax7.plot(x, yP, color=lineColor)
     ax7.set_ylim([Pmin, Pmax])
     ax7.title.set_text('pressure')
 
     if (PASSIVE):
-        scal = ax8.plot(x,yC)
+        scal = ax8.plot(x, yC, color=lineColor)
         ax8.set_ylim([Cmin, Cmax])
         ax8.title.set_text('scalar')
     else:
-        vort = ax8.plot(x,yW)
+        vort = ax8.plot(x, yW, color=lineColor)
         ax8.set_ylim([Wmin, Wmax])
         ax8.title.set_text('vorticity')
 

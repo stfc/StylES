@@ -13,24 +13,18 @@ from HIT_2D import L
 from MSG_StyleGAN_tf2 import *
 
 
-# local flags
+# local parameters
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-NL         = 1         # number of different latent vectors randomly selected
+NL         = 20         # number of different latent vectors randomly selected
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 FILE_REAL  = "../../../data/N1024_1runs/fields2/uvw_it2742.png"
+UMIN       =  0.0
+UMAX       =  1.0
+VMIN       =  0.0
+VMAX       =  1.0
+WMIN       = -0.1
+WMAX       =  0.1
 
-
-# local parameters
-UMIN = -1.0
-UMAX =  1.0
-VMIN = -1.0
-VMAX =  1.0
-PMIN = -1000.0
-PMAX =  1000.0
-CMIN =  0.0
-CMAX =  1.0
-WMIN = -1000.0
-WMAX =  1000.0
 
 
 # clean up
@@ -38,12 +32,14 @@ os.system("rm Energy_spectrum.png")
 os.system("rm energy_spectrum_*")
 os.system("rm DNS_org.png")
 os.system("rm DNSfromDNS_it*.png")
+os.system("rm plots_lat*.png")
 os.system("rm uvw_lat*.png")
 os.system("rm -rf log*")
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(1)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
+
 
 
 # loading StyleGAN checkpoint and filter
@@ -186,10 +182,11 @@ for k in range(NL):
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
+        P_DNS_t = np.zeros([res, res])
 
         filename = "plots_lat_" + str(k) + "_res_" + str(res) + ".png"
-        print_fields(U_DNS_t, V_DNS_t, W_DNS_t, W_DNS_t, res, filename, \
-            Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Wmin=WMIN, Wmax=WMAX)
+        print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, res, filename, \
+            Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX)
 
         filename = "energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk== RES_LOG2-2):
