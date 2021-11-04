@@ -30,7 +30,7 @@ def cr(phi, i, j):
 
 
 def find_vorticity(U, V):
-    W = ((cr(U, 0, 1)-cr(U, 0, -1)) - (cr(V, 1, 0)-cr(V, -1, 0)))
+    W = ((cr(V, 1, 0)-cr(V, -1, 0)) - (cr(U, 0, 1)-cr(U, 0, -1)))
     return W
 
 
@@ -57,10 +57,10 @@ def save_fields(totTime, U, V, P, C, B, W, filename):
     maxV = np.max(V)
     minU = np.min(U)
     minV = np.min(V)
-    maxVel = max(maxU, maxV)
-    minVel = min(minU, minV)
-    U_ = (U - minVel)/(maxVel - minVel + small)
-    V_ = (V - minVel)/(maxVel - minVel + small)
+    maxVel =  uRef  #max(maxU, maxV)
+    minVel = -uRef  #min(minU, minV)
+    U_ = (U - minVel)/(maxVel - minVel)
+    V_ = (V - minVel)/(maxVel - minVel)
 
     maxW = np.max(W)
     minW = np.min(W)

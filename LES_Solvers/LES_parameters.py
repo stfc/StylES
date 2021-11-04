@@ -10,6 +10,7 @@ tollC      = 1.0e-3
 tollDNS    = 1.0e-7
 alphaP     = 0.1e0      # pressure relaxation factor
 alphaUV    = 0.1e0       # velocity relaxation factor
+uRef       = 10.0e0
 
 # learning rate for DNS field
 lrDNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"

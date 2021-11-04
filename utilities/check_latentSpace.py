@@ -15,9 +15,9 @@ from MSG_StyleGAN_tf2 import *
 
 # local parameters
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-NL         = 20         # number of different latent vectors randomly selected
+NL         = 10         # number of different latent vectors randomly selected
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
-FILE_REAL  = "../../../data/N1024_1runs/fields2/uvw_it2742.png"
+FILE_REAL  = "../../../data/N1024_1runs/uvw/uvw_it3900.png"
 UMIN       =  0.0
 UMAX       =  1.0
 VMIN       =  0.0
@@ -38,7 +38,7 @@ os.system("rm -rf log*")
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(1)
-iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
+iOUTDIM22 = one #/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 
 
@@ -127,6 +127,10 @@ for k in range(NL):
             # convert to numpy array
             orig = np.asarray(orig, dtype=DTYPE)
 
+        # normalize values
+        orig[:,:,0:2] = (orig[:,:,0:2] - np.min(orig[:,:,0:2]))/(np.max(orig[:,:,0:2]) - np.min(orig[:,:,0:2]))
+        orig[:,:,  2] = (orig[:,:,  2] - np.min(orig[:,:,  2]))/(np.max(orig[:,:,  2]) - np.min(orig[:,:,  2]))
+
         U_DNS = orig[:,:,0]
         V_DNS = orig[:,:,1]
         print_fields_1(U_DNS, V_DNS, N, "DNS_org.png", Wmin=WMIN, Wmax=WMAX)
@@ -158,7 +162,7 @@ for k in range(NL):
                 print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  lr {3:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), lr))
                 U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
                 V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
-                print_fields_1(U_DNS_t, V_DNS_t, N, "DNSfromDNS_it{0:d}".format(itDNS) + ".png", Wmin=WMIN, Wmax=WMAX)
+                print_fields_1(U_DNS_t, V_DNS_t, N, "DNSfromDNS_it{0:d}".format(0) + ".png", Wmin=WMIN, Wmax=WMAX)
 
             itDNS = itDNS+1
 

@@ -38,6 +38,17 @@ def train_step(input, images):
         g_images = synthesis(dlatents, training = True)
         f_images = filter(g_images[RES_LOG2-2], training = True)
 
+        # # find vorticity loss
+        # g_images_new = []
+        # for res in range(RES_LOG2-1):
+        #     U  = g_images[res][:,0,:,:]
+        #     V  = g_images[res][:,1,:,:]
+        #     Wt = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
+        #     WtMax = tf.math.reduce_max(Wt) 
+        #     WtMin = tf.math.reduce_min(Wt) 
+        #     Wt = (Wt - WtMin)/(WtMax - WtMin + 1.e-20)
+        #     g_images_new.append(tf.concat([g_images[res][:,0:2,:,:], Wt[:,np.newaxis,:,:]], 1))
+
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
@@ -57,7 +68,7 @@ def train_step(input, images):
         # U  = g_images[RES_LOG2-2][:,0,:,:]
         # V  = g_images[RES_LOG2-2][:,1,:,:]
         # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
-        # Wt =  ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))/dl
+        # Wt =  ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
         loss_vor = 0. #tf.reduce_mean(tf.math.squared_difference(W, Wt))
         loss_gen_vor = loss_gen + loss_vor
 

@@ -298,27 +298,45 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
 
         for i in range(NEXAMPLES):
 
-            #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], res)
-            divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
-            div[reslog] = divergence
-            momU[reslog] = dUdt
-            momV[reslog] = dVdt
+            if (NUM_CHANNELS == 3):
 
-            # save image after normalization
-            nimg = np.zeros([3, res, res], dtype=DTYPE)
+                # print divergence
+                #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], res)
+                divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
+                div[reslog] = divergence
+                momU[reslog] = dUdt
+                momV[reslog] = dVdt
 
-            maxUV = np.max(img[i,0:2,:,:])
-            minUV = np.min(img[i,0:2,:,:])
-            nimg[0:2,:,:] = (img[i,0:2,:,:] - minUV)/(maxUV - minUV)
+                # save image after normalization
+                nimg = np.zeros([3, res, res], dtype=DTYPE)
 
-            maxW = np.max(img[i,2,:,:])
-            minW = np.min(img[i,2,:,:])
-            nimg[2,:,:] = (img[i,2,:,:] - minW)/(maxW - minW)
+                maxUV = np.max(img[i,0:2,:,:])
+                minUV = np.min(img[i,0:2,:,:])
+                nimg[0:2,:,:] = (img[i,0:2,:,:] - minUV)/(maxUV - minUV)
 
-            nimg = np.uint8(nimg*255)
-            nimg = np.transpose(nimg, axes=[2,1,0])
-            axs[i].axis('off')
-            axs[i].imshow(nimg,cmap='Blues')
+                U = img[i,0,:,:]
+                V = img[i,0,:,:]
+                W = ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))
+                maxW = np.max(W)
+                minW = np.min(W)
+                nimg[2,:,:] = (W - minW)/(maxW - minW)
+
+                nimg = np.uint8(nimg*255)
+                nimg = np.transpose(nimg, axes=[2,1,0])
+                axs[i].axis('off')
+                axs[i].imshow(nimg,cmap='gray')
+
+            else:
+
+                nimg = np.zeros([1, res, res], dtype=DTYPE)
+                maxW = np.max(img[i,0,:,:])
+                minW = np.min(img[i,0,:,:])
+                nimg[0,:,:] = (img[i,0,:,:] - minW)/(maxW - minW)
+
+                nimg = np.uint8(nimg*255)
+                nimg = np.transpose(nimg, axes=[2,1,0])
+                axs[i].axis('off')
+                axs[i].imshow(nimg,cmap='gray')
 
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')

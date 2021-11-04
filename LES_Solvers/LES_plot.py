@@ -65,6 +65,7 @@ def print_fields(U_, V_, P_, C_, N, filename, \
 
 
     colors = plt.cm.jet(np.linspace(0,1,11))
+    lineColor = colors[0]
     if ("4" in filename):
         lineColor = colors[0]
     if ("8" in filename):
@@ -148,11 +149,11 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         maxV = np.max(img[:,:,1])
         minU = np.min(img[:,:,0])
         minV = np.min(img[:,:,1])
-        maxVel = max(maxU, maxV)
-        minVel = min(minU, minV)
+        maxVel =  uRef  #max(maxU, maxV)
+        minVel = -uRef  #min(minU, minV)
         if (maxVel!=minVel):
-            img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel + small)
-            img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel + small)
+            img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel)
+            img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel)
 
         # normalize vorticity
         maxW = np.max(img[:,:,2])
