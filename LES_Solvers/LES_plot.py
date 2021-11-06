@@ -175,7 +175,7 @@ def print_fields(U_, V_, P_, C_, N, filename, \
 
 
 
-def print_fields_2(U_, V_, N, filename, Umin=None, Umax=None, Vmin=None, Vmax=None):
+def print_fields_2(U_, V_, filename, Umin=None, Umax=None, Vmin=None, Vmax=None):
 
     U = convert(U_)
     V = convert(V_)
@@ -206,13 +206,9 @@ def print_fields_2(U_, V_, N, filename, Umin=None, Umax=None, Vmin=None, Vmax=No
 
 
 
-def print_fields_1(U_, V_, N, filename, Wmin=None, Wmax=None):
+def print_fields_1(W_, filename, Wmin=None, Wmax=None):
     
     #---------------------------------- find vorticity
-    W_ = find_vorticity(U_, V_)
-
-    U = convert(U_)
-    V = convert(V_)
     W = convert(W_)
 
 

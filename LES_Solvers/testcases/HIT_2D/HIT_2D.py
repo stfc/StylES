@@ -16,18 +16,18 @@ sys.path.insert(0, '../../TurboGenPY/')
 import spectra
 
 
-TEST_CASE = "HIT_2D_L&D"
+TEST_CASE = "HIT_2D"
 PASSIVE   = False
 RESTART   = False
 SAVE_UVW  = True
+N         = 256      # number of points   [-]
 finalTime = 0.152751599
 totSteps  = 1000000
 print_res = 100
-print_img = 100
-print_ckp = 100
-print_spe = 100
-N         = 256      # number of points   [-]
-iNN       = one/(N*N)
+print_img = 1500
+print_ckp = 1500
+print_spe = totSteps+1
+NRUNS     = 250   # number of total runs to execute
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rho       = 1.0e0     # density                    [kg/m3]
@@ -36,13 +36,15 @@ Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is
 M         = 1000      # number of modes
 METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
 L         = 0.95      # system dimension   [m]
-dl        = L/N
-A         = dl        # Area [m2] 
-Dc        = nu/dl*A   # diffusion conductance term in x
 CNum      = 0.5       # Courant number 
 delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
 maxDelt   = 1.0e-4
 dir       = 1         # cross direction for plotting results
+
+iNN       = one/(N*N)
+dl        = L/N
+A         = dl        # Area [m2] 
+Dc        = nu/dl*A   # diffusion conductance term in x
 
 
 

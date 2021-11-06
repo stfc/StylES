@@ -2,8 +2,8 @@
 DEBUG      = False
 PATH       = "./"
 maxIt      = 100000
-maxItDNS   = 10000
-toll       = 1.0e-5   # tollerance for convergence of SIMPLE
+maxItDNS   = 100000
+toll       = 1.0e-3   # tollerance for convergence of SIMPLE
 tollM      = 1.0e-3
 tollP      = 1.0e-3
 tollC      = 1.0e-3
@@ -14,7 +14,7 @@ uRef       = 10.0e0
 
 # learning rate for DNS field
 lrDNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
-lrDNS        = 1000.0       # exponential policy initial learning rate
+lrDNS        = 0.1       # exponential policy initial learning rate
 lrDNS_RATE   = 0.1        # exponential policy decay rate
 lrDNS_STEP   = maxItDNS     # exponential policy decay step
 lrDNS_EXP_ST = False      # exponential policy staircase

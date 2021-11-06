@@ -50,7 +50,7 @@ def load_fields(filename='restart.npz'):
 def save_fields(totTime, U, V, P, C, B, W, filename):
 
     # save restart file
-    nc.savez("restart.npz", t=totTime, U=U, V=V, P=P, C=C, B=B)
+    nc.savez("restart.npz", t=totTime, U=U, V=V, P=P, C=C, B=B, W=W)
 
     # save field for StyleGAN training
     maxU = np.max(U)

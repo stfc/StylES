@@ -7,6 +7,8 @@ from functions import *
 from MSG_StyleGAN_tf2 import *
 from train import *
 
+from PIL import Image
+
 
 
 
@@ -44,6 +46,7 @@ def decode_img(img):
   
     #Use `convert_image_dtype` to convert to floats in the [0,1] range.
     img = tf.image.convert_image_dtype(img, DTYPE)
+    img = (2.0*img - 1.0)   # and then [-1,1] range
   
     #resize the image to the desired size.
     img_out = []
@@ -285,11 +288,11 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         nr = np.int(np.sqrt(NEXAMPLES))
         nc = np.int(NEXAMPLES/nr)
         # to maintain a fixed figure size
-        dpi = 1463  # 1024 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi, squeeze=False, frameon=False, tight_layout=True)
+        #dpi = 1463  # 1024 pixel on a 1024x1024 image
+        #fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi, squeeze=False, frameon=False, tight_layout=True)
         #fig, axs = plt.subplots(nr,nc, squeeze=False)
         #plt.subplots_adjust(wspace=0.01, hspace=0.01)
-        axs = axs.ravel()
+        #axs = axs.ravel()
         img = predictions[reslog]
 
         # save the highest dimension and first image of the batch as numpy array
@@ -310,35 +313,27 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
                 # save image after normalization
                 nimg = np.zeros([3, res, res], dtype=DTYPE)
 
-                maxUV = np.max(img[i,0:2,:,:])
-                minUV = np.min(img[i,0:2,:,:])
-                nimg[0:2,:,:] = (img[i,0:2,:,:] - minUV)/(maxUV - minUV)
-
-                U = img[i,0,:,:]
-                V = img[i,0,:,:]
-                W = ((tr(U, 0, 1)-tr(U, 0, -1)) - (tr(V, 1, 0)-tr(V, -1, 0)))
-                maxW = np.max(W)
-                minW = np.min(W)
-                nimg[2,:,:] = (W - minW)/(maxW - minW)
+                maxUVW = np.max(img[i,:,:,:])
+                minUVW = np.min(img[i,:,:,:])
+                nimg = (img[i,:,:,:] - minUVW)/(maxUVW - minUVW)
 
                 nimg = np.uint8(nimg*255)
                 nimg = np.transpose(nimg, axes=[2,1,0])
-                axs[i].axis('off')
-                axs[i].imshow(nimg,cmap='gray')
+                nimg = Image.fromarray(nimg, "RGB")
 
             else:
 
                 nimg = np.zeros([1, res, res], dtype=DTYPE)
-                maxW = np.max(img[i,0,:,:])
-                minW = np.min(img[i,0,:,:])
-                nimg[0,:,:] = (img[i,0,:,:] - minW)/(maxW - minW)
+                maxW = np.max(img[i,:,:,:])
+                minW = np.min(img[i,:,:,:])
+                nimg[0,:,:] = (img[i,:,:,:] - minW)/(maxW - minW)
 
                 nimg = np.uint8(nimg*255)
                 nimg = np.transpose(nimg, axes=[2,1,0])
-                axs[i].axis('off')
-                axs[i].imshow(nimg,cmap='gray')
+                nimg = Image.fromarray(nimg, "L")
 
-        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
-        plt.close('all')
+        nimg.save('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration))
+        #fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
+        #plt.close('all')
 
     return div, momU, momV

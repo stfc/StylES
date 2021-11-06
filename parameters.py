@@ -32,7 +32,7 @@ SAVE_NUMPY_ARRAYS = False
 OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
-BLUR_FILTER       = [1, 4, 6, 4, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
+BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
 GAIN              = np.sqrt(2.0)
 FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
@@ -49,14 +49,14 @@ NEXAMPLES         = 1
 
 # Training hyper-parameters
 TOT_ITERATIONS = 100000
-PRINT_EVERY    = 100
+PRINT_EVERY    = 1000
 IMAGES_EVERY   = 1000
-SAVE_EVERY     = TOT_ITERATIONS+1
+SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 LR             = 3.0e-3
 DECAY_STEPS    = TOT_ITERATIONS
-DECAY_RATE     = 0.1
+DECAY_RATE     = 1.0
 STAIRCASE      = False
 G_SMOOTH       = 10.0
 if G_SMOOTH > 0.0:

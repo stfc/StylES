@@ -70,11 +70,11 @@ def train_step(input, images):
         # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
         # Wt =  ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
         loss_vor = 0. #tf.reduce_mean(tf.math.squared_difference(W, Wt))
-        loss_gen_vor = loss_gen + loss_vor
+        # loss_gen_vor = loss_gen + loss_vor
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen_vor, mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen_vor, synthesis.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
     gradients_of_filter        = fil_tape.gradient(loss_fil,          filter.trainable_variables)
     gradients_of_discriminator = disc_tape.gradient(loss_disc,        discriminator.trainable_variables)
 
