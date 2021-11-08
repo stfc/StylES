@@ -570,7 +570,7 @@ def VGG_loss(imgA, imgB, VGG_extractor):
     loss_fea_14 = tf.math.reduce_mean(tf.math.squared_difference(feaA_14, feaB_14))
     loss_fea_18 = tf.math.reduce_mean(tf.math.squared_difference(feaA_18, feaB_18))
 
-    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], imgB[0,0:2,:,:]))
+    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA, imgB))
     loss_fea = loss_fea_3 + loss_fea_6 + loss_fea_10 + loss_fea_14 + loss_fea_18
 
     losses = []

@@ -15,28 +15,33 @@ from MSG_StyleGAN_tf2 import *
 
 # local parameters
 NIP = 5   # number of interpolation points 
-UMIN = -2.0
-UMAX =  2.0
-VMIN = -2.0
-VMAX =  2.0
-PMIN = -1000.0
-PMAX =  1000.0
+UMIN = -0.5
+UMAX =  0.5
+VMIN = -0.5
+VMAX =  0.5
+PMIN = -1.0
+PMAX =  1.0
 CMIN =  0.0
 CMAX =  1.0
-WMIN = -200.0
-WMAX =  200.0
+WMIN = -0.25
+WMAX =  0.25
 
 
 # clean up
-os.system("rm Energy_spectrum*")
-os.system("rm -rf log*")
-os.system("rm plots_it*")
+os.system("rm -rf plots")
+os.system("rm -rf uvw")
+os.system("rm -rf energy")
+os.system("mkdir plots")
+os.system("mkdir uvw")
+os.system("mkdir energy")
 CHECK_FILTER = False
 
 
 dir_log = 'logs/'
 tf.random.set_seed(1)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
+P_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
+C_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
 
 
 # loading StyleGAN checkpoint and filter
@@ -80,10 +85,20 @@ for st in range(G_LAYERS):
         else:
             nwlatents = tf.concat([wlatents0[:, 0:st, :], clatents, wlatents0[:, st+1:G_LAYERS, :]], 1)
 
-        predictions = wl_synthesis(nwlatents, training=False)
+        predictions = synthesis_ave(nwlatents, training=False)
         UVW_DNS     = predictions[RES_LOG2-2]
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
+        W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
+
+        filename = "plots/plots_sty_" + str(st) + "_lev_" + str(i) + ".png"
+        print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, OUTPUT_DIM, filename)
+        # Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
+
+        filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".txt"
+        if (i == NIP-1):
+            closePlot=True
+        plot_spectrum(U_DNS_t, V_DNS_t, L, filename, closePlot)
 
         if (CHECK_FILTER):
     
@@ -96,15 +111,5 @@ for st in range(G_LAYERS):
             resFil  = resFil*4/(2*OUTPUT_DIM*OUTPUT_DIM)
             print("Differences between actual filter and trained filter {0:6.3e}".format(resFil.numpy()))
 
-        else:
-
-            filename = "plots_sty_" + str(st) + "_lev_" + str(i)
-            print_fields(U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, OUTPUT_DIM, filename, \
-                Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
-
-            filename = "energy_spectrum_sty_" + str(st) + "_lev_" + str(i)
-            if (i == NIP-1):
-                closePlot=True
-            plot_spectrum(U_DNS_t, V_DNS_t, L, name=filename, close=closePlot)
-
         print("done for style " + str(st) + " i " + str(i))
+

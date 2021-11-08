@@ -80,10 +80,11 @@ for run in range(NRUNS):
 
     # print fields
     if (run==0):
+        W = find_vorticity(U, V)
         if (TEST_CASE=="HIT_2D_L&D"):
-            print_fields(U, V, P, C, N, "plots_0te.png")
+            print_fields(U, V, P, W, N, "plots_0te.png")
         else:
-            print_fields(U, V, P, C, N, "plots_it0.png")
+            print_fields(U, V, P, W, N, "plots_it0.png")
 
 
     # find face velocities first guess as forward difference (i.e. on side east and north)
@@ -343,19 +344,23 @@ for run in range(NRUNS):
 
             if (TEST_CASE == "HIT_2D_L&D"):
                 if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                    print_fields(U, V, P, C, N, "plots/plots_9te.png")
+                    W = find_vorticity(U, V)
+                    print_fields(U, V, P, W, N, "plots/plots_9te.png")
                     plot_spectrum(U, V, L,      "energy/energy_spectrum_9te.txt")
 
                 if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                    print_fields(U, V, P, C, N, "plots/plots_24te.png")
+                    W = find_vorticity(U, V)
+                    print_fields(U, V, P, W, N, "plots/plots_24te.png")
                     plot_spectrum(U, V, L,      "energy/energy_spectrum_24te.txt")
 
                 if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                    print_fields(U, V, P, C, N, "plots/plots_97te.png")
+                    W = find_vorticity(U, V)
+                    print_fields(U, V, P, W, N, "plots/plots_97te.png")
                     plot_spectrum(U, V, L,      "energy/energy_spectrum_97te.txt")
 
                 if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
-                    print_fields(U, V, P, C, N, "plots/plots_134te.png")
+                    W = find_vorticity(U, V)
+                    print_fields(U, V, P, W, N, "plots/plots_134te.png")
                     plot_spectrum(U, V, L,      "energy/energy_spectrum_134te.txt")
             else:
         
@@ -363,7 +368,8 @@ for run in range(NRUNS):
 
                 # save images
                 if (tstep%print_img == 0):
-                    print_fields(U, V, P, C, N, "plots/plots_" + tail + ".png")
+                    W = find_vorticity(U, V)
+                    print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
 
                 # write checkpoint
                 if (tstep%print_ckp == 0):
@@ -382,7 +388,8 @@ if (TEST_CASE != "HIT_2D_L&D"):
     tail = "run{0:d}_it{1:d}".format(run,tstep)
 
     # save images
-    print_fields(U, V, P, C, N, "plots/plots_" + tail + ".png")
+    W = find_vorticity(U, V)
+    print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
 
     # write checkpoint
     W = find_vorticity(U, V)

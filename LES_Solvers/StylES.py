@@ -131,7 +131,8 @@ if (RESTART):
 
     # find DNS and LES fields from given field
     U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()
-    print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNS_org")
+    W_DNS = find_vorticity(U, V)
+    print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, name="DNS_org.png")
 
     itDNS        = 0
     resDNS       = large
@@ -152,7 +153,8 @@ if (RESTART):
             print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
             U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
             V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
-            print_fields(U_DNS_t, V_DNS_t, P_DNS, C_DNS, 0, N, name="DNSfromDNS")
+            W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
+            print_fields(U_DNS_t, V_DNS_t, P_DNS, W_DNS_t, N, name="DNSfromDNS.png")
 
         with train_summary_writer.as_default():
             tf.summary.scalar("residuals", resDNS, step=itDNS)
@@ -177,8 +179,9 @@ else:
 # save difference between initial DNS and provided DNS fields
 U_diff[:,:] = U_DNS[:,:] - UVW_DNS[0, 0, :, :].numpy()
 V_diff[:,:] = V_DNS[:,:] - UVW_DNS[0, 1, :, :].numpy()
+W_diff[:,:] = W_DNS[:,:] - UVW_DNS[0, 2, :, :].numpy()
 
-print_fields(U_diff, V_diff, P_DNS, C_DNS, 0, N, name="diff_DNS")
+print_fields(U_diff, V_diff, P_DNS, W_diff, N, name="diff_DNS.png")
 
 
 # find DNS field
@@ -199,11 +202,11 @@ UVW     = filter(UVW_DNS, training=False)
 U = UVW[0, 0, :, :].numpy()
 V = UVW[0, 1, :, :].numpy()
 P = UVW[0, 2, :, :].numpy()
-
+W = find_vorticity(U, V)
 
 # print fields
-print_fields(U_DNS, V_DNS, P_DNS, C_DNS, 0, N, name="DNS")
-print_fields(U, V, P, C, 0, NLES, name="LES")
+print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, name="DNS.png")
+print_fields(U, V, P, W, NLES, name="LES.png")
 
 
 
@@ -522,23 +525,27 @@ while (tstep<totSteps and totTime<finalTime):
         # print fields and spectrum
         if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
                 print_fields(U, V, P, C, tstep, NLES, name="LES")
                 plot_spectrum(U_DNS, V_DNS, L, tstep)
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
                 print_fields(U, V, P, C, tstep, NLES, name="LES")
                 plot_spectrum(U_DNS, V_DNS, L, tstep)
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
                 print_fields(U, V, P, C, tstep, NLES, name="LES")
                 plot_spectrum(U_DNS, V_DNS, L, tstep)
         else:
             # save images
             if (tstep%print_img == 0):
-                print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+                W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
                 print_fields(U, V, P, C, tstep, NLES, name="LES")
 
             # write checkpoint
@@ -555,7 +562,8 @@ while (tstep<totSteps and totTime<finalTime):
 #---------------------------- end of the simulation
 
 # save images
-print_fields(U_DNS, V_DNS, P_DNS, C_DNS, tstep, N, name="DNS")
+W_DNS = find_vorticity(U_DNS, V_DNS)
+print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
 print_fields(U, V, P, C, tstep, NLES, name="LES")
 
 # write checkpoint
@@ -565,10 +573,10 @@ save_fields(totTime, tstep, U, V, P, C, B)
 plot_spectrum(U_DNS, V_DNS, L, tstep)
 
 # save center values
-filename = "DNSfromLES_center_values" + ".txt"
+filename = "DNSfromLES_center_values.txt"
 np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')
 
-filename = "LES_center_values" + ".txt"
+filename = "LES_center_values.txt"
 np.savetxt(filename, np.c_[LES_cv[0:tstep+1,0], LES_cv[0:tstep+1,1], LES_cv[0:tstep+1,2], LES_cv[0:tstep+1,3]], fmt='%1.4e')
 
 print("Simulation succesfully completed!")

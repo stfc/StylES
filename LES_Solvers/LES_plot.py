@@ -9,32 +9,40 @@ from LES_functions  import *
 from testcases.HIT_2D.HIT_2D import *
 
 
-def print_fields(U_, V_, P_, C_, N, filename, \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, Cmin=None, Cmax=None, Wmin=None, Wmax=None):
+def print_fields(U_, V_, P_, W_, N, filename, \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
+    Wmin=None, Wmax=None, C_=None, Cmin=None, Cmax=None):
 
-    #---------------------------------- find vorticity
-    W_ = find_vorticity(U_, V_)
-
+    #---------------------------------- convert to numpy arrays
     U = convert(U_)
     V = convert(V_)
     P = convert(P_)
-    C = convert(C_)
     W = convert(W_)
+
+    if (PASSIVE):
+        C = convert(C_)
 
 
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(2, 4, figsize=(20,10))
-    fig.subplots_adjust(hspace=0.25)
+    if (PASSIVE):
+        fig, axs = plt.subplots(2, 5, figsize=(20,10))
+        fig.subplots_adjust(hspace=0.25)
+    else:
+        fig, axs = plt.subplots(2, 4, figsize=(20,10))
+        fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0,0]
-    ax2 = axs[0,1]
-    ax3 = axs[0,2]
-    ax4 = axs[0,3]
-    ax5 = axs[1,0]
-    ax6 = axs[1,1]
-    ax7 = axs[1,2]
+    ax2 = axs[1,0]
+    ax3 = axs[0,1]
+    ax4 = axs[1,1]
+    ax5 = axs[0,2]
+    ax6 = axs[1,2]
+    ax7 = axs[0,3]
     ax8 = axs[1,3]
+    if (PASSIVE):
+        ax9  = axs[0,4]
+        ax10 = axs[1,4]
 
 
     velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
@@ -42,26 +50,26 @@ def print_fields(U_, V_, P_, C_, N, filename, \
     ax1.title.set_text('X-vel')
     ax1.set_aspect(1)
 
-    vely = ax2.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
-    fig.colorbar(vely, ax=ax2)
-    ax2.title.set_text('Y-vel')
-    ax2.set_aspect(1)
-
-    pres = ax3.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
-    fig.colorbar(pres, ax=ax3)
-    ax3.title.set_text('pressure')
+    vely = ax3.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    fig.colorbar(vely, ax=ax3)
+    ax3.title.set_text('Y-vel')
     ax3.set_aspect(1)
 
+    pres = ax5.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    fig.colorbar(pres, ax=ax5)
+    ax5.title.set_text('pressure')
+    ax5.set_aspect(1)
+
+    vort = ax7.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Wmin, vmax=Wmax)
+    fig.colorbar(vort, ax=ax7)
+    ax7.title.set_text('vorticity')
+    ax7.set_aspect(1)
+
     if (PASSIVE):
-        scal = ax4.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Cmin, vmax=Cmax)
-        fig.colorbar(scal, ax=ax4)
-        ax4.title.set_text('scalar')
-        ax4.set_aspect(1)
-    else:
-        vort = ax4.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Wmin, vmax=Wmax)
-        fig.colorbar(vort, ax=ax4)
-        ax4.title.set_text('vorticity')
-        ax4.set_aspect(1)
+        scal = ax9.pcolormesh(C, cmap='BuPu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Cmin, vmax=Cmax)
+        fig.colorbar(scal, ax=ax9)
+        ax9.title.set_text('scalar')
+        ax9.set_aspect(1)
 
 
     colors = plt.cm.jet(np.linspace(0,1,11))
@@ -97,7 +105,6 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         yU = U[hdim,:]
         yV = V[hdim,:]
         yP = P[hdim,:]
-        yC = C[hdim,:]
         yW = W[hdim,:]
     elif (dir==1):  # y-direction 
         x = list(range(N))
@@ -105,30 +112,35 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         yU = U[:,hdim]
         yV = V[:,hdim]
         yP = P[:,hdim]
-        yC = C[:,hdim]
         yW = W[:,hdim]
 
+    if (PASSIVE):
+        if (dir==0):    # x-direction
+            yC = C[hdim,:]
+        elif (dir==1):  # y-direction 
+            yC = C[:,hdim]
 
-    velx = ax5.plot(x, yU, color=lineColor)
-    ax5.set_ylim([Umin, Umax])
-    ax5.title.set_text('X-vel')
 
-    vely = ax6.plot(x, yV, color=lineColor)
-    ax6.set_ylim([Vmin, Vmax])
-    ax6.title.set_text('Y-vel')
+    velx = ax2.plot(x, yU, color=lineColor)
+    ax2.set_ylim([Umin, Umax])
+    ax2.title.set_text('X-vel')
 
-    pres = ax7.plot(x, yP, color=lineColor)
-    ax7.set_ylim([Pmin, Pmax])
-    ax7.title.set_text('pressure')
+    vely = ax4.plot(x, yV, color=lineColor)
+    ax4.set_ylim([Vmin, Vmax])
+    ax4.title.set_text('Y-vel')
+
+    pres = ax6.plot(x, yP, color=lineColor)
+    ax6.set_ylim([Pmin, Pmax])
+    ax6.title.set_text('pressure')
+
+    vort = ax8.plot(x, yW, color=lineColor)
+    ax8.set_ylim([Wmin, Wmax])
+    ax8.title.set_text('vorticity')
 
     if (PASSIVE):
-        scal = ax8.plot(x, yC, color=lineColor)
-        ax8.set_ylim([Cmin, Cmax])
-        ax8.title.set_text('scalar')
-    else:
-        vort = ax8.plot(x, yW, color=lineColor)
-        ax8.set_ylim([Wmin, Wmax])
-        ax8.title.set_text('vorticity')
+        scal = ax10.plot(x, yC, color=lineColor)
+        ax10.set_ylim([Cmin, Cmax])
+        ax10.title.set_text('scalar')
 
     # save images
     plt.suptitle(filename)
@@ -165,12 +177,8 @@ def print_fields(U_, V_, P_, C_, N, filename, \
         size = N, N
         img.thumbnail(size)
         filename = filename.replace("plots","uvw")
+        filename = filename.replace("Plots","Uvw")
         img.save(filename)
-
-
-
-
-
 
 
 
@@ -206,7 +214,7 @@ def print_fields_2(U_, V_, filename, Umin=None, Umax=None, Vmin=None, Vmax=None)
 
 
 
-def print_fields_1(W_, filename, Wmin=None, Wmax=None):
+def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
     
     #---------------------------------- find vorticity
     W = convert(W_)
@@ -217,12 +225,15 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None):
     fig.subplots_adjust(hspace=0.25)
 
     vort = ax1.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Wmin, vmax=Wmax)
-    fig.colorbar(vort, ax=ax1)
-    ax1.title.set_text('vorticity')
     ax1.set_aspect(1)
+    if (legend):
+        fig.colorbar(vort, ax=ax1)
+        ax1.title.set_text('vorticity')
+        plt.suptitle(filename)
+    else:
+            ax1.axis("off")
 
     # save images
-    plt.suptitle(filename)
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
     plt.close()
 

@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = '../../data/N256_250runs/uvw/'
+DATASET           = './LES_Solvers/uvw/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -44,14 +44,14 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
-NEXAMPLES         = 1
+NEXAMPLES         = 4
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
+TOT_ITERATIONS = 25000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 1000
-SAVE_EVERY     = 100000
+IMAGES_EVERY   = 2500
+SAVE_EVERY     = 25000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 LR             = 3.0e-3

@@ -285,14 +285,14 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
     momV = np.zeros(RES_LOG2-1)
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
-        nr = np.int(np.sqrt(NEXAMPLES))
-        nc = np.int(NEXAMPLES/nr)
-        # to maintain a fixed figure size
-        #dpi = 1463  # 1024 pixel on a 1024x1024 image
-        #fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi, squeeze=False, frameon=False, tight_layout=True)
-        #fig, axs = plt.subplots(nr,nc, squeeze=False)
-        #plt.subplots_adjust(wspace=0.01, hspace=0.01)
-        #axs = axs.ravel()
+
+        # setup figure size
+        nr = NEXAMPLES
+        nc = 4
+        dpi = 16*1463*OUTPUT_DIM/1024.  # scale to a 1024 pixel on a 1024x1024 image
+        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi)
+        plt.subplots_adjust(wspace=0, hspace=0)
+        axs = axs.ravel()
         img = predictions[reslog]
 
         # save the highest dimension and first image of the batch as numpy array
@@ -319,7 +319,16 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
 
                 nimg = np.uint8(nimg*255)
                 nimg = np.transpose(nimg, axes=[2,1,0])
-                nimg = Image.fromarray(nimg, "RGB")
+
+                axs[i*4+0].axis('off')
+                axs[i*4+1].axis('off')
+                axs[i*4+2].axis('off')
+                axs[i*4+3].axis('off')
+
+                axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
+                axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
+                axs[i*4+2].imshow(nimg[:,:,2],cmap='gray')
+                axs[i*4+3].imshow(nimg,cmap='jet')
 
             else:
 
@@ -330,10 +339,12 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
 
                 nimg = np.uint8(nimg*255)
                 nimg = np.transpose(nimg, axes=[2,1,0])
-                nimg = Image.fromarray(nimg, "L")
 
-        nimg.save('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration))
-        #fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
-        #plt.close('all')
+                axs[i].axis('off')
+                axs[i].imshow(nimg,cmap='gray')
+
+        fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
+        plt.close('all')
+
 
     return div, momU, momV

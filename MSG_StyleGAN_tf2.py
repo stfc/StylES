@@ -95,7 +95,7 @@ def make_synthesis_model():
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
     use_noise         = True         # Enable noise inputs
-    randomize_noise   = True        # True = randomize noise inputs every time (non-deterministic),
+    randomize_noise   = False        # True = randomize noise inputs every time (non-deterministic),
                                      # False = read noise inputs from variables.
     use_styles        = True         # Enable style inputs                             
     blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 

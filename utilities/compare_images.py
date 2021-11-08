@@ -22,6 +22,7 @@ import importlib
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
+sys.path.insert(0, './')
 sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers')
 sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
@@ -29,14 +30,16 @@ sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
 from PIL import Image, ImageChops
 from skimage.metrics import structural_similarity as ssim
 from testcases.HIT_2D.HIT_2D import L, rho
+
+os.chdir('../')
 from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS
 from IO_functions import StyleGAN_load_fields
-
+os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "../../../data/N1024/fields2/uvw_it2742.png"
-FILE_STYLE = "../images/image_1024x1024/it_050000.png"
+FILE_REAL  = "Plots_DNS_org.png"
+FILE_STYLE = "Plots_DNS_fromGAN.png"
 
 
 os.system("rm diff.png")
@@ -260,5 +263,5 @@ else:
 
 
 # compare the images
-compare_images(orig, style, "diff.png")
+compare_images(orig, style, "Plots_DNS_diff.png")
 
