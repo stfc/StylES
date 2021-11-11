@@ -8,10 +8,20 @@ __pycache__
 .vscode
 
 #Result unless specified and usual test outputs from bjobs
-Re-30_N-*
-energy*.png
-energy_spectrum*.txt
-
+*nergy*.png
+*nergy_spectrum*.txt
 test.out
 test.err
 output.txt
+DNS_center_values.txt
+Plots.png
+Uvw.png
+*.npz
+
+#folders
+images
+checkpoints
+fields
+plots
+energy
+uvw
