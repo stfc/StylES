@@ -1,0 +1,27 @@
+#OS generated files
+.DS_Store
+
+#cahce and some extensions
+__pycache__
+*.pyc
+.env
+.vscode
+
+#Result unless specified and usual test outputs from bjobs
+*nergy*.png
+*nergy_spectrum*.txt
+test.out
+test.err
+output.txt
+DNS_center_values.txt
+Plots.png
+Uvw.png
+*.npz
+
+#folders
+images
+checkpoints
+fields
+plots
+energy
+uvw

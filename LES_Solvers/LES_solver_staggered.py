@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2021 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna
+#    Author: Jony Castagna, Francesca Schiavello
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -336,26 +336,17 @@ for run in range(NRUNS):
             DNS_cv[tstep,2] = V[N//2, N//2]
             DNS_cv[tstep,3] = P[N//2, N//2]
 
-
+            te_s = [0.010396104, 0.027722944, 0.112046897, 0.152751599]
+            te   = [9, 24, 97, 134]
+            
             if (TEST_CASE == "HIT_2D_L&D"):
-                if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
-                    W = find_vorticity(U, V)
-                    print_fields(U, V, P, W, N, "plots/plots_9te.png")
-                    plot_spectrum(U, V, L,      "energy/energy_spectrum_9te.txt")
 
-                if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
-                    W = find_vorticity(U, V)
-                    print_fields(U, V, P, W, N, "plots/plots_24te.png")
-                    plot_spectrum(U, V, L,      "energy/energy_spectrum_24te.txt")
-
-                if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
-                    W = find_vorticity(U, V)
-                    print_fields(U, V, P, W, N, "plots/plots_97te.png")
-                    plot_spectrum(U, V, L,      "energy/energy_spectrum_97te.txt")
-
-                if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
-                    print_fields(U, V, P, W, N, "plots/plots_134te.png")
-                    plot_spectrum(U, V, L,      "energy/energy_spectrum_134te.txt")
+                #loop for turnover times(te) and respective time in seconds(te_s)
+                for s in range(len(te_s)):
+                    if (totTime<te_s[s]+hf*delt and totTime>te_s[s]-hf*delt):
+                        W = find_vorticity(U, V)
+                        print_fields(U, V, P, W, N, "plots/plots_"+str(te[s])+"te.png")
+                        plot_spectrum(U, V, L,      "energy/energy_spectrum_"+str(te[s])+"te.txt")
             else:
         
                 tail = "run{0:d}_it{1:d}".format(run,tstep)
@@ -386,7 +377,6 @@ if (TEST_CASE != "HIT_2D_L&D"):
     print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
 
     # write checkpoint
-    W = find_vorticity(U, V)
     save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
     # print spectrum
