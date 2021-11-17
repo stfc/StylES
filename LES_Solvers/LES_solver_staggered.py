@@ -49,7 +49,6 @@ Co = nc.zeros([N,N], dtype=DTYPE)   # old passive scalar
 pc = nc.zeros([N,N], dtype=DTYPE)  # pressure correction
 Z  = nc.zeros([N,N], dtype=DTYPE)
 DNS_cv = np.zeros([totSteps+1, 4])
-max_vel = []                      # store violations of max velocity - over 10
 
 
 
@@ -68,11 +67,13 @@ os.system("rm -rf plots")
 os.system("rm -rf fields")
 os.system("rm -rf uvw")
 os.system("rm -rf energy")
+os.system("rm -rf v_viol")
 
 os.system("mkdir plots")
 os.system("mkdir fields")
 os.system("mkdir uvw")
 os.system("mkdir energy")
+os.system("mkdir v_viol")
 
 # initial flow
 for run in range(NRUNS):
@@ -351,13 +352,14 @@ for run in range(NRUNS):
             else:
         
                 tail = "run{0:d}_it{1:d}".format(run,tstep)
+                uv_max= [(np.abs(U).max()), (np.abs(V)).max()]
+                if uv_max[0] > uRef or uv_max[1] > uRef:
+                    save_vel_violations("v_viol/v_viol_run"+ str(run) + "txt", uv_max, tstep)
 
                 # save images
                 if (tstep%print_img == 0):
                     W = find_vorticity(U, V)
                     print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
-                    if (np.abs(U)).max() > 10 or (np.abs(V)).max() > 10:
-                        max_vel = np.append(max_vel,tail)
 
                 # write checkpoint
                 if (tstep%print_ckp == 0):
@@ -390,6 +392,4 @@ if (TEST_CASE != "HIT_2D_L&D"):
     np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
 
 
-fname = "vel_violations.txt"
-save_vel_violations(fname, max_vel, True)
 print("Simulation succesfully completed!")
