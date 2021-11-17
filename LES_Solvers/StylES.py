@@ -36,20 +36,24 @@ from LES_lAlg       import *
 sys.path.insert(0, '../')
 sys.path.insert(0, './testcases/HIT_2D/')
 
+DTYPE_LES = DTYPE
+
+os.chdir('../')
 from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
 from train import *
-from PIL import Image
+os.chdir('./LES_Solvers/')
 
-
-# start timing
-tstart = time.time()
+DTYPE = DTYPE_LES  # this is only because the StyleGAN is trained with float32 usually
 
 
 
-#---------------------------- define arrays
+#---------------------------- local variables
+USE_FILTER = True
+USE_DLATENTS = True
 NLES = int(N/2)
+
 Uo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old x-velocity
 Vo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old y-velocity
 Po = nc.zeros([NLES,NLES], dtype=DTYPE)   # old pressure field
@@ -62,53 +66,82 @@ P  = np.zeros([NLES,NLES], dtype=DTYPE)   # body force
 
 DNS_cv = np.zeros([totSteps+1, 4])
 LES_cv = np.zeros([totSteps+1, 4])
-U_diff = np.zeros([OUTPUT_DIM, OUTPUT_DIM], dtype=DTYPE)
-V_diff = np.zeros([OUTPUT_DIM, OUTPUT_DIM], dtype=DTYPE)
+U_diff = np.zeros([N, N], dtype=DTYPE)
+V_diff = np.zeros([N, N], dtype=DTYPE)
+W_diff = np.zeros([N, N], dtype=DTYPE)
 
 
 
-#---------------------------- initialize fields
 
+
+
+#---------------------------- clean up and prepare run
 # clean up and declarations
-os.system("rm Energy_spectrum.png")
 #os.system("rm restart.npz")
-os.system("rm Energy_spectrum_it*")
-os.system("rm fields_it*")
-os.system("rm plots_it*")
-os.system("rm uvw_it*")
+os.system("rm DNSfromLES_center_values.txt")
+os.system("rm LES_center_values.txt")
+os.system("rm Plots*")
+os.system("rm Fields*")
+os.system("rm Energy_spectrum*")
+
+os.system("rm -rf plots")
+os.system("rm -rf fields")
+os.system("rm -rf uvw")
+os.system("rm -rf energy")
+os.system("rm -rf logs")
+
+os.system("mkdir plots")
+os.system("mkdir fields")
+os.system("mkdir uvw")
+os.system("mkdir energy")
 
 res      = 2**(RES_LOG2-1)
 ires2    = one/(2*res*res)  #2 because we sum U and V residuals
-iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  #2 because we sum U and V residuals  
-DiffCoef  = np.full([res, res], Dc)
-NL_DNS    = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
-NL        = np.zeros([1, NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM])
+DiffCoef = np.full([res, res], Dc)
+NL_DNS   = np.zeros([1, NUM_CHANNELS, N, N])
+NL       = np.zeros([1, NUM_CHANNELS, NLES, NLES])
+
+dir_train_log        = 'logs/DNS_solver/'
+train_summary_writer = tf.summary.create_file_writer(dir_train_log)
 
 tf.random.set_seed(1)
 
 
-# loading StyleGAN checkpoint and filter
+
+
+
+
+#----------------------------  loading StyleGAN checkpoint
 checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
 mapping_ave.trainable = False
 synthesis_ave.trainable = False
 
 
-# create variable synthesis model
-latents      = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
-wlatents     = layer_wlatent(latents)
-nlatents     = wlatents(latents) 
-outputs      = synthesis_ave(nlatents, training=False)
-wl_synthesis = tf.keras.Model(latents, outputs)
 
-# latents       = tf.keras.Input(shape=[G_LAYERS-2, LATENT_SIZE])
-# wlatents      = layer_wlatent(latents)
-# nlatents      = wlatents(latents) 
-# latents_const = tf.ones(shape=[2, LATENT_SIZE])
-# flatents      = tf.concat(nlatents, latents_const)
-# outputs       = synthesis_ave(flatents, training=False)
-# wl_synthesis  = tf.keras.Model(latents, outputs)
 
-# define learnin rate schedule and optimizer
+
+
+#----------------------------  create variable synthesis model
+if (USE_DLATENTS):
+    latents      = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+    wlatents     = layer_wlatent(latents)
+    dlatents     = wlatents(latents) 
+    outputs      = synthesis_ave(dlatents, training=False)
+    wl_synthesis = tf.keras.Model(latents, outputs)
+else:
+    latents      = tf.keras.Input(shape=[LATENT_SIZE])
+    wlatents     = layer_wlatent(latents)
+    nlatents     = wlatents(latents) 
+    dlatents     = mapping_ave(nlatents, training=False)
+    outputs      = synthesis_ave(dlatents, training=False)
+    wl_synthesis = tf.keras.Model(latents, outputs)
+
+
+
+
+
+
+#----------------------------   define learning rate schedule, optimizer and checkpoint synthesis
 if (lrDNS_POLICY=="EXPONENTIAL"):
     lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=lrDNS,
@@ -121,48 +154,117 @@ elif (lrDNS_POLICY=="PIECEWISE"):
 
 opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 
-# log file for TensorBoard
-dir_train_log        = 'logs/DNS_solver/'
-train_summary_writer = tf.summary.create_file_writer(dir_train_log)
+wl_checkpoint = tf.train.Checkpoint(wl_synthesis=synthesis,
+                                    opt=opt)
 
 
-# initial flow
-if (RESTART):
+
+
+
+
+#---------------------------- local functions
+@tf.function
+def step_latent_DNS(U, V, latents):
+    with tf.GradientTape() as tape_DNS:
+        predictions   = wl_synthesis(latents)
+        UVW_DNS       = predictions[RES_LOG2-2]*uRef
+        resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,0,:,:], U))
+        resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,1,:,:], V))
+        gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
+        opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+        resDNS        = resDNS*ires2
+
+        return resDNS, predictions, UVW_DNS
+
+
+@tf.function
+def step_latent_LES(U, V, latents):
+    with tf.GradientTape() as tape_DNS:
+        predictions   = wl_synthesis(latents)
+        if (USE_FILTER):
+            UVW_DNS = predictions[RES_LOG2-2]*uRef
+            UVW = filter(UVW_DNS, training=False)
+        else:
+            UVW = predictions[RES_LOG2-3]*uRef
+        resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
+        resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
+        gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
+        opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+        resDNS        = resDNS*ires2
+
+        return resDNS, predictions, UVW
+
+
+
+
+
+
+#---------------------------- initialize flow
+tstart = time.time()
+
+if (INIT_BC==0):
 
     # find DNS and LES fields from given field
-    U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()
-    W_DNS = find_vorticity(U, V)
-    print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, name="DNS_org.png")
+    U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()  #from restart.npz file
+    W_DNS = find_vorticity(U_DNS, V_DNS)
+    print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="Plots_DNS_org.png")
 
-    itDNS        = 0
-    resDNS       = large
-    input_random = tf.random.uniform([1, LATENT_SIZE])
-    dlatents     = mapping_ave(input_random, training=False)
+    itDNS   = 0
+    resDNS  = large
+    tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
+    tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
+
+    random_inputs = tf.random.uniform([1, LATENT_SIZE])
+    if (USE_DLATENTS):
+        latents = mapping_ave(random_inputs, training=False)
+    else:
+        latents = random_inputs
+
     while (resDNS>tollDNS and itDNS<maxItDNS):
-        with tf.GradientTape() as tape_DNS:
-            predictions   = wl_synthesis(dlatents, training=False)
-            UVW_DNS       = predictions[RES_LOG2-2]
-            resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,0,:,:], U_DNS))
-            resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,1,:,:], V_DNS))
-            resDNS        = resDNS*iOUTDIM22
-            gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
-            opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+        resDNS, predictions, UVW_DNS = step_latent_DNS(tU_DNS, tV_DNS, latents)
 
-        if (itDNS%100 == 0):
-            lr = lr_schedule(itDNS)
+        lr = lr_schedule(itDNS)
+        if (itDNS%1000 == 0):
             print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
             U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
             V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
             W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
-            print_fields(U_DNS_t, V_DNS_t, P_DNS, W_DNS_t, N, name="DNSfromDNS.png")
+            print_fields(U_DNS_t, V_DNS_t, P_DNS, W_DNS_t, N, filename="Plots_DNS_fromGAN.png")
 
-        with train_summary_writer.as_default():
-            tf.summary.scalar("residuals", resDNS, step=itDNS)
-            tf.summary.scalar("lr", lr, step=itDNS)
+            with train_summary_writer.as_default():
+                tf.summary.scalar("residuals", resDNS, step=itDNS)
+                tf.summary.scalar("lr", lr, step=itDNS)
 
         itDNS = itDNS+1
 
-else:
+    # save difference between initial DNS and generated DNS fields
+    U_diff[:,:] = U_DNS[:,:] - UVW_DNS[0, 0, :, :].numpy()
+    V_diff[:,:] = V_DNS[:,:] - UVW_DNS[0, 1, :, :].numpy()
+    W_diff[:,:] = W_DNS[:,:] - UVW_DNS[0, 2, :, :].numpy()
+    print_fields(U_diff, V_diff, P_DNS, W_diff, N, filename="Plots_diff_DNS.png")
+
+    # set DNS fields equal to the generated ones 
+    U_DNS = UVW_DNS[0, 0, :, :].numpy()
+    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+    W_DNS = UVW_DNS[0, 2, :, :].numpy()
+
+    # set LES field: you must first find the pressure field!
+    # assemble fields U, V from generated DNS plus pressure from restart file
+    n_DNS = np.concatenate([U_DNS, V_DNS, P_DNS], axis=2)
+    UVW_DNS = tf.convert_to_tensor(n_DNS)
+
+    # filter them
+    UVW = filter(UVW_DNS, training=False)
+    P = UVW[0, 2, :, :].numpy()  #Note as the pressure is always obtained from the filter
+
+    if (USE_FILTER):
+        U = UVW[0, 0, :, :].numpy()
+        V = UVW[0, 1, :, :].numpy()
+    else:
+        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*uRef
+        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*uRef
+
+elif (INIT_BC==1):
 
     # find DNS and LES fields from random input 
     totTime = zero
@@ -170,43 +272,81 @@ else:
     B_DNS = nc.zeros([N,N], dtype=DTYPE)   # body force
     C_DNS = nc.zeros([N,N], dtype=DTYPE)   # passive scalar
 
-    input_random = tf.random.uniform([1, LATENT_SIZE])
-    dlatents     = mapping_ave(input_random, training=False)
-    predictions  = synthesis_ave(dlatents, training=False)
-    UVW_DNS      = predictions[RES_LOG2-2]
+    random_inputs = tf.random.uniform([1, LATENT_SIZE])
+    if (USE_DLATENTS):
+        latents = mapping_ave(random_inputs, training=False)
+    else:
+        latents = random_inputs
+
+    predictions = wl_synthesis(latents, training=False)
+    UVW_DNS     = predictions[RES_LOG2-2]*uRef
+
+    # find DNS field
+    U_DNS = UVW_DNS[0, 0, :, :].numpy()
+    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+
+    # set LES field: you must first find the pressure field!
+    # assemble fields U, V from generated DNS plus pressure from restart file
+    n_DNS = np.concatenate([UVW_DNS[:, 0:2, :, :].numpy(), P_DNS[np.newaxis,np.newaxis,:,:]], axis=1)
+    UVW_DNS = tf.convert_to_tensor(n_DNS)
+
+    # filter them
+    UVW = filter(UVW_DNS, training=False)
+    P = UVW[0, 2, :, :].numpy()
+
+    if (USE_FILTER):
+        U = UVW[0, 0, :, :].numpy()
+        V = UVW[0, 1, :, :].numpy()
+    else:
+        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*uRef
+        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*uRef
+
+elif (INIT_BC==2):
+
+    # load latest StyLES checkpoint
+    wl_checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
+
+    totTime = zero
+    P_DNS = nc.zeros([N,N], dtype=DTYPE)   # pressure
+    B_DNS = nc.zeros([N,N], dtype=DTYPE)   # body force
+    C_DNS = nc.zeros([N,N], dtype=DTYPE)   # passive scalar
+
+    random_inputs = tf.random.uniform([1, LATENT_SIZE])
+    if (USE_DLATENTS):
+        latents = mapping_ave(random_inputs, training=False)
+    else:
+        latents = random_inputs
+
+    predictions = wl_synthesis(latents, training=False)
+    UVW_DNS     = predictions[RES_LOG2-2]*uRef
+
+    # set DNS field (P_DNS is zero)
+    U_DNS = UVW_DNS[0, 0, :, :].numpy()
+    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+
+    # set LES fields
+    U, V, P, C, B, totTime = load_fields()
 
 
-# save difference between initial DNS and provided DNS fields
-U_diff[:,:] = U_DNS[:,:] - UVW_DNS[0, 0, :, :].numpy()
-V_diff[:,:] = V_DNS[:,:] - UVW_DNS[0, 1, :, :].numpy()
-W_diff[:,:] = W_DNS[:,:] - UVW_DNS[0, 2, :, :].numpy()
-
-print_fields(U_diff, V_diff, P_DNS, W_diff, N, name="diff_DNS.png")
 
 
-# find DNS field
-U_DNS = UVW_DNS[0, 0, :, :].numpy()
-V_DNS = UVW_DNS[0, 1, :, :].numpy()
-
-n_DNS = np.zeros([1, 3, OUTPUT_DIM, OUTPUT_DIM])
-n_DNS[0,0,:,:] = U_DNS[:,:]
-n_DNS[0,1,:,:] = V_DNS[:,:]
-n_DNS[0,2,:,:] = P_DNS[:,:]
-
-UVW_DNS = tf.convert_to_tensor(n_DNS)
 
 
-# find LES field
-UVW     = filter(UVW_DNS, training=False)
+#----------------------------  print fields
+if (TEST_CASE == "HIT_2D_L&D"):
+    tail = "0te"
+else:
+    tail = "it0"
 
-U = UVW[0, 0, :, :].numpy()
-V = UVW[0, 1, :, :].numpy()
-P = UVW[0, 2, :, :].numpy()
+
+W_DNS = find_vorticity(U_DNS, V_DNS)
+print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_" + tail + ".png")
+
 W = find_vorticity(U, V)
+print_fields(U, V, P, W, NLES, filename="plots/plots_LES_" + tail + ".png")
 
-# print fields
-print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, name="DNS.png")
-print_fields(U, V, P, W, NLES, name="LES.png")
+
+
 
 
 
@@ -240,7 +380,7 @@ if (tstep%print_res == 0):
     resC_cpu, res_cpu, its, div_cpu))
 
 # plot spectrum
-plot_spectrum(U, V, L, tstep)
+plot_spectrum(U, V, L, filename="energy/energy_spectrum_it" + str(tstep) + ".txt")
 
 # track center point velocities and pressure
 DNS_cv[tstep,0] = totTime
@@ -291,7 +431,7 @@ while (tstep<totSteps and totTime<finalTime):
 
 
         #---------------------------- solve momentum equations
-        # x-direction
+        # # x-direction
         # Fw = A*rho*hf*(Uo            + cr(Uo, -1, 0))
         # Fe = A*rho*hf*(cr(Uo,  1, 0) + Uo           )
         # Fs = A*rho*hf*(Vo            + cr(Vo, -1, 0))
@@ -324,12 +464,12 @@ while (tstep<totSteps and totTime<finalTime):
             resM = nc.sum(nc.abs(Ap*U - sU - Aw*cr(U, -1, 0) - Ae*cr(U, 1, 0) - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
             resM = resM*iNN
             resM_cpu = convert(resM)
-            if ((itM+1)%101 == 0):
+            if ((itM+1)%100 == 0):
                 print("x-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
             itM = itM+1
 
 
-        # y-direction
+        # # y-direction
         # Fw = A*rho*hf*(Uo             + cr(Uo, 0, -1))
         # Fe = A*rho*hf*(cr(Uo,  1,  0) + cr(Uo, 1, -1))
         # Fs = A*rho*hf*(cr(Vo,  0, -1) + Vo           )
@@ -363,7 +503,7 @@ while (tstep<totSteps and totTime<finalTime):
 
             resM = resM*iNN
             resM_cpu = convert(resM)
-            if ((itM+1)%101 == 0):
+            if ((itM+1)%100 == 0):
                 print("y-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
             itM = itM+1
 
@@ -393,7 +533,7 @@ while (tstep<totSteps and totTime<finalTime):
             resP = resP*iNN
 
             resP_cpu = convert(resP)
-            if ((itP+1)%101 == 0):
+            if ((itP+1)%100 == 0):
                 print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
             itP = itP+1
 
@@ -411,7 +551,7 @@ while (tstep<totSteps and totTime<finalTime):
         res = nc.sum(nc.abs(So))
         res = res*iNN
         res_cpu = convert(res)
-        if ((it+1)%101 == 0):
+        if ((it+1)%100 == 0):
             print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
         it = it+1
@@ -421,26 +561,31 @@ while (tstep<totSteps and totTime<finalTime):
     #---------------------------- find DNS field
     itDNS  = 0
     resDNS = large
+    tU = tf.convert_to_tensor(U, dtype=np.float32)
+    tV = tf.convert_to_tensor(V, dtype=np.float32)
     while (resDNS>tollDNS and itDNS<maxItDNS):
-        with tf.GradientTape() as tape_DNS:
-            predictions = wl_synthesis(dlatents, training=True)
-            UVW    = predictions[RES_LOG2-3]
-            resDNS =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
-            resDNS = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
-            resDNS = resDNS*ires2
-            gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
-            opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+        resDNS, predictions, UVW = step_latent_LES(tU, tV, latents)
 
-        if ((itDNS+1)%101 == 0):
+        if ((itDNS+1)%100 == 0):
             lr = lr_schedule(itDNS)
             print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+            U_LES = UVW[0, 0, :, :].numpy()
+            V_LES = UVW[0, 1, :, :].numpy()
+            W_LES = UVW[0, 2, :, :].numpy()
+            print_fields(U_LES, V_LES, P, W_LES, NLES, filename="Plots_LES_fromGAN.png")
+            print_fields(U, V, P, W,             NLES, filename="Plots_LES.png")
 
         itDNS = itDNS+1
 
-    # save new DNS field
-    U_DNS = UVW_DNS[0, 0, :, :].numpy()
-    V_DNS = UVW_DNS[0, 1, :, :].numpy()
+    #lr = lr_schedule(itDNS)
+    #print("DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
 
+
+
+    # save new DNS field
+    U_DNS = predictions[RES_LOG2-2].numpy()[0,0,:,:]*uRef
+    V_DNS = predictions[RES_LOG2-2].numpy()[0,1,:,:]*uRef
+    W_DNS = predictions[RES_LOG2-2].numpy()[0,2,:,:]*uRef
 
 
 
@@ -472,7 +617,7 @@ while (tstep<totSteps and totTime<finalTime):
             resC = nc.sum(nc.abs(Ap*C - Ao*Co - Aw*cr(C, -1, 0) - Ae*cr(C, 1, 0) - As*cr(C, 0, -1) - An*cr(C, 0, 1)))
             resC = resC*iNN
             resC_cpu = convert(resC)
-            if ((itC+1)%101 == 0):
+            if ((itC+1)%100 == 0):
                 print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(itC, resC_cpu))
             itC = itC+1
 
@@ -526,35 +671,49 @@ while (tstep<totSteps and totTime<finalTime):
         if (TEST_CASE == "HIT_2D_L&D"):
             if (totTime<0.010396104+hf*delt and totTime>0.010396104-hf*delt):
                 W_DNS = find_vorticity(U_DNS, V_DNS)
-                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
-                print_fields(U, V, P, C, tstep, NLES, name="LES")
-                plot_spectrum(U_DNS, V_DNS, L, tstep)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_9te.png")
+                W = find_vorticity(U, V)
+                print_fields(U, V, P, W, NLES, filename="plots/plots_LES_9te.png")
+                plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_9te.txt")
 
             if (totTime<0.027722944+hf*delt and totTime>0.027722944-hf*delt):
                 W_DNS = find_vorticity(U_DNS, V_DNS)
-                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
-                print_fields(U, V, P, C, tstep, NLES, name="LES")
-                plot_spectrum(U_DNS, V_DNS, L, tstep)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_24te.png")
+                W = find_vorticity(U, V)
+                print_fields(U, V, P, W, NLES, filename="plots/plots_LES_24te.png")
+                plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_24te.txt")
 
             if (totTime<0.112046897+hf*delt and totTime>0.112046897-hf*delt):
                 W_DNS = find_vorticity(U_DNS, V_DNS)
-                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
-                print_fields(U, V, P, C, tstep, NLES, name="LES")
-                plot_spectrum(U_DNS, V_DNS, L, tstep)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_97te.png")
+                W = find_vorticity(U, V)
+                print_fields(U, V, P, W, NLES, filename="plots/plots_LES_97te.png")
+                plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_97te.txt")
+
+            if (totTime<0.152751599+hf*delt and totTime>0.152751599-hf*delt):
+                W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_134te.png")
+                W = find_vorticity(U, V)
+                print_fields(U, V, P, W, NLES, filename="plots/plots_LES_134te.png")
+                plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_134te.txt")
+
         else:
+
             # save images
             if (tstep%print_img == 0):
-                W_DNS = find_vorticity(U_DNS, V_DNS)
-                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
-                print_fields(U, V, P, C, tstep, NLES, name="LES")
+                #W_DNS = find_vorticity(U_DNS, V_DNS)
+                print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_it" + str(tstep) + ".png")
+                W = find_vorticity(U, V)
+                print_fields(U, V, P, W, NLES, filename="plots/plots_LES_it" + str(tstep) + ".png")
 
             # write checkpoint
             if (tstep%print_ckp == 0):
-                save_fields(totTime, tstep, U, V, P, C, B)
+                W = find_vorticity(U, V)
+                save_fields(totTime, U, V, P, C, B, W, filename="fields/fields_it" + str(tstep) + ".npz")
 
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U_DNS, V_DNS, L, tstep)
+                plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_it" + str(tstep) + ".txt")
 
 
 
@@ -562,21 +721,26 @@ while (tstep<totSteps and totTime<finalTime):
 #---------------------------- end of the simulation
 
 # save images
-W_DNS = find_vorticity(U_DNS, V_DNS)
-print_fields(U_DNS, V_DNS, P_DNS, W_DNS, tstep, N, name="DNS")
-print_fields(U, V, P, C, tstep, NLES, name="LES")
+if (TEST_CASE != "HIT_2D_L&D"):
+    print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_it" + str(tstep) + ".png")
+    W = find_vorticity(U, V)
+    print_fields(U, V, P, C, NLES, filename="plots/plots_LES_it" + str(tstep) + ".png")
 
-# write checkpoint
-save_fields(totTime, tstep, U, V, P, C, B)
+    # write checkpoint
+    save_fields(totTime, U, V, P, C, B, W, filename="fields/fields_it" + str(tstep) + ".npz")
 
-# print spectrum
-plot_spectrum(U_DNS, V_DNS, L, tstep)
+    # print spectrum
+    plot_spectrum(U_DNS, V_DNS, L, filename="energy/energy_spectrum_it" + str(tstep) + ".txt")
 
-# save center values
-filename = "DNSfromLES_center_values.txt"
-np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')
+    # save center values
+    filename = "DNSfromLES_center_values.txt"
+    np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')
 
-filename = "LES_center_values.txt"
-np.savetxt(filename, np.c_[LES_cv[0:tstep+1,0], LES_cv[0:tstep+1,1], LES_cv[0:tstep+1,2], LES_cv[0:tstep+1,3]], fmt='%1.4e')
+    filename = "LES_center_values.txt"
+    np.savetxt(filename, np.c_[LES_cv[0:tstep+1,0], LES_cv[0:tstep+1,1], LES_cv[0:tstep+1,2], LES_cv[0:tstep+1,3]], fmt='%1.4e')
+
+    # save checkpoint for wl_synthetis network
+    wl_checkpoint.save(file_prefix = CHKP_PREFIX)
+
 
 print("Simulation succesfully completed!")

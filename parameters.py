@@ -18,18 +18,18 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = './LES_Solvers/uvw/'
+DATASET           = '../../data/N1024_1000runs/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
-READ_NUMPY_ARRAYS = False
+READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 1024
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -44,14 +44,14 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
-NEXAMPLES         = 4
+NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 25000
+TOT_ITERATIONS = 40000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 2500
-SAVE_EVERY     = 25000
+IMAGES_EVERY   = 1000
+SAVE_EVERY     = 10000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 LR             = 3.0e-3

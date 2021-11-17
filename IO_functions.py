@@ -283,14 +283,18 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
+
+    colors = plt.cm.jet(np.linspace(0,1,4))
+    lineColor = colors[0]
+
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
 
         # setup figure size
         nr = NEXAMPLES
         nc = 4
-        dpi = 16*1463*OUTPUT_DIM/1024.  # scale to a 1024 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi)
+        dpi = 16*1463/100.*OUTPUT_DIM/1024.  # scale to a 1024 pixel on a 1024x1024 image
+        fig, axs = plt.subplots(nr,nc, figsize=(20, 10), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]
@@ -324,6 +328,22 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
                 axs[i*4+1].axis('off')
                 axs[i*4+2].axis('off')
                 axs[i*4+3].axis('off')
+
+                # x = list(range(res))
+                # hdim = res//2
+                # yU = nimg[:,hdim,0]
+                # yV = nimg[:,hdim,1]
+                # yW = nimg[:,hdim,2]
+
+                # axs[i*4+0].plot(x, yU, linewidth=0.1, color=colors[0])
+                # axs[i*4+1].plot(x, yV, linewidth=0.1, color=colors[1])
+                # axs[i*4+2].plot(x, yW, linewidth=0.1, color=colors[2])
+                # axs[i*4+3].plot(x, yW, linewidth=0.1, color=colors[3])
+
+                # axs[i*4+0].imshow(nimg[res/2,:,0],cmap='Blues')
+                # axs[i*4+1].imshow(nimg[res/2,:,1],cmap='Reds_r')
+                # axs[i*4+2].imshow(nimg[res/2,:,2],cmap='gray')
+                # axs[i*4+3].imshow(nimg,cmap='jet')
 
                 axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
                 axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')

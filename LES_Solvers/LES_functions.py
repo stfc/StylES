@@ -84,18 +84,3 @@ def plot_spectrum(U, V, L, filename, close=False):
         plt.close()
 
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
-
-def save_vel_violations(fname, uv_max, tstep, close=True):
-    #save which plots have velocities U and V larger than 10
-    #identifiers given by tail in LES_solver*
-    arr = ["tstep is:"+str(tstep),uv_max[0], uv_max[1]]
-    
-    if (tstep == 0):
-        f = open(fname, "w")
-        np.savetxt(f, arr, newline='\n', fmt="%s")
-    else:    
-        f = open(fname, "a")
-        np.savetxt(f, arr, newline='\n',  fmt="%s")
-
-    if close:
-        f.close()

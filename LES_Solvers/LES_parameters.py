@@ -2,12 +2,12 @@
 DEBUG      = False
 PATH       = "./"
 maxIt      = 100000
-maxItDNS   = 10000
+maxItDNS   = 100000
 toll       = 1.0e-3   # tollerance for convergence of SIMPLE
 tollM      = 1.0e-3
 tollP      = 1.0e-3
 tollC      = 1.0e-3
-tollDNS    = 1.0e-7
+tollDNS    = 1.0e-5
 alphaP     = 0.1e0      # pressure relaxation factor
 alphaUV    = 0.1e0       # velocity relaxation factor
 uRef       = 10.0e0

@@ -94,7 +94,7 @@ def make_synthesis_model():
     use_pixel_norm    = False         # Disable pixelwise feature vector normalization
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
-    use_noise         = True         # Enable noise inputs
+    use_noise         = False         # Enable noise inputs
     randomize_noise   = False        # True = randomize noise inputs every time (non-deterministic),
                                      # False = read noise inputs from variables.
     use_styles        = True         # Enable style inputs                             
@@ -214,7 +214,7 @@ def make_synthesis_model():
 
 
 #-------------------------------------define filter
-def make_filter_model(f_res):
+def make_filter_model(f_res, t_res):
 
     # inner parameters
     use_wscale  = True        # Enable equalized learning rate
@@ -236,18 +236,22 @@ def make_filter_model(f_res):
     # create model
     f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
 
-    f_x = conv2d(f_in, fmaps=nf(f_res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_0")
-    bias = layer_bias(f_x, name="filter_bias_0")
-    f_x = bias(f_x)
-    f_x = layers.LeakyReLU()(f_x)
+    f_x = tf.identity(f_in)
+    for res in range(f_res, t_res, -1):
+        f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+        bias = layer_bias(f_x, name="filter_bias_0")
+        f_x = bias(f_x)
+        f_x = layers.LeakyReLU()(f_x)
 
-    f_x = blur(f_x)
-    f_x = conv2d_downscale2d(f_x, fmaps=nf(f_res - 2), kernel=3, gain=GAIN,
-            use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
-    bias = layer_bias(f_x, name="filter_bias_1")
-    f_x = bias(f_x)
-    f_x = layers.LeakyReLU()(f_x)
-    fout_x = torgb(f_res-1, f_x)
+        f_x = blur(f_x)
+        f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+                use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+        bias = layer_bias(f_x, name="filter_bias_1")
+        f_x = bias(f_x)
+        f_x = layers.LeakyReLU()(f_x)
+        f_x = torgb(res-1, f_x)
+
+    fout_x = tf.identity(f_x)
 
     # Create model
     filter_model = Model(inputs=f_in, outputs=fout_x)
@@ -374,7 +378,7 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule, be
 #-------------------------------------create an instance of the generator and discriminator
 mapping, mapping_ave     = make_mapping_model()
 synthesis, synthesis_ave = make_synthesis_model()
-filter                   = make_filter_model(RES_LOG2)
+filter                   = make_filter_model(RES_LOG2, RES_LOG2-3)
 discriminator            = make_discriminator_model()
 
 #mapping.summary()

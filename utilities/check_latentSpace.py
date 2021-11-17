@@ -21,9 +21,9 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-CHECK      = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
+CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
 NL         = 1         # number of different latent vectors randomly selected
-LOAD_FIELD = True       # load field from DNS solver (via restart.npz file)
+LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 FILE_REAL  = "../LES_Solvers/restart.npz"
 
 
@@ -55,19 +55,19 @@ synthesis_ave.trainable = False
 
 
 # create variable synthesis model
-if (CHECK=="LATENTS"):
+if (CHECK=="DLATENTS"):
+    dlatents     = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+    wlatents     = layer_wlatent(dlatents)
+    ndlatents    = wlatents(dlatents)
+    outputs      = synthesis_ave(ndlatents, training=False)
+    wl_synthesis = tf.keras.Model(dlatents, outputs)
+else:
     latents      = tf.keras.Input(shape=[LATENT_SIZE])
     wlatents     = layer_wlatent(latents)
     nlatents     = wlatents(latents)
     dlatents     = mapping_ave(nlatents)
     outputs      = synthesis_ave(dlatents, training=False)
     wl_synthesis = tf.keras.Model(latents, outputs)
-else:
-    dlatents     = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
-    wlatents     = layer_wlatent(dlatents)
-    ndlatents    = wlatents(dlatents)
-    outputs      = synthesis_ave(ndlatents, training=False)
-    wl_synthesis = tf.keras.Model(dlatents, outputs)
 
 
 # define learnin rate schedule and optimizer
@@ -87,22 +87,22 @@ opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 def find_latent_step(latent, imgB):
     with tf.GradientTape() as tape_DNS:
         predictions = wl_synthesis(latent, training=False)
-        UV_DNS      = predictions[RES_LOG2-2]
-        imgA        = UV_DNS[:,:,:,:]
+        UVW_DNS     = predictions[RES_LOG2-2]*uRef
+        imgA        = UVW_DNS[:,:,:,:]
         loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
         resDNS      = loss_fea[0]*iOUTDIM22 + loss_fea[1]    # loss pixel + sum loss features
 
         gradients_DNS  = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
         opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 
-    return predictions, resDNS
+    return resDNS, predictions, UVW_DNS
 
 
 # print different fields (to check quality and find 2 different seeds)
 for k in range(NL):
     
     # load initial flow
-    tf.random.set_seed(k)
+    tf.random.set_seed(k+1)
     if (LOAD_FIELD):
 
         if (FILE_REAL.endswith('.npz')):
@@ -148,11 +148,11 @@ for k in range(NL):
         itDNS        = 0
         resDNS       = large
         tstart = time.time()
-        if (CHECK=="LATENTS"):
-            newlatent = tf.random.uniform([1, LATENT_SIZE])
-        else:
+        if (CHECK=="DLATENTS"):
             zlatent   = tf.random.uniform([1, LATENT_SIZE])
             newlatent = mapping_ave(zlatent, training=False)
+        else:
+            newlatent = tf.random.uniform([1, LATENT_SIZE])
     
         tU_DNS = tf.convert_to_tensor(U_DNS)
         tV_DNS = tf.convert_to_tensor(V_DNS)
@@ -166,8 +166,8 @@ for k in range(NL):
         # first seek best seed
         while (resDNS>tollDNS and itDNS<100):
             predictions = wl_synthesis(newlatent, training=False)
-            UV_DNS      = predictions[RES_LOG2-2]
-            imgA        = UV_DNS[:,:,:,:]
+            UVW_DNS     = predictions[RES_LOG2-2]*uRef
+            imgA        = UVW_DNS[:,:,:,:]
             loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
             newResDNS   = loss_fea[0]*iOUTDIM22 + loss_fea[1]    # loss pixel + sum loss features
 
@@ -182,11 +182,11 @@ for k in range(NL):
 
                 print_fields_1(W_DNS_t, "Plots_DNS_fromGAN.png")
             else:
-                if (CHECK=="LATENTS"):
-                    newlatent = tf.random.uniform([1, LATENT_SIZE])
-                else:
+                if (CHECK=="DLATENTS"):
                     zlatent   = tf.random.uniform([1, LATENT_SIZE])
                     newlatent = mapping_ave(zlatent, training=False)
+                else:
+                    newlatent = tf.random.uniform([1, LATENT_SIZE])
 
             itDNS = itDNS+1
 
@@ -195,8 +195,7 @@ for k in range(NL):
         itDNS        = 0
         resDNS       = large
         while (resDNS>tollDNS and itDNS<maxItDNS):
-            predictions, resDNS = find_latent_step(latent, imgB)
-            UVW_DNS = predictions[RES_LOG2-2]
+            resDNS, predictions, UVW_DNS = find_latent_step(latent, imgB)
 
             # write values in tensorboard
             lr = lr_schedule(itDNS)
@@ -216,26 +215,27 @@ for k in range(NL):
 
             itDNS = itDNS+1
 
+        # reprint but without legends
+        print_fields_1(W_DNS_t, "Plots_DNS_fromGAN.png", legend=False)
+        print_fields_1(W_DNS_org,   "Plots_DNS_org.png",     legend=False)
+
     else:
 
         # find DNS and LES fields from random input 
-        if (CHECK=="LATENTS"):
-            latents      = tf.random.uniform([1, LATENT_SIZE])
-            predictions  = wl_synthesis(latents, training=False)
-        else:
+        if (CHECK=="DLATENTS"):
             zlatent     = tf.random.uniform([1, LATENT_SIZE])
             dlatents    = mapping_ave(zlatent, training=False)
             predictions = wl_synthesis(dlatents, training=False)
+        else:
+            latents      = tf.random.uniform([1, LATENT_SIZE])
+            predictions  = wl_synthesis(latents, training=False)
 
 
-    # reprint but without legends
-    print_fields_1(W_DNS_t, "Plots_DNS_fromGAN.png", legend=False)
-    print_fields_1(W_DNS_org,   "Plots_DNS_org.png",     legend=False)
 
     # write fields and energy spectra
     closePlot=False
-    for kk in range(RES_LOG2-2, RES_LOG2-1):
-        UVW_DNS = predictions[kk]
+    for kk in range(2, RES_LOG2-1):
+        UVW_DNS = predictions[kk]*uRef
         res = 2**(kk+2)
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
@@ -243,7 +243,7 @@ for k in range(NL):
         #W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
         filename = "plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
-        print_fields_1(W_DNS_t, filename)
+        print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, res, filename)
 
         filename = "energy/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk== RES_LOG2-2):
