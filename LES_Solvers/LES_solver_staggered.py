@@ -67,11 +67,13 @@ os.system("rm -rf plots")
 os.system("rm -rf fields")
 os.system("rm -rf uvw")
 os.system("rm -rf energy")
+os.system("rm -rf v_viol")
 
 os.system("mkdir plots")
 os.system("mkdir fields")
 os.system("mkdir uvw")
 os.system("mkdir energy")
+os.system("mkdir v_viol")
 
 # initial flow
 for run in range(NRUNS):
@@ -336,10 +338,8 @@ for run in range(NRUNS):
             DNS_cv[tstep,2] = V[N//2, N//2]
             DNS_cv[tstep,3] = P[N//2, N//2]
 
-            te_s = [0.010396104, 0.027722944, 0.112046897, 0.152751599]
-            te   = [9, 24, 97, 134]
-            
-            if (TEST_CASE == "HIT_2D_L&D"):
+
+            if (len(te)>0):
 
                 #loop for turnover times(te) and respective time in seconds(te_s)
                 for s in range(len(te_s)):
@@ -350,6 +350,9 @@ for run in range(NRUNS):
             else:
         
                 tail = "run{0:d}_it{1:d}".format(run,tstep)
+                uv_max= [(np.abs(U).max()), (np.abs(V)).max()]
+                if uv_max[0] > uRef or uv_max[1] > uRef:
+                    save_vel_violations("v_viol/v_viol_run"+ str(run) + "txt", uv_max, tstep)
 
                 # save images
                 if (tstep%print_img == 0):

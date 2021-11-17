@@ -27,6 +27,9 @@ print_res = 100
 print_img = 1500
 print_ckp = 1500
 print_spe = totSteps+1
+te_s      = [0.010396104, 0.027722944, 0.112046897, 0.152751599] # specific turnover times 
+                                                            #for Lowe and Davidson in secs
+te        = [9, 24, 97, 134] #corresponding eddy turnover time
 NRUNS     = 250   # number of total runs to execute
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
