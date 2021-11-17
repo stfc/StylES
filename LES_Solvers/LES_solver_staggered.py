@@ -338,10 +338,8 @@ for run in range(NRUNS):
             DNS_cv[tstep,2] = V[N//2, N//2]
             DNS_cv[tstep,3] = P[N//2, N//2]
 
-            te_s = [0.010396104, 0.027722944, 0.112046897, 0.152751599]
-            te   = [9, 24, 97, 134]
-            
-            if (TEST_CASE == "HIT_2D_L&D"):
+
+            if (len(te)>0):
 
                 #loop for turnover times(te) and respective time in seconds(te_s)
                 for s in range(len(te_s)):
