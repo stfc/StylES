@@ -168,7 +168,7 @@ def adjust_dynamic_range(data, drange_in, drange_out):
     return data    
 
 
-def check_divergence_wrongP_W(img, res):
+def check_divergence(img, res):
 
     # initialize arrays
     U = img[0,:,:]
@@ -293,7 +293,7 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         # setup figure size
         nr = NEXAMPLES
         nc = 4
-        dpi = 16*1463/100.*OUTPUT_DIM/1024.  # scale to a 1024 pixel on a 1024x1024 image
+        dpi = 4*nr*1463*OUTPUT_DIM/1024.0*0.01  # scale to a 1024 pixel on a 1024x1024 image
         fig, axs = plt.subplots(nr,nc, figsize=(20, 10), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
@@ -308,7 +308,6 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
             if (NUM_CHANNELS == 3):
 
                 # print divergence
-                #divergence, dUdt, dVdt = check_divergence(img[i,:,:,:], res)
                 divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
                 div[reslog] = divergence
                 momU[reslog] = dUdt

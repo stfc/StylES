@@ -94,7 +94,7 @@ def make_synthesis_model():
     use_pixel_norm    = False         # Disable pixelwise feature vector normalization
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
-    use_noise         = False         # Enable noise inputs
+    use_noise         = True         # Enable noise inputs
     randomize_noise   = False        # True = randomize noise inputs every time (non-deterministic),
                                      # False = read noise inputs from variables.
     use_styles        = True         # Enable style inputs                             

@@ -102,7 +102,7 @@ def find_latent_step(latent, imgB):
 for k in range(NL):
     
     # load initial flow
-    tf.random.set_seed(k+1)
+    tf.random.set_seed(k)
     if (LOAD_FIELD):
 
         if (FILE_REAL.endswith('.npz')):

@@ -199,7 +199,7 @@ class layer_noise(layers.Layer):
         w_init = tf.random_normal_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=True,
+            trainable=False,
             name="Noise_init"
         )
 

@@ -105,7 +105,7 @@ def train_step(input, images):
             new_weight = old_weight[j] * Gs_beta + (1-Gs_beta) * up_weight[j]
             synthesis_ave.layers[i].weights[j] = new_weight
 
-    metrics = [loss_disc, loss_gen, loss_vor, loss_fil, r1_penalty]
+    metrics = [loss_disc, loss_gen, loss_vor, loss_fil, r1_penalty, tf.reduce_mean(real_output), tf.reduce_mean(fake_output)]
 
     return metrics
 
@@ -151,29 +151,35 @@ def train(dataset, LR, train_summary_writer):
             tend = time.time()
             lr = lr_schedule(it)
             print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
-                'l_disc {3:6.1e}, ' \
-                'l_gen {4:6.1e}, ' \
-                'l_vor {5:6.1e}, ' \
-                'l_filter {6:6.1e}, ' \
+                'ld {3:6.1e}, ' \
+                'lg {4:6.1e}, ' \
+                'lv {5:6.1e}, ' \
+                'lf {6:6.1e}, ' \
                 'r1 {7:6.1e}, ' \
-                'lr {8:6.1e}, ' \
+                'sr {8:6.1e}, ' \
+                'sf {9:6.1e}, ' \
+                'lr {10:6.1e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
                 mtr[2], \
                 mtr[3], \
                 mtr[4], \
+                mtr[5], \
+                mtr[6], \
                 lr))
             tint = tend
 
             # write losses to tensorboard
             with train_summary_writer.as_default():
-                tf.summary.scalar('loss/disc',       mtr[0], step=it)
-                tf.summary.scalar('loss/gen',        mtr[1], step=it)
-                tf.summary.scalar('loss/vor',        mtr[2], step=it)
-                tf.summary.scalar('loss/filter',     mtr[3], step=it)
-                tf.summary.scalar('loss/r1_penalty', mtr[4], step=it)
-                tf.summary.scalar('loss/lr',         lr,     step=it)
+                tf.summary.scalar('a/loss_disc',   mtr[0], step=it)
+                tf.summary.scalar('a/loss_gen',    mtr[1], step=it)
+                tf.summary.scalar('a/loss_vor',    mtr[2], step=it)
+                tf.summary.scalar('a/loss_filter', mtr[3], step=it)
+                tf.summary.scalar('a/r1_penalty',  mtr[4], step=it)
+                tf.summary.scalar('a/score_real',  mtr[5], step=it)
+                tf.summary.scalar('a/score_fake',  mtr[6], step=it)                                
+                tf.summary.scalar('a/lr',              lr, step=it)
 
 
         # print images
@@ -182,11 +188,11 @@ def train(dataset, LR, train_summary_writer):
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
                     pow = 2**(res+2)
-                    var_name = "divergence/" + str(pow) + "x" + str(pow)
+                    var_name = "b/divergence_" + str(pow) + "x" + str(pow)
                     tf.summary.scalar(var_name, div[res], step=it)
-                    var_name = "dUdt/" + str(pow) + "x" + str(pow)
+                    var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
                     tf.summary.scalar(var_name, momU[res], step=it)
-                    var_name = "dVdt/" + str(pow) + "x" + str(pow)
+                    var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
                     tf.summary.scalar(var_name, momV[res], step=it)
 
         #save the model
