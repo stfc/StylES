@@ -130,11 +130,11 @@ def train(dataset, LR, train_summary_writer):
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
-            var_name = "divergence/" + str(pow) + "x" + str(pow)
+            var_name = "b/divergence_" + str(pow) + "x" + str(pow)
             tf.summary.scalar(var_name, div[res], step=0)
-            var_name = "dUdt/" + str(pow) + "x" + str(pow)
+            var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
             tf.summary.scalar(var_name, momU[res], step=0)
-            var_name = "dVdt/" + str(pow) + "x" + str(pow)
+            var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
             tf.summary.scalar(var_name, momV[res], step=0)
 
     tstart = time.time()
