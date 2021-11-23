@@ -65,8 +65,8 @@ def train_step(input, images):
         loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-5]))
 
         # # find vorticity loss
-        # U  = g_images[RES_LOG2-2][:,0,:,:]*uRef
-        # V  = g_images[RES_LOG2-2][:,1,:,:]*uRef
+        # U  = g_images[RES_LOG2-2][:,0,:,:]*2*uRef - uRef
+        # V  = g_images[RES_LOG2-2][:,1,:,:]*2*uRef - uRef
         # Wt =  ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
         # Wt  = (Wt - tf.math.reduce_min(Wt))/(tf.math.reduce_max(Wt) - tf.math.reduce_min(Wt) + 1.e-20)
         # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated

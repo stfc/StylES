@@ -38,8 +38,8 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "Plots_DNS_org.png"
-FILE_STYLE = "Plots_DNS_fromGAN.png"
+FILE_REAL  = "../../../data/N256_1runs/uvw/uvw_run0_it10000.png"
+FILE_STYLE = "./single_uvw/uvw_0.png"
 
 
 os.system("rm diff.png")
@@ -106,7 +106,7 @@ def compare_images(imageA, imageB, title):
     maxW  = max(maxWA, maxWB)
 
     # setup figures
-    fig, ax = plt.subplots(4, 3, figsize=(10,10))
+    fig, ax = plt.subplots(4, 3, figsize=(15,15))
 
     # show DNS image
     sub = ax[0,0] 

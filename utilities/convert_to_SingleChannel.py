@@ -13,17 +13,19 @@ from IO_functions import StyleGAN_load_fields
 
 from LES_plot import *
 from LES_functions  import *
-from HIT_2D import N, L
+from HIT_2D import N, L, uRef
 
 
 sca  = 1
-PATH = "../../../data/N1024_1000runs/fields4/"
+PATH = "../../../data/N256_1runs/uvw/"
 DEST = "./single/"
 os.system("rm -rf single")
 os.system("mkdir single")
+closePlot=False
 
 files = os.listdir(PATH)
-for i,file in enumerate(files):
+nfiles = len(files)
+for i,file in enumerate(sorted(files)):
     filename = PATH + file
     filename2 = DEST + file
 
@@ -41,16 +43,20 @@ for i,file in enumerate(files):
 
         nimg = Image.open(filename).convert('RGB')
         nimg = np.asarray(nimg)
+        nimg = nimg/256.0
 
-    U = (nimg[:,:,0] - np.min(nimg[:,:,0]))/(np.max(nimg[:,:,0]) - np.min(nimg[:,:,0]))
-    V = (nimg[:,:,1] - np.min(nimg[:,:,1]))/(np.max(nimg[:,:,1]) - np.min(nimg[:,:,1]))
-    W = (nimg[:,:,2] - np.min(nimg[:,:,2]))/(np.max(nimg[:,:,2]) - np.min(nimg[:,:,2]))
+    U = nimg[:,:,0]*2*uRef - uRef
+    V = nimg[:,:,1]*2*uRef - uRef
 
-    vor = find_vorticity(U, V)
-    vor = (vor - np.min(vor))/(np.max(vor) - np.min(vor))
- 
+    #W = nimg[:,:,2]
+    W = find_vorticity(U, V)
+
     print_fields(U, V, U, W, N, filename=DEST + "/plots_" + str(i) + ".png")
-    plot_spectrum(U, V, L, DEST + "/energy_spectrum_" + str(i) + ".txt")
+
+    if (i==nfiles-1):
+        closePlot=True
+    
+    plot_spectrum(U, V, L, DEST + "/energy_spectrum_" + str(i) + ".txt", close=closePlot)
 
     # nimg = vor
     #nimg = W - vor

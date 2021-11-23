@@ -167,7 +167,7 @@ wl_checkpoint = tf.train.Checkpoint(wl_synthesis=synthesis,
 def step_latent_DNS(U, V, latents):
     with tf.GradientTape() as tape_DNS:
         predictions   = wl_synthesis(latents)
-        UVW_DNS       = predictions[RES_LOG2-2]*uRef
+        UVW_DNS       = predictions[RES_LOG2-2]*2*uRef - uRef
         resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,0,:,:], U))
         resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW_DNS[0,1,:,:], V))
         gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
@@ -182,10 +182,10 @@ def step_latent_LES(U, V, latents):
     with tf.GradientTape() as tape_DNS:
         predictions   = wl_synthesis(latents)
         if (USE_FILTER):
-            UVW_DNS = predictions[RES_LOG2-2]*uRef
+            UVW_DNS = predictions[RES_LOG2-2]*2*uRef - uRef
             UVW = filter(UVW_DNS, training=False)
         else:
-            UVW = predictions[RES_LOG2-3]*uRef
+            UVW = predictions[RES_LOG2-3]*2*uRef - uRef
         resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
         resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
         gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
@@ -261,8 +261,8 @@ if (INIT_BC==0):
         U = UVW[0, 0, :, :].numpy()
         V = UVW[0, 1, :, :].numpy()
     else:
-        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*uRef
-        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*uRef
+        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*2*uRef - uRef
+        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*2*uRef - uRef
 
 elif (INIT_BC==1):
 
@@ -279,7 +279,7 @@ elif (INIT_BC==1):
         latents = random_inputs
 
     predictions = wl_synthesis(latents, training=False)
-    UVW_DNS     = predictions[RES_LOG2-2]*uRef
+    UVW_DNS     = predictions[RES_LOG2-2]*2*uRef - uRef
 
     # find DNS field
     U_DNS = UVW_DNS[0, 0, :, :].numpy()
@@ -298,8 +298,8 @@ elif (INIT_BC==1):
         U = UVW[0, 0, :, :].numpy()
         V = UVW[0, 1, :, :].numpy()
     else:
-        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*uRef
-        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*uRef
+        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*2*uRef - uRef
+        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*2*uRef - uRef
 
 elif (INIT_BC==2):
 
@@ -318,7 +318,7 @@ elif (INIT_BC==2):
         latents = random_inputs
 
     predictions = wl_synthesis(latents, training=False)
-    UVW_DNS     = predictions[RES_LOG2-2]*uRef
+    UVW_DNS     = predictions[RES_LOG2-2]*2*uRef - uRef
 
     # set DNS field (P_DNS is zero)
     U_DNS = UVW_DNS[0, 0, :, :].numpy()
@@ -583,9 +583,9 @@ while (tstep<totSteps and totTime<finalTime):
 
 
     # save new DNS field
-    U_DNS = predictions[RES_LOG2-2].numpy()[0,0,:,:]*uRef
-    V_DNS = predictions[RES_LOG2-2].numpy()[0,1,:,:]*uRef
-    W_DNS = predictions[RES_LOG2-2].numpy()[0,2,:,:]*uRef
+    U_DNS = predictions[RES_LOG2-2].numpy()[0,0,:,:]*2*uRef - uRef
+    V_DNS = predictions[RES_LOG2-2].numpy()[0,1,:,:]*2*uRef - uRef
+    W_DNS = predictions[RES_LOG2-2].numpy()[0,2,:,:]*2*uRef - uRef
 
 
 

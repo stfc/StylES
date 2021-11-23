@@ -293,8 +293,8 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         # setup figure size
         nr = NEXAMPLES
         nc = 4
-        dpi = 4*nr*1463*OUTPUT_DIM/1024.0*0.01  # scale to a 1024 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(20, 10), dpi=dpi)
+        dpi = 23*res  # scale to a 1024 pixel on a 1024x1024 image
+        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]

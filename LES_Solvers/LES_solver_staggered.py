@@ -339,20 +339,25 @@ for run in range(NRUNS):
             DNS_cv[tstep,3] = P[N//2, N//2]
 
 
+            # check min and max values
+            uv_max= [(np.abs(U).max()), (np.abs(V)).max()]
+            if uv_max[0] > uRef or uv_max[1] > uRef:
+                save_vel_violations("v_viol/v_viol_run"+ str(run) + "txt", uv_max, tstep)
+
+
+            # plot, save, find spectrum fields
             if (len(te)>0):
 
                 #loop for turnover times(te) and respective time in seconds(te_s)
                 for s in range(len(te_s)):
                     if (totTime<te_s[s]+hf*delt and totTime>te_s[s]-hf*delt):
                         W = find_vorticity(U, V)
-                        print_fields(U, V, P, W, N, "plots/plots_"+str(te[s])+"te.png")
-                        plot_spectrum(U, V, L,      "energy/energy_spectrum_"+str(te[s])+"te.txt")
+                        print_fields(U, V, P, W, N,            "plots/plots_run"   + str(run) + "_" + str(te[s]) + "te.png")
+                        save_fields(totTime, U, V, P, C, B, W, "fields/fields_run" + str(run) + "_" + str(te[s]) + "te.npz")
+                        plot_spectrum(U, V, L,                 "energy/energy_run" + str(run) + "_" + str(te[s]) + "te.txt")
             else:
         
                 tail = "run{0:d}_it{1:d}".format(run,tstep)
-                uv_max= [(np.abs(U).max()), (np.abs(V)).max()]
-                if uv_max[0] > uRef or uv_max[1] > uRef:
-                    save_vel_violations("v_viol/v_viol_run"+ str(run) + "txt", uv_max, tstep)
 
                 # save images
                 if (tstep%print_img == 0):
@@ -371,23 +376,23 @@ for run in range(NRUNS):
 
 # end of the simulation
 
-if (TEST_CASE != "HIT_2D_L&D"):
 
-    tail = "run{0:d}_it{1:d}".format(run,tstep)
+# plot, save, find spectrum fields
+tail = "run{0:d}_it{1:d}".format(run,tstep)
 
-    # save images
-    W = find_vorticity(U, V)
-    print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
+# save images
+W = find_vorticity(U, V)
+print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
 
-    # write checkpoint
-    save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
+# write checkpoint
+save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
-    # print spectrum
-    plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
+# print spectrum
+plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
 
-    # save center values
-    filename = "DNS_center_values" + ".txt"
-    np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+# save center values
+filename = "DNS_center_values" + ".txt"
+np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
 
 
-print("Simulation succesfully completed!")
+print("Simulation successfully completed!")

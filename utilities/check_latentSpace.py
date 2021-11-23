@@ -22,7 +22,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-NL         = 1         # number of different latent vectors randomly selected
+NL         = 2         # number of different latent vectors randomly selected
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 FILE_REAL  = "../LES_Solvers/restart.npz"
 
@@ -87,7 +87,7 @@ opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 def find_latent_step(latent, imgB):
     with tf.GradientTape() as tape_DNS:
         predictions = wl_synthesis(latent, training=False)
-        UVW_DNS     = predictions[RES_LOG2-2]*uRef
+        UVW_DNS     = predictions[RES_LOG2-2]*2*uRef - uRef
         imgA        = UVW_DNS[:,:,:,:]
         loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
         resDNS      = loss_fea[0]*iOUTDIM22 + loss_fea[1]    # loss pixel + sum loss features
@@ -166,7 +166,7 @@ for k in range(NL):
         # first seek best seed
         while (resDNS>tollDNS and itDNS<100):
             predictions = wl_synthesis(newlatent, training=False)
-            UVW_DNS     = predictions[RES_LOG2-2]*uRef
+            UVW_DNS     = predictions[RES_LOG2-2]*2*uRef - uRef
             imgA        = UVW_DNS[:,:,:,:]
             loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
             newResDNS   = loss_fea[0]*iOUTDIM22 + loss_fea[1]    # loss pixel + sum loss features
@@ -235,7 +235,7 @@ for k in range(NL):
     # write fields and energy spectra
     closePlot=False
     for kk in range(2, RES_LOG2-1):
-        UVW_DNS = predictions[kk]*uRef
+        UVW_DNS = predictions[kk]*2*uRef - uRef
         res = 2**(kk+2)
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
