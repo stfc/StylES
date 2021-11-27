@@ -161,8 +161,8 @@ def print_fields(U_, V_, P_, W_, N, filename, \
         maxV = np.max(img[:,:,1])
         minU = np.min(img[:,:,0])
         minV = np.min(img[:,:,1])
-        maxVel =  uRef  #max(maxU, maxV)
-        minVel = -uRef  #min(minU, minV)
+        maxVel = max(maxU, maxV)
+        minVel = min(minU, minV)
         if (maxVel!=minVel):
             img[:,:,0] = (img[:,:,0] - minVel)/(maxVel - minVel)
             img[:,:,1] = (img[:,:,1] - minVel)/(maxVel - minVel)

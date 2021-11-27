@@ -24,7 +24,7 @@ W = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 # define data augmentation
 data_augmentation = tf.keras.Sequential([
     tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical"),
-    tf.keras.layers.experimental.preprocessing.RandomRotation(0.2),
+    tf.keras.layers.experimental.preprocessing.RandomRotation(factor=1.0, fill_mode='wrap', interpolation='bilinear'),
 ])
 
 
@@ -126,7 +126,7 @@ def prepare_for_training(ds, cache=True, batch_size=0, shuffle_buffer_size=BUFFE
 
     # augment
     if augment:
-        ds = ds.map(lambda x, y: (data_augmentation(x, training=True), y), num_parallel_calls=AUTOTUNE)
+        ds = ds.map(lambda x: (data_augmentation(x, training=True)), num_parallel_calls=AUTOTUNE)
 
     # `prefetch` lets the dataset fetch batches in the background while the model is training.
     ds = ds.prefetch(buffer_size=AUTOTUNE)

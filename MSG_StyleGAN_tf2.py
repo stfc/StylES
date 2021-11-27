@@ -91,7 +91,7 @@ def make_mapping_model():
 def make_synthesis_model():
 
     # Options
-    use_pixel_norm    = False         # Disable pixelwise feature vector normalization
+    use_pixel_norm    = True         # Disable pixelwise feature vector normalization
     use_wscale        = True         # Enable equalized learning rate
     use_instance_norm = True         # Enable instance normalization
     use_noise         = True         # Enable noise inputs

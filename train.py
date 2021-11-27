@@ -26,7 +26,7 @@ from MSG_StyleGAN_tf2 import *
 from IO_functions import *
 from LES_Solvers.testcases.HIT_2D.HIT_2D import uRef
 
-
+iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
 #-------------------------------------define training step and loop
 @tf.function
 def train_step(input, images):
@@ -38,16 +38,20 @@ def train_step(input, images):
         g_images = synthesis(dlatents, training = True)
         f_images = filter(g_images[RES_LOG2-2], training = True)
 
+        # # find divergence loss
+        # loss_div=0.
+        # for res in range(2,RES_LOG2-1):
+        #     U  = g_images[res][:,0,:,:]*2*uRef - uRef
+        #     V  = g_images[res][:,1,:,:]*2*uRef - uRef
+        #     loss_div = loss_div + tf.math.reduce_sum(tf.abs(((tr(U, 1, 0)-tr(U, -1, 0)) + (tr(V, 0, 1)-tr(V, 0, -1)))))
+        # loss_div = loss_div*iNN
+
         # # find vorticity loss
-        # g_images_new = []
-        # for res in range(RES_LOG2-1):
-        #     U  = g_images[res][:,0,:,:]
-        #     V  = g_images[res][:,1,:,:]
-        #     Wt = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
-        #     WtMax = tf.math.reduce_max(Wt) 
-        #     WtMin = tf.math.reduce_min(Wt) 
-        #     Wt = (Wt - WtMin)/(WtMax - WtMin + 1.e-20)
-        #     g_images_new.append(tf.concat([g_images[res][:,0:2,:,:], Wt[:,np.newaxis,:,:]], 1))
+        # Wt = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
+        # Wt = (Wt - tf.math.reduce_min(Wt))/(tf.math.reduce_max(Wt) - tf.math.reduce_min(Wt) + 1.e-20)
+        # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
+        # W  = (W - tf.math.reduce_min(W))/(tf.math.reduce_max(W) - tf.math.reduce_min(W) + 1.e-20)
+        loss_vor = 0.  #tf.reduce_mean(tf.math.squared_difference(W, Wt))*iNN
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -64,16 +68,8 @@ def train_step(input, images):
         # find filter loss
         loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-5]))
 
-        # # find vorticity loss
-        # U  = g_images[RES_LOG2-2][:,0,:,:]*2*uRef - uRef
-        # V  = g_images[RES_LOG2-2][:,1,:,:]*2*uRef - uRef
-        # Wt =  ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
-        # Wt  = (Wt - tf.math.reduce_min(Wt))/(tf.math.reduce_max(Wt) - tf.math.reduce_min(Wt) + 1.e-20)
-        # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
-        # W  = (W - tf.math.reduce_min(W))/(tf.math.reduce_max(W) - tf.math.reduce_min(W) + 1.e-20)
-
-        loss_vor = 0. #tf.reduce_mean(tf.math.squared_difference(W, Wt))
-        loss_gen_vor = loss_gen + loss_vor
+        # find total loss for the generator
+        #loss_gen = loss_gen + loss_div + loss_vor
 
     #apply gradients
     gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
@@ -184,7 +180,7 @@ def train(dataset, LR, train_summary_writer):
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:    
-            div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_batch, it+1)
+            div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, it+1)
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
                     pow = 2**(res+2)

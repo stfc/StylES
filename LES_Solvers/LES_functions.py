@@ -57,8 +57,8 @@ def save_fields(totTime, U, V, P, C, B, W, filename):
     maxV = np.max(V)
     minU = np.min(U)
     minV = np.min(V)
-    maxVel =  uRef  #max(maxU, maxV)
-    minVel = -uRef  #min(minU, minV)
+    maxVel = max(maxU, maxV)
+    minVel = min(minU, minV)
     U_ = (U - minVel)/(maxVel - minVel)
     V_ = (V - minVel)/(maxVel - minVel)
 

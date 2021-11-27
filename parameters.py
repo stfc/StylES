@@ -18,7 +18,7 @@ DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
-DATASET           = '../../data/N256_100runs/fields/'
+DATASET           = '../../data/N256_600runs_from545te/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -50,8 +50,8 @@ NEXAMPLES         = 4
 # Training hyper-parameters
 TOT_ITERATIONS = 100000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
-SAVE_EVERY     = 20000
+IMAGES_EVERY   = 1000
+SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 LR             = 3.0e-3

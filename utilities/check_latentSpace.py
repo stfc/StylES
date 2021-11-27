@@ -22,7 +22,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 CHECK      = "LATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-NL         = 2         # number of different latent vectors randomly selected
+NL         = 10         # number of different latent vectors randomly selected
 LOAD_FIELD = False       # load field from DNS solver (via restart.npz file)
 FILE_REAL  = "../LES_Solvers/restart.npz"
 
@@ -234,7 +234,7 @@ for k in range(NL):
 
     # write fields and energy spectra
     closePlot=False
-    for kk in range(2, RES_LOG2-1):
+    for kk in range(RES_LOG2-2, RES_LOG2-1):
         UVW_DNS = predictions[kk]*2*uRef - uRef
         res = 2**(kk+2)
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()

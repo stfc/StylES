@@ -21,15 +21,15 @@ PASSIVE   = False
 RESTART   = False
 SAVE_UVW  = True
 N         = 256      # number of points   [-]
-finalTime = 1.0
+finalTime = 2.0
 totSteps  = 1000000
 print_res = 100
 print_img = 1000
 print_ckp = 1000
 print_spe = totSteps+1
-te_s      = [0.6, 0.7, 0.8, 0.9, 1.0] # specific turnover times 
+te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0] # specific turnover times 
                                                             #for Lowe and Davidson in secs
-te        = [526, 614, 702, 790, 877] #corresponding eddy turnover time
+te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
 NRUNS     = 200   # number of total runs to execute
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
