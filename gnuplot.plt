@@ -1,20 +1,25 @@
-set terminal png
-set output "energy.png"
+#set terminal png
+#set output "energy.png"
 
 set logscale x
 set logscale y
 
 #set format y "10^{%T}"
 
-set yrange [1e-8:0.2]
-set xrange [10:3000]
-#set yrange [1e-10:0.05]
+#set yrange [1e-8:0.2]
+#set xrange [10:3000]
+set yrange [1e-10:0.05]
 #set xrange [10:700]
 
 set grid
 
 set style circle radius screen 0.003
 
+plot 'LES_Solvers/energy/energy_run0_545te.txt' using 1:2 with lines title 'DNS org', \
+     'utilities/energy/energy_org_spectrum_lat_0_res_256.txt'  using 1:($2*20) with lines title 'DNS', \
+     'utilities/energy/energy_spectrum_lat_0_res_256.txt'  using 1:($2*20) with lines title 'StyleGAN', \
+     'utilities/energy/energy_org_spectrum_lat_0_res_128.txt'  using 1:($2*20) with lines title 'DNS', \
+     'utilities/energy/energy_spectrum_lat_0_res_128.txt'  using 1:($2*20) with lines title 'StyleGAN'
 
 
 # plot 'LES_Solvers/energy_spectrum_0te.txt'                using 1:2 with lines title '0te',  \
@@ -78,16 +83,16 @@ set style circle radius screen 0.003
 #      # 'LES_Solvers/testcases/HIT_2D/ld_spectrum_24te.txt' using 1:2 with circles title '24\t_e L\&D'
 #      # 'LES_Solvers/testcases/HIT_2D/ld_spectrum_97te.txt' using 1:2 with circles title '97\t_e L\&D'
 
-do for [i=0:9] {
-   filename = sprintf('utilities/spectrum_%d.png',i)
-   set output filename
-   plot 'utilities/latents/energy_spectrum_lat_'.i.'_res_64.txt'   using 1:($2*400) with lines title '64', \
-        'utilities/latents/energy_spectrum_lat_'.i.'_res_128.txt'  using 1:($2*400) with lines title '128', \
-        'utilities/latents/energy_spectrum_lat_'.i.'_res_256.txt'  using 1:($2*400) with lines title '256', \
-        'utilities/latents/energy_spectrum_lat_'.i.'_res_512.txt'  using 1:($2*400) with lines title '512', \
-        'utilities/latents/energy_spectrum_lat_'.i.'_res_1024.txt'  using 1:($2*400) with lines title '1024', \
-        'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt' using 1:2 with circles title '134\t_e L\&D'
-}
+# do for [i=0:9] {
+#    filename = sprintf('utilities/spectrum_%d.png',i)
+#    set output filename
+#    plot 'utilities/latents/energy_spectrum_lat_'.i.'_res_64.txt'   using 1:($2*400) with lines title '64', \
+#         'utilities/latents/energy_spectrum_lat_'.i.'_res_128.txt'  using 1:($2*400) with lines title '128', \
+#         'utilities/latents/energy_spectrum_lat_'.i.'_res_256.txt'  using 1:($2*400) with lines title '256', \
+#         'utilities/latents/energy_spectrum_lat_'.i.'_res_512.txt'  using 1:($2*400) with lines title '512', \
+#         'utilities/latents/energy_spectrum_lat_'.i.'_res_1024.txt'  using 1:($2*400) with lines title '1024', \
+#         'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt' using 1:2 with circles title '134\t_e L\&D'
+# }
 
 #------------------------------check styles
 #do for [i=0:13] {

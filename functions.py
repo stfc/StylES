@@ -117,7 +117,7 @@ class layer_get_Weight(layers.Layer):
         w_init = tf.random_normal_initializer(mean=0.0, stddev=init_std)
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=True,
+            trainable=TRAIN,
             name="weights"
         )
 
@@ -133,7 +133,7 @@ class layer_const(layers.Layer):
         w_init = tf.ones_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=[fmaps, 4*4], dtype=DTYPE),
-            trainable=True,
+            trainable=TRAIN,
             name="const_weight"
         )
 
@@ -163,7 +163,7 @@ class layer_dense(layers.Layer):
         w_init = tf.random_normal_initializer(mean=0.0, stddev=init_std)
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=True,
+            trainable=TRAIN,
         )
 
     def call(self, x):
@@ -181,7 +181,7 @@ class layer_bias(layers.Layer):
         self.lrmul = lrmul
         self.b = tf.Variable(
             initial_value=b_init(shape=x.shape[1], dtype=DTYPE),
-            trainable=True,
+            trainable=TRAIN,
         )
 
     def call(self, x):
@@ -199,7 +199,7 @@ class layer_noise(layers.Layer):
         w_init = tf.random_normal_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=False,
+            trainable=not TRAIN,
             name="Noise_init"
         )
 
@@ -214,7 +214,7 @@ class apply_noise(layers.Layer):
         w_init = tf.zeros_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=x.shape[1], dtype=DTYPE),
-            trainable=True,
+            trainable=TRAIN,
             name="Noise_weight"
         )
 
@@ -231,35 +231,13 @@ class layer_wlatent(layers.Layer):
         wl_init = tf.ones_initializer()
         self.wl = tf.Variable(
             initial_value=wl_init(shape=x.shape[1:], dtype=DTYPE),
-            trainable=True,
+            trainable=not TRAIN,
             name="wlatent"
         )
 
     def call(self, x):
         return x*self.wl
 
-
-#-------------Layer wlatent variable
-class layer_wlatent_variable(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_wlatent, self).__init__()
-
-        wl_init = tf.ones_initializer()
-        self.wl = tf.Variable(
-            initial_value=wl_init(shape=(7, 512), dtype=DTYPE),
-            trainable=True,
-            name="wlatent"
-        )
-
-        self.nwl = tf.Variable(
-            initial_value=wl_init(shape=(7, 512), dtype=DTYPE),
-            trainable=False,
-            name="nwlatent"
-        )
-
-    def call(self, x):
-        x = tf.concat([x[:,0:7,:]*self.wl, x[:,7:G_LAYERS,:]*self.nwl], 1) 
-        return x
 
 
 #-------------Instance normalization
@@ -571,10 +549,12 @@ def VGG_loss(imgA, imgB, VGG_extractor):
     loss_fea_18 = tf.math.reduce_mean(tf.math.squared_difference(feaA_18, feaB_18))
 
     loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA, imgB))
+    loss_UV = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], imgB[0,0:2,:,:]))
     loss_fea = loss_fea_3 + loss_fea_6 + loss_fea_10 + loss_fea_14 + loss_fea_18
 
     losses = []
     losses.append(loss_pix)
+    losses.append(loss_UV)
     losses.append(loss_fea)
     losses.append(loss_fea_3)
     losses.append(loss_fea_6)

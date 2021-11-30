@@ -59,13 +59,13 @@ wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # find first wlatent space
-tf.random.set_seed(14)
+tf.random.set_seed(1)
 input_random0 = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
 wlatents0     = mapping_ave(input_random0, training=False)
 
 
 # find second wlatent space
-tf.random.set_seed(9)
+tf.random.set_seed(2)
 input_random1 = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
 wlatents1     = mapping_ave(input_random1, training=False)
 

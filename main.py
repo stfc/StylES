@@ -25,6 +25,10 @@ from IO_functions import *
 
 #------------------------------------- prepare for run
 # clean folders
+if not TRAIN:
+    print("Set TRAIN flag to True in parameters!")
+    exit()
+
 os.system("rm -rf logs/*")
 os.system("rm -rf images/*")
 for reslog in range(2,RES_LOG2+1):

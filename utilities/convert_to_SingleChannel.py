@@ -17,7 +17,7 @@ from HIT_2D import N, L, uRef
 
 
 sca  = 1
-PATH = "../../../data/N256_1runs/uvw/"
+PATH = "./temp/"
 DEST = "./single/"
 os.system("rm -rf single")
 os.system("mkdir single")

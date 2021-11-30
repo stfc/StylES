@@ -38,8 +38,8 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "../../../data/N256_1runs/uvw/uvw_run0_it10000.png"
-FILE_STYLE = "./single_uvw/uvw_0.png"
+FILE_REAL  = "Plots_DNS_org.png"
+FILE_STYLE = "Plots_DNS_fromGAN.png"
 
 
 os.system("rm diff.png")
@@ -80,7 +80,7 @@ def compare_images(imageA, imageB, title):
     A = dl
     div = rho*A*np.sum(np.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
     div = div*iNN
-    print("Divergence for style image", div)
+    print("Divergence for StyleGAN image", div)
 
     # find differences and min-max
     imageD = imageA - imageB
