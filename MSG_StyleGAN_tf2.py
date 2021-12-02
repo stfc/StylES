@@ -378,7 +378,7 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule, be
 #-------------------------------------create an instance of the generator and discriminator
 mapping, mapping_ave     = make_mapping_model()
 synthesis, synthesis_ave = make_synthesis_model()
-filter                   = make_filter_model(RES_LOG2, RES_LOG2-3)
+filter                   = make_filter_model(RES_LOG2, RES_LOG2_FIL)
 discriminator            = make_discriminator_model()
 
 #mapping.summary()

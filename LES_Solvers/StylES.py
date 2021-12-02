@@ -185,7 +185,7 @@ def step_latent_LES(U, V, latents):
             UVW_DNS = predictions[RES_LOG2-2]*2*uRef - uRef
             UVW = filter(UVW_DNS, training=False)
         else:
-            UVW = predictions[RES_LOG2-3]*2*uRef - uRef
+            UVW = predictions[RES_LOG2_FIL-2]*2*uRef - uRef
         resDNS        =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
         resDNS        = resDNS + tf.reduce_mean(tf.math.squared_difference(UVW[0,1,:,:], V))
         gradients_DNS = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
@@ -261,8 +261,8 @@ if (INIT_BC==0):
         U = UVW[0, 0, :, :].numpy()
         V = UVW[0, 1, :, :].numpy()
     else:
-        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*2*uRef - uRef
-        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*2*uRef - uRef
+        U = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()*2*uRef - uRef
+        V = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()*2*uRef - uRef
 
 elif (INIT_BC==1):
 
@@ -298,8 +298,8 @@ elif (INIT_BC==1):
         U = UVW[0, 0, :, :].numpy()
         V = UVW[0, 1, :, :].numpy()
     else:
-        U = predictions[RES_LOG2-3][0, 0, :, :].numpy()*2*uRef - uRef
-        V = predictions[RES_LOG2-3][0, 1, :, :].numpy()*2*uRef - uRef
+        U = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()*2*uRef - uRef
+        V = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()*2*uRef - uRef
 
 elif (INIT_BC==2):
 

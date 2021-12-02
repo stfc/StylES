@@ -10,7 +10,7 @@ sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D/')
 from LES_constants import *
 from LES_parameters import *
 from LES_plot import *
-from HIT_2D import L, uRef
+from HIT_2D import L
 
 os.chdir('../')
 from MSG_StyleGAN_tf2 import *
@@ -22,10 +22,12 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-CHECK      = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
-NL         = 1         # number of different latent vectors randomly selected
-LOAD_FIELD = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL  = "../LES_Solvers/fields/fields_run0_545te.npz"
+CHECK       = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
+NL          = 1         # number of different latent vectors randomly selected
+LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
+FILE_REAL   = "../LES_Solvers/fields/fields_run0_545te.npz"
+WL_IRESTART = False
+WL_CHKP_DIR = './wl_checkpoints/'
 
 
 # clean up
@@ -36,12 +38,16 @@ if LOAD_FIELD:
 
 
 os.system("rm -rf plots")
+os.system("rm -rf fields")
 os.system("rm -rf uvw")
 os.system("rm -rf energy")
-os.system("rm -rf log*")
+os.system("rm -rf logs")
+
 os.system("mkdir plots")
+os.system("mkdir fields")
 os.system("mkdir uvw")
 os.system("mkdir energy")
+os.system("mkdir logs")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
@@ -87,12 +93,19 @@ elif (lrDNS_POLICY=="PIECEWISE"):
 opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 
 
+
+# define checkpoint
+checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis,
+                                 opt=opt)
+
+
+
 # define step for finding latent space
 @tf.function
 def find_latent_step(latent, imgA):
     with tf.GradientTape() as tape_DNS:
         predictions = wl_synthesis(latent, training=False)
-        UVW_DNS     = predictions[RES_LOG2-2] #*2*uRef - uRef
+        UVW_DNS     = predictions[RES_LOG2-2]
         new_img     = UVW_DNS[:,:,:,:]
 
         U = new_img[0,0,:,:]
@@ -107,12 +120,17 @@ def find_latent_step(latent, imgA):
 
         # normalize values
         loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
-        resDNS      = loss_fea[1]*iOUTDIM22 + tf.math.reduce_sum(loss_fea[2:])    # loss pixel (UV) + sum loss features
+        resDNS      =  tf.math.reduce_sum(loss_fea[2:])    # loss pixel (UV) + sum loss features
 
         gradients_DNS  = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
         opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 
-    return resDNS, predictions, UVW_DNS
+    return resDNS, predictions, UVW_DNS, loss_fea
+
+
+# Load latest checkpoint, if restarting
+if (WL_IRESTART):
+    checkpoint.restore(tf.train.latest_checkpoint(WL_CHKP_DIR))
 
 
 # print different fields (to check quality and find 2 different seeds)
@@ -164,8 +182,6 @@ for k in range(NL):
         # write fields and energy spectra of DNS
         DIM_DATA, _ = U_DNS.shape
         closePlot=False
-        minList = []
-        maxList = []
         for kk in range(0, RES_LOG2-3):
             res = 2**(kk+4)
             s = res/DIM_DATA
@@ -173,11 +189,11 @@ for k in range(NL):
             V_DNS_t = sc.ndimage.interpolation.zoom(V_DNS, s, order=3, mode='wrap')
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-            # minList.append(np.min([U_DNS_t, V_DNS_t]))
-            # maxList.append(np.max([U_DNS_t, V_DNS_t]))
-
             filename = "plots/plots_org_lat_" + str(k) + "_res_" + str(res) + ".png"
             print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, res, filename)
+
+            filename = "fields/fields_org_lat_" + str(k) + "_res_" + str(res) + ".npz"
+            save_fields(0, U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, U_DNS_t, W_DNS_t, filename)
 
             filename = "energy/energy_org_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
             if (kk== RES_LOG2-4):
@@ -196,10 +212,6 @@ for k in range(NL):
     
 
         # preprare reference image
-        # U_DNS_t = (U_DNS - np.min([U_DNS,V_DNS]))/(np.max([U_DNS,V_DNS]) - np.min([U_DNS,V_DNS]))
-        # V_DNS_t = (V_DNS - np.min([U_DNS,V_DNS]))/(np.max([U_DNS,V_DNS]) - np.min([U_DNS,V_DNS]))
-        # W_DNS_t = (W_DNS - np.min(W_DNS))/(np.max(W_DNS) - np.min(W_DNS))
-
         tU_DNS = tf.convert_to_tensor(U_DNS_t)
         tV_DNS = tf.convert_to_tensor(V_DNS_t)
         tW_DNS = tf.convert_to_tensor(W_DNS_t)
@@ -214,7 +226,7 @@ for k in range(NL):
         resDNS = large
         tstart = time.time()
         while (resDNS>tollDNS and itDNS<maxItDNS):
-            resDNS, predictions, UVW_DNS = find_latent_step(latent, imgA)
+            resDNS, predictions, UVW_DNS, losses = find_latent_step(latent, imgA)
 
             # print the fields 
             if (itDNS%100 == 0):
@@ -222,12 +234,13 @@ for k in range(NL):
                 # find learning rate
                 lr = lr_schedule(itDNS)
                 with train_summary_writer.as_default():
-                    tf.summary.scalar("residuals", resDNS, step=itDNS)
+                    tf.summary.scalar("residuals/loss", resDNS, step=itDNS)
+                    tf.summary.scalar("residuals/pixel_loss_UV", losses[0], step=itDNS)
                     tf.summary.scalar("lr", lr, step=itDNS)
 
                 # print residuals
                 tend = time.time()
-                print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  lr {3:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), lr))
+                print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pixel loss UV {3:3e}  lr {4:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), losses[1], lr))
 
                 # print fields
                 U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
@@ -235,12 +248,17 @@ for k in range(NL):
                 #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
                 W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-                #print_fields_1(W_DNS_t, "Plots_DNS_fromGAN.png")
-                print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, N, "Plots_DNS_fromGAN.png")
+                filename = "Plots_DNS_fromGAN.png"
+                #filename = "Plots_DNS_fromGAN" + str(itDNS) + ".png"
+
+                #print_fields_1(W_DNS_t, filename)
+                print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, N, filename)
 
             itDNS = itDNS+1
 
         # reprint but only vorticity
+        resDNS, predictions, UVW_DNS, _ = find_latent_step(latent, imgA)
+
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
         #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
@@ -262,22 +280,62 @@ for k in range(NL):
 
 
 
-    # write fields and energy spectra
+    # save checkpoint for wl_synthesis
+    checkpoint.save(file_prefix = WL_CHKP_DIR)
+
+
+
+    # print spectrum from filter
+    UVW_DNS = predictions[RES_LOG2-2]
+    UVW = filter(UVW_DNS, training=False)
+    res = 2**RES_LOG2_FIL
+    U_t = UVW[0, 0, :, :].numpy()  #*(maxList[kk]-minList[kk]) + minList[kk]
+    V_t = UVW[0, 1, :, :].numpy()  #*(maxList[kk]-minList[kk]) + minList[kk]
+    #W_t = UVW[0, 2, :, :].numpy()
+    W_t = find_vorticity(U_t, V_t)
+
+    filename = "plots/plots_fil_lat_" + str(k) + "_res_" + str(res) + ".png"
+    print_fields(U_t, V_t, U_t, W_t, res, filename)
+
+    filename = "fields/fields_fil_lat_" + str(k) + "_res_" + str(res) + ".npz"
+    save_fields(0, U_t, V_t, U_t, U_t, U_t, W_t, filename)
+
+    filename = "energy/energy_spectrum_fil_lat_" + str(k) + "_res_" + str(res) + ".txt"
+    if (kk== RES_LOG2-4):
+        closePlot=True
+    plot_spectrum(U_t, V_t, L, filename, close=closePlot)
+    
+    os.system("mv Energy_spectrum.png Energy_spectrum_filtered.png")
+
+
+
+
+    # write fields and energy spectra for each layer
     closePlot=False
     for kk in range(0, RES_LOG2-3):
-        UVW_DNS = predictions[kk+2] #*2*uRef - uRef
+        UVW_DNS = predictions[kk+2]
         res = 2**(kk+4)
-        U_DNS_t = UVW_DNS[0, 0, :, :].numpy()  #*(maxList[kk]-minList[kk]) + minList[kk]
-        V_DNS_t = UVW_DNS[0, 1, :, :].numpy()  #*(maxList[kk]-minList[kk]) + minList[kk]
+
+        U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
+        V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
+
+        # s = res/DIM_DATA
+        # U_DNS_t = sc.ndimage.interpolation.zoom(UVW_DNS[0, 0, :, :].numpy(), s, order=3, mode='wrap')
+        # V_DNS_t = sc.ndimage.interpolation.zoom(UVW_DNS[0, 1, :, :].numpy(), s, order=3, mode='wrap')
+
         #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
         filename = "plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
         print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, res, filename)
 
+        filename = "fields/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
+        save_fields(0, U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, U_DNS_t, W_DNS_t, filename)
+
         filename = "energy/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk== RES_LOG2-4):
             closePlot=True
         plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+
 
     print ("done lantent " + str(k))

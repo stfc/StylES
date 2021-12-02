@@ -1,5 +1,5 @@
-#set terminal png
-#set output "energy.png"
+set terminal png
+set output "energy_zoom.png"
 
 set logscale x
 set logscale y
@@ -8,18 +8,34 @@ set logscale y
 
 #set yrange [1e-8:0.2]
 #set xrange [10:3000]
-set yrange [1e-10:0.05]
+set yrange [1e-9:0.05]
 #set xrange [10:700]
 
 set grid
 
 set style circle radius screen 0.003
 
-plot 'LES_Solvers/energy/energy_run0_545te.txt' using 1:2 with lines title 'DNS org', \
-     'utilities/energy/energy_org_spectrum_lat_0_res_256.txt'  using 1:($2*20) with lines title 'DNS', \
-     'utilities/energy/energy_spectrum_lat_0_res_256.txt'  using 1:($2*20) with lines title 'StyleGAN', \
-     'utilities/energy/energy_org_spectrum_lat_0_res_128.txt'  using 1:($2*20) with lines title 'DNS', \
-     'utilities/energy/energy_spectrum_lat_0_res_128.txt'  using 1:($2*20) with lines title 'StyleGAN'
+plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
+     'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with circles title 'StyleGAN 256'
+
+
+# plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
+#      'utilities/energy/energy_org_spectrum_lat_0_res_32.txt' using 1:2 with lines title 'DNS 32', \
+#      'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with circles title 'StyleGAN 256', \
+#      'utilities/energy/energy_spectrum_lat_0_res_32.txt'     using 1:2 with circles title 'StyleGAN 32', \
+#      'utilities/energy/energy_spectrum_fil_lat_0_res_32.txt' using 1:2 with circles title 'filter 32'
+
+
+# plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
+#      'utilities/energy/energy_org_spectrum_lat_0_res_128.txt' using 1:2 with lines title 'DNS 128', \
+#      'utilities/energy/energy_org_spectrum_lat_0_res_64.txt'  using 1:2 with lines title 'DNS 64', \
+#      'utilities/energy/energy_org_spectrum_lat_0_res_32.txt'  using 1:2 with lines title 'DNS 32', \
+#      'utilities/energy/energy_org_spectrum_lat_0_res_16.txt'  using 1:2 with lines title 'DNS 16', \
+#      'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with lines title 'StyleGAN 256', \
+#      'utilities/energy/energy_spectrum_lat_0_res_128.txt'     using 1:2 with lines title 'StyleGAN 128', \
+#      'utilities/energy/energy_spectrum_lat_0_res_64.txt'      using 1:2 with lines title 'StyleGAN 64', \
+#      'utilities/energy/energy_spectrum_lat_0_res_32.txt'      using 1:2 with lines title 'StyleGAN 32', \
+#      'utilities/energy/energy_spectrum_lat_0_res_16.txt'      using 1:2 with lines title 'StyleGAN 16'
 
 
 # plot 'LES_Solvers/energy_spectrum_0te.txt'                using 1:2 with lines title '0te',  \

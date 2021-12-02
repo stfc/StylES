@@ -38,8 +38,8 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "Plots_DNS_org.png"
-FILE_STYLE = "Plots_DNS_fromGAN.png"
+FILE_REAL  = "./fields/fields_org_lat_0_res_256.npz"
+FILE_STYLE = "./fields/fields_lat_0_res_256.npz"
 
 
 os.system("rm diff.png")
@@ -186,7 +186,7 @@ def compare_images(imageA, imageB, title):
     plt.colorbar(im, ax=sub)
 
 
-    plt.suptitle("Statistical differences MSE: %.4f, SSIM: %.4f" % (m, s))
+    plt.suptitle("Statistical differences MSE: %.4e, SSIM: %.4e" % (m, s))
     fig.savefig(title, bbox_inches='tight', pad_inches=0)
 
 

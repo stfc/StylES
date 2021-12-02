@@ -103,7 +103,7 @@ for st in range(G_LAYERS):
         if (CHECK_FILTER):
     
             UVW     = filter(UVW_DNS, training=False)
-            UVW_LES = predictions[RES_LOG2-3]
+            UVW_LES = predictions[RES_LOG2_FIL-2]
             U       = UVW_LES[0, 0, :, :].numpy()
             V       = UVW_LES[0, 1, :, :].numpy()
             resFil  =          tf.reduce_mean(tf.math.squared_difference(UVW[0,0,:,:], U))
