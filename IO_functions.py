@@ -80,9 +80,20 @@ def StyleGAN_load_fields(file_path):
         res = 2**(reslog+2)
         data = np.zeros([3, res, res], dtype=DTYPE)
         s = res/DIM_DATA
-        data[0,:,:] = sc.ndimage.interpolation.zoom(U, s, order=3, mode='wrap')
-        data[1,:,:] = sc.ndimage.interpolation.zoom(V, s, order=3, mode='wrap')
-        data[2,:,:] = sc.ndimage.interpolation.zoom(W, s, order=3, mode='wrap')
+        rs = int(DIM_DATA/res)
+        if (int(s)==1):
+            data[0,:,:] = U
+            data[1,:,:] = V
+            data[2,:,:] = W
+        else:
+            U_DNS_g = sc.ndimage.gaussian_filter(U, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
+            V_DNS_g = sc.ndimage.gaussian_filter(V, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
+            W_DNS_g = sc.ndimage.gaussian_filter(W, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
+            
+            data[0,:,:] = U_DNS_g[::rs,::rs]
+            data[1,:,:] = V_DNS_g[::rs,::rs]  
+            data[2,:,:] = W_DNS_g[::rs,::rs]  
+
         img_out.append(data)
 
     return img_out
@@ -276,9 +287,9 @@ def check_divergence_staggered(img, res):
     return div, dUdt, dVdt
 
 
-def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
-    dlatents    = mapping_ave(input, training=False)
-    predictions = synthesis_ave(dlatents, training=False)
+def generate_and_save_images(mapping, synthesis, input, iteration):
+    dlatents    = mapping(input, training=False)
+    predictions = synthesis(dlatents, training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
@@ -293,7 +304,7 @@ def generate_and_save_images(mapping_ave, synthesis_ave, input, iteration):
         # setup figure size
         nr = NEXAMPLES
         nc = 4
-        dpi = 23*res  # scale to a 1024 pixel on a 1024x1024 image
+        dpi = 11.5*res  # scale to a 512 pixel on a 1024x1024 image
         fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()

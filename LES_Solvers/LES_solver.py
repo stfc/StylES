@@ -347,7 +347,11 @@ for run in range(NRUNS):
 
 
             # check min and max values
-            uv_max= [(np.abs(U).max()), (np.abs(V)).max()]
+            u_max = nc.max(nc.abs(U))
+            v_max = nc.max(nc.abs(V))
+            u_max_cpu = convert(u_max)
+            v_max_cpu = convert(v_max)
+            uv_max = [u_max_cpu, v_max_cpu]
             if uv_max[0] > uRef or uv_max[1] > uRef:
                 save_vel_violations("v_viol/v_viol_run"+ str(run) + "txt", uv_max, tstep)
 

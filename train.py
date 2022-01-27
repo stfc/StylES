@@ -31,9 +31,9 @@ iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
 @tf.function
 def train_step(input, images):
     with tf.GradientTape() as map_tape, \
-         tf.GradientTape() as syn_tape, \
-         tf.GradientTape() as fil_tape, \
-         tf.GradientTape() as disc_tape:
+        tf.GradientTape() as syn_tape, \
+        tf.GradientTape() as fil_tape, \
+        tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
         g_images = synthesis(dlatents, training = True)
         f_images = filter(g_images[RES_LOG2-2], training = True)
@@ -87,20 +87,6 @@ def train_step(input, images):
     filter_optimizer.apply_gradients(zip(gradients_of_filter,               filter.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-    for i in range(len(mapping.layers)):
-        up_weight = mapping.layers[i].weights
-        old_weight = mapping_ave.layers[i].weights
-        for j in range(len(up_weight)):
-            new_weight = old_weight[j] * Gs_beta + (1-Gs_beta) * up_weight[j]
-            mapping_ave.layers[i].weights[j] = new_weight
-
-    for i in range(len(synthesis.layers)):
-        up_weight = synthesis.layers[i].weights
-        old_weight = synthesis_ave.layers[i].weights
-        for j in range(len(up_weight)):
-            new_weight = old_weight[j] * Gs_beta + (1-Gs_beta) * up_weight[j]
-            synthesis_ave.layers[i].weights[j] = new_weight
-
     metrics = [loss_disc, loss_gen, loss_vor, loss_fil, r1_penalty, tf.reduce_mean(real_output), tf.reduce_mean(fake_output)]
 
     return metrics
@@ -116,13 +102,13 @@ def train(dataset, LR, train_summary_writer):
 
     # Create noise for sample images
     tf.random.set_seed(1)
-    input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
+    input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
     lr = LR
     mtr = np.zeros([5], dtype=DTYPE)
 
 
     #save first images
-    div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -138,7 +124,7 @@ def train(dataset, LR, train_summary_writer):
     for it in range(TOT_ITERATIONS):
     
         # take next batch
-        input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE])
+        input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
         image_batch = next(iter(dataset))
         mtr = train_step(input_batch, image_batch)
 
@@ -179,8 +165,9 @@ def train(dataset, LR, train_summary_writer):
 
 
         # print images
-        if (it+1) % IMAGES_EVERY == 0:    
-            div, momU, momV = generate_and_save_images(mapping_ave, synthesis_ave, input_latent, it+1)
+        if (it+1) % IMAGES_EVERY == 0:
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
+
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
                     pow = 2**(res+2)
@@ -208,3 +195,30 @@ def train(dataset, LR, train_summary_writer):
     if (PROFILE):
         tf.summary.trace_export(name="Train", step=it,profiler_outdir='./logs_profile/train')
 
+
+
+
+# Extra pieces.............
+
+# update average weights
+
+        # # update average weights
+        # if (it >= 0 and it % G_SMOOTH_RATE == 0):
+        #     with tf.device('/device:gpu:0'):
+        #         for i in range(len(mapping.layers)):
+        #             up_weights = mapping.layers[i].get_weights()
+        #             old_weights = mapping_ave.layers[i].get_weights()
+        #             new_weights = []
+        #             for j in range(len(up_weights)):
+        #                 new_weights.append(old_weights[j] * Gs_beta + (1-Gs_beta) * up_weights[j])
+        #             if (len(new_weights)>0):
+        #                 mapping_ave.layers[i].set_weights(new_weights)
+
+        #         for i in range(len(synthesis.layers)):
+        #             up_weights = synthesis.layers[i].get_weights()
+        #             old_weights = synthesis_ave.layers[i].get_weights()
+        #             new_weights = []
+        #             for j in range(len(up_weights)):
+        #                 new_weights.append(old_weights[j] * Gs_beta + (1-Gs_beta) * up_weights[j])
+        #             if (len(new_weights)>0):
+        #                 synthesis_ave.layers[i].set_weights(new_weights)

@@ -113,8 +113,8 @@ tf.random.set_seed(1)
 
 #----------------------------  loading StyleGAN checkpoint
 checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
-mapping_ave.trainable = False
-synthesis_ave.trainable = False
+mapping.trainable = False
+synthesis.trainable = False
 
 
 
@@ -126,14 +126,14 @@ if (USE_DLATENTS):
     latents      = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
     wlatents     = layer_wlatent(latents)
     dlatents     = wlatents(latents) 
-    outputs      = synthesis_ave(dlatents, training=False)
+    outputs      = synthesis(dlatents, training=False)
     wl_synthesis = tf.keras.Model(latents, outputs)
 else:
     latents      = tf.keras.Input(shape=[LATENT_SIZE])
     wlatents     = layer_wlatent(latents)
     nlatents     = wlatents(latents) 
-    dlatents     = mapping_ave(nlatents, training=False)
-    outputs      = synthesis_ave(dlatents, training=False)
+    dlatents     = mapping(nlatents, training=False)
+    outputs      = synthesis(dlatents, training=False)
     wl_synthesis = tf.keras.Model(latents, outputs)
 
 
@@ -216,7 +216,7 @@ if (INIT_BC==0):
 
     random_inputs = tf.random.uniform([1, LATENT_SIZE])
     if (USE_DLATENTS):
-        latents = mapping_ave(random_inputs, training=False)
+        latents = mapping(random_inputs, training=False)
     else:
         latents = random_inputs
 
@@ -274,7 +274,7 @@ elif (INIT_BC==1):
 
     random_inputs = tf.random.uniform([1, LATENT_SIZE])
     if (USE_DLATENTS):
-        latents = mapping_ave(random_inputs, training=False)
+        latents = mapping(random_inputs, training=False)
     else:
         latents = random_inputs
 
@@ -313,7 +313,7 @@ elif (INIT_BC==2):
 
     random_inputs = tf.random.uniform([1, LATENT_SIZE])
     if (USE_DLATENTS):
-        latents = mapping_ave(random_inputs, training=False)
+        latents = mapping(random_inputs, training=False)
     else:
         latents = random_inputs
 

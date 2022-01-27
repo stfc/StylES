@@ -1,4 +1,7 @@
 # define runtime parameters
+from matplotlib.pyplot import xlim
+
+
 DEBUG      = False
 PATH       = "./"
 maxIt      = 100000
@@ -11,6 +14,12 @@ tollDNS    = 1.0e-9
 alphaP     = 0.1e0      # pressure relaxation factor
 alphaUV    = 0.1e0       # velocity relaxation factor
 uRef       = 10.0e0
+useLogSca  = True
+xLogLim    = [1.0e0, 10000]
+yLogLim    = [1.e-14, 0.1]
+xLinLim    = [0.0e0, 600]
+yLinLim    = [0.0e0, 0.1]
+
 
 # learning rate for DNS field
 lrDNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"

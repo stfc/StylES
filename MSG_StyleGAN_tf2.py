@@ -81,10 +81,9 @@ def make_mapping_model():
             dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
 
 
-    mapping_model     = Model(inputs=latents_in, outputs=dlatents)
-    mapping_model_ave = Model(inputs=latents_in, outputs=dlatents)
+    mapping_model = Model(inputs=latents_in, outputs=dlatents)
 
-    return mapping_model, mapping_model_ave
+    return mapping_model
 
 
 #---------------------------define synthesis
@@ -205,10 +204,9 @@ def make_synthesis_model():
         x = block(res, x)
         images_out.append(torgb(res, x))
 
-    synthesis_model     = Model(inputs=dlatents, outputs=images_out)
-    synthesis_model_ave = Model(inputs=dlatents, outputs=images_out)
+    synthesis_model = Model(inputs=dlatents, outputs=images_out)
 
-    return synthesis_model, synthesis_model_ave
+    return synthesis_model
 
 
 
@@ -376,10 +374,10 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule, be
 
 
 #-------------------------------------create an instance of the generator and discriminator
-mapping, mapping_ave     = make_mapping_model()
-synthesis, synthesis_ave = make_synthesis_model()
-filter                   = make_filter_model(RES_LOG2, RES_LOG2_FIL)
-discriminator            = make_discriminator_model()
+mapping       = make_mapping_model()
+synthesis     = make_synthesis_model()
+filter        = make_filter_model(RES_LOG2, RES_LOG2_FIL)
+discriminator = make_discriminator_model()
 
 #mapping.summary()
 #synthesis.summary()
@@ -397,9 +395,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                 filter_optimizer=filter_optimizer,
                                 discriminator_optimizer=discriminator_optimizer,
                                 mapping=mapping,
-                                mapping_ave=mapping_ave,
                                 synthesis=synthesis,
-                                synthesis_ave=synthesis_ave,
                                 filter=filter,
                                 discriminator=discriminator)
 

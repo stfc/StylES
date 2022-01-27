@@ -33,7 +33,10 @@ from HIT_2D import L, rho, nu
 TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
 
 #A type that can be converted to a valid Tensorflow expression
-TfExpressionEx = Union[TfExpression, int, float, np.ndarray]
+if (DTYPE=="float64"):
+    TfExpressionEx = Union[TfExpression, int, np.float64, np.ndarray]
+else:
+    TfExpressionEx = Union[TfExpression, int, np.float32, np.ndarray]
 
 
 #------------------------------ general functions
@@ -442,8 +445,8 @@ def _downscale2d(x, factor=2, gain=1):
     assert x.shape.ndims == 4 and all(dim is not None for dim in x.shape[1:])
     assert isinstance(factor, int) and factor >= 1
 
-    # 2x2, float32 => downscale using _blur2d().
-    if factor == 2 and DTYPE == tf.float32:
+    # 2x2, float32, float64 => downscale using _blur2d().
+    if factor == 2 and (DTYPE == "float32"  or DTYPE == "float64"):
         f = [np.sqrt(gain) / factor] * factor
         return _blur2d(x, f=f, normalize=False, stride=factor)
 

@@ -76,8 +76,15 @@ def plot_spectrum(U, V, L, filename, close=False):
 
     knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
 
-    plt.xscale("log")
-    plt.yscale("log")
+    if useLogSca:
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.xlim(xLogLim)
+        plt.ylim(yLogLim)        
+    else:
+        plt.xlim(xLinLim)
+        plt.ylim(yLinLim) 
+
     plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
     plt.savefig("Energy_spectrum.png", bbox_inches='tight', pad_inches=0)
     if (close):

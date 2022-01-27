@@ -5,6 +5,6 @@
 #BSUB -n 1
 #BSUB -R "span[ptile=32]"
 #BSUB -gpu "num=1"
-#BSUB -W 48:00
+#BSUB -W 144:00
 
 python main.py > output.txt

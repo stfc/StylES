@@ -20,16 +20,19 @@ TEST_CASE = "HIT_2D"
 PASSIVE   = False
 RESTART   = False
 SAVE_UVW  = True
-N         = 256      # number of points   [-]
+N         = 1024      # number of points   [-]
 finalTime = 2.0
 totSteps  = 1000000
 print_res = 100
 print_img = 1000
 print_ckp = 1000
 print_spe = totSteps+1
-te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0] # specific turnover times 
-                                                            #for Lowe and Davidson in secs
-te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
+
+te_s      = [0.010259436, 0.027358495, 0.110573918, 0.152751599] # specific turnover times for Lowe and Davidson in secs  
+te        = [9, 24, 97, 134]                                     #corresponding eddy turnover time
+# te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+# te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
+
 NRUNS     = 1   # number of total runs to execute
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
@@ -83,12 +86,17 @@ def init_fields(seed):
 
     ykm4_cpu = 1.e5*km_cpu**(-4)
     plt.plot(km_cpu, ykm4_cpu, '-', linewidth=0.5, markersize=2)
-
     plt.plot(km_cpu, E_cpu, 'bo-', linewidth=0.5, markersize=2)
-    #plt.xscale("log")
-    #plt.yscale("log")
-    plt.xlim([1.0e0, 600])        
-    plt.ylim([1.0e-7, 0.1])
+
+    if useLogSca:
+        plt.xscale("log")
+        plt.yscale("log")
+        plt.xlim(xLogLim)
+        plt.ylim(yLogLim)
+    else:
+        plt.xlim(xLinLim)
+        plt.ylim(yLinLim)        
+
     plt.grid(True, which='both')
     plt.legend(('k^-3', 'k^-4', 'input'),  loc='upper right')
     plt.savefig("Energy_spectrum.png")
