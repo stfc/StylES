@@ -25,7 +25,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 CHECK       = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
 NL          = 1         # number of different latent vectors randomly selected
 LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL   = "../LES_Solvers/fields/fields_run0_545te.npz"
+FILE_REAL   = "../../../data/N1024_single/fields/fields_run0_134te.npz"
 WL_IRESTART = False
 WL_CHKP_DIR = './wl_checkpoints/'
 
@@ -70,14 +70,14 @@ if (CHECK=="DLATENTS"):
     dlatents     = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
     wlatents     = layer_wlatent(dlatents)
     ndlatents    = wlatents(dlatents)
-    outputs      = synthesis_ave(ndlatents, training=False)
+    outputs      = synthesis(ndlatents, training=False)
     wl_synthesis = tf.keras.Model(dlatents, outputs)
 else:
     latents      = tf.keras.Input(shape=[LATENT_SIZE])
     wlatents     = layer_wlatent(latents)
     nlatents     = wlatents(latents)
-    dlatents     = mapping_ave(nlatents)
-    outputs      = synthesis_ave(dlatents, training=False)
+    dlatents     = mapping(nlatents)
+    outputs      = synthesis(dlatents, training=False)
     wl_synthesis = tf.keras.Model(latents, outputs)
 
 
@@ -184,9 +184,18 @@ for k in range(NL):
         closePlot=False
         for kk in range(0, RES_LOG2-3):
             res = 2**(kk+4)
-            s = res/DIM_DATA
-            U_DNS_t = sc.ndimage.interpolation.zoom(U_DNS, s, order=3, mode='wrap')
-            V_DNS_t = sc.ndimage.interpolation.zoom(V_DNS, s, order=3, mode='wrap')
+            s = int(res/DIM_DATA)
+            rs = int(DIM_DATA/res)
+            if (s == 1):
+                U_DNS_t = U_DNS[:,:]
+                V_DNS_t = V_DNS[:,:]
+            else:
+                U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
+                V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs*np.sqrt(1.0/12.0), mode='wrap')
+
+                U_DNS_t = U_DNS_t[::rs, ::rs]
+                V_DNS_t = V_DNS_t[::rs, ::rs]
+
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
             filename = "plots/plots_org_lat_" + str(k) + "_res_" + str(res) + ".png"
@@ -200,13 +209,14 @@ for k in range(NL):
                 closePlot=True
             plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
 
-        os.system("mv Energy_spectrum.png Energy_spectrum_org.png")
+            print("DNS spectrum at resolution " + str(res))
 
+        os.system("mv Energy_spectrum.png Energy_spectrum_org.png")
 
         # prepare latent space
         if (CHECK=="DLATENTS"):
             zlatent = tf.random.uniform([1, LATENT_SIZE])
-            latent  = mapping_ave(zlatent, training=False)
+            latent  = mapping(zlatent, training=False)
         else:
             latent = tf.random.uniform([1, LATENT_SIZE])
     
@@ -272,7 +282,7 @@ for k in range(NL):
         # find DNS and LES fields from random input 
         if (CHECK=="DLATENTS"):
             zlatent     = tf.random.uniform([1, LATENT_SIZE])
-            dlatents    = mapping_ave(zlatent, training=False)
+            dlatents    = mapping(zlatent, training=False)
             predictions = wl_synthesis(dlatents, training=False)
         else:
             latents      = tf.random.uniform([1, LATENT_SIZE])
@@ -301,8 +311,7 @@ for k in range(NL):
     save_fields(0, U_t, V_t, U_t, U_t, U_t, W_t, filename)
 
     filename = "energy/energy_spectrum_fil_lat_" + str(k) + "_res_" + str(res) + ".txt"
-    if (kk== RES_LOG2-4):
-        closePlot=True
+    closePlot=True
     plot_spectrum(U_t, V_t, L, filename, close=closePlot)
     
     os.system("mv Energy_spectrum.png Energy_spectrum_filtered.png")
@@ -336,6 +345,8 @@ for k in range(NL):
         if (kk== RES_LOG2-4):
             closePlot=True
         plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+
+        print("done energy spectrum for resolution " + str(res))
 
 
     print ("done lantent " + str(k))

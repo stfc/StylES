@@ -46,28 +46,28 @@ C_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
 
 # loading StyleGAN checkpoint and filter
 checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
-mapping_ave.trainable = False
-synthesis_ave.trainable = False
+mapping.trainable = False
+synthesis.trainable = False
 
 
 # create variable synthesis model
 latents      = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
 wlatents     = layer_wlatent(latents)
 dlatents     = wlatents(latents)
-outputs      = synthesis_ave(dlatents, training=False)
+outputs      = synthesis(dlatents, training=False)
 wl_synthesis = tf.keras.Model(latents, outputs)
 
 
 # find first wlatent space
 tf.random.set_seed(1)
 input_random0 = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
-wlatents0     = mapping_ave(input_random0, training=False)
+wlatents0     = mapping(input_random0, training=False)
 
 
 # find second wlatent space
 tf.random.set_seed(2)
 input_random1 = tf.random.uniform([1, LATENT_SIZE], dtype=DTYPE)
-wlatents1     = mapping_ave(input_random1, training=False)
+wlatents1     = mapping(input_random1, training=False)
 
 
 # Change style as interpolation between the 2 wlatent space
@@ -85,7 +85,7 @@ for st in range(G_LAYERS):
         else:
             nwlatents = tf.concat([wlatents0[:, 0:st, :], clatents, wlatents0[:, st+1:G_LAYERS, :]], 1)
 
-        predictions = synthesis_ave(nwlatents, training=False)
+        predictions = synthesis(nwlatents, training=False)
         UVW_DNS     = predictions[RES_LOG2-2]
         U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVW_DNS[0, 1, :, :].numpy()
