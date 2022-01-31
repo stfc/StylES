@@ -147,6 +147,22 @@ def make_synthesis_model():
         return in_x
 
 
+
+    # Things to do at the end of each layer.
+    def layer_epilogue_last(in_x, ldx):
+        if use_pixel_norm:
+            in_x = pixel_norm(in_x)
+        if use_instance_norm:
+            in_x = instance_norm(in_x)
+        if use_styles:
+            in_x = style_mod(in_x, 
+                             dlatents[:, ldx],
+                             use_wscale=use_wscale,
+                             name = "style_noise_%d" % ldx)
+        return in_x
+
+
+
     # define blur
     def blur(in_x):
         return blur2d(in_x, blur_filter) if blur_filter else in_x
@@ -188,6 +204,33 @@ def make_synthesis_model():
         return in_x
 
 
+    # Building blocks for remaining layers.
+    def block_last(in_res, in_x):  # res = 3..RES_LOG2
+        in_x = layer_epilogue_last(
+            blur(
+                upscale2d_conv2d(in_x,
+                    fmaps=nf(in_res - 1),
+                    kernel=3,
+                    gain=GAIN,
+                    use_wscale=use_wscale,
+                    fused_scale=fused_scale,
+                )
+            ),
+            in_res * 2 - 4,
+        )
+        in_x = layer_epilogue_last(
+            conv2d(
+                in_x,
+                fmaps=nf(in_res - 1),
+                kernel=3,
+                gain=GAIN,
+                use_wscale=use_wscale,
+            ),
+            in_res * 2 - 3,
+        )
+        return in_x
+
+
     # convert to RGB
     def torgb(in_res, in_x):  # res = 2..RES_LOG2
         in_lod = RES_LOG2 - in_res
@@ -200,9 +243,12 @@ def make_synthesis_model():
     # Finally, arrange the computations for the layers
     images_out = []  # list will contain the output images at different resolutions
     images_out.append(torgb(2, x))
-    for res in range(3, RES_LOG2 + 1):
+    for res in range(3, RES_LOG2):
         x = block(res, x)
         images_out.append(torgb(res, x))
+
+    x = block_last(RES_LOG2, x)
+    images_out.append(torgb(res, x))
 
     synthesis_model = Model(inputs=dlatents, outputs=images_out)
 
@@ -266,7 +312,7 @@ def make_discriminator_model():
     label_size         = 0           # Dimensionality of the labels, 0 if no labels. Overridden based on dataset
     mbstd_group_size   = 4           # Group size for the minibatch standard deviation layer, 0 = disable.
     mbstd_num_features = 1           # Number of features for the minibatch standard deviation layer.
-    blur_filter        = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+    blur_filter        = None # Low-pass filter to apply when resampling activations. 
                                      # None = no filtering.
     fused_scale        = False       # True = fused convolution + scaling, 
                                      # False = separate ops, 'auto' = decide automatically.

@@ -14,7 +14,7 @@ import os
 
 
 # General parameters
-DTYPE = "float64"        # Data type to use for activations and outputs.
+DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
 TRAIN             = True
@@ -49,14 +49,14 @@ NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 1000
-PRINT_EVERY    = 10
-IMAGES_EVERY   = 100
-SAVE_EVERY     = 20000
+TOT_ITERATIONS = 100000
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
+SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
-IRESTART       = True
-LR             = 3.0e-5
-DECAY_STEPS    = 20000
+IRESTART       = False
+LR             = 3.0e-3
+DECAY_STEPS    = TOT_ITERATIONS
 DECAY_RATE     = 1.0
 STAIRCASE      = True
 

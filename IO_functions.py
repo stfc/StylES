@@ -7,6 +7,9 @@ from functions import *
 from MSG_StyleGAN_tf2 import *
 from train import *
 
+sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
+from HIT_2D import delt
+
 from PIL import Image
 
 
