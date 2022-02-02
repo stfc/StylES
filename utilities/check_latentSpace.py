@@ -24,30 +24,39 @@ from tensorflow.keras.applications.vgg16 import VGG16
 # local parameters
 CHECK       = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
 NL          = 1         # number of different latent vectors randomly selected
-LOAD_FIELD  = False       # load field from DNS solver (via restart.npz file)
-FILE_REAL   = "../../../data/N1024_single/fields/fields_run0_134te.npz"
+LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
+FILE_REAL   = "../../../data/N1024_single2/fields/fields_run0_9te.npz"
+#FILE_REAL   = "../LES_Solvers/fields/fields_run0_9te.npz"
 WL_IRESTART = False
 WL_CHKP_DIR = './wl_checkpoints/'
 
 
-# clean up
+# clean up and prepare folders
 if LOAD_FIELD:
     if TRAIN:
         print("Set TRAIN flag to False in parameters!")
         exit()    
 
-
-os.system("rm -rf plots")
-os.system("rm -rf fields")
-os.system("rm -rf uvw")
-os.system("rm -rf energy")
+if (LOAD_FIELD):
+    os.system("rm -rf results/plots_org")
+    os.system("rm -rf results/fields_org")
+    os.system("rm -rf results/uvw_org")
+    os.system("rm -rf results/energy_org")
+else:
+    os.system("rm -rf results/plots")
+    os.system("rm -rf results/fields")
+    os.system("rm -rf results/uvw")
+    os.system("rm -rf results/energy")
 os.system("rm -rf logs")
 
-os.system("mkdir plots")
-os.system("mkdir fields")
-os.system("mkdir uvw")
-os.system("mkdir energy")
-os.system("mkdir logs")
+os.system("mkdir -p results/plots")
+os.system("mkdir -p results/fields")
+os.system("mkdir -p results/uvw")
+os.system("mkdir -p results/energy")
+os.system("mkdir -p results/plots_org/")
+os.system("mkdir -p results/fields_org")
+os.system("mkdir -p results/uvw_org")
+os.system("mkdir -p results/energy_org")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
@@ -175,7 +184,7 @@ for k in range(NL):
         W_DNS = find_vorticity(U_DNS, V_DNS)
 
         #print_fields_1(W_DNS, "Plots_DNS_org.png")
-        print_fields(U_DNS, V_DNS, U_DNS, W_DNS, N, "Plots_DNS_org.png")
+        print_fields(U_DNS, V_DNS, U_DNS, W_DNS, N, "results/plots_org/Plots_DNS_org.png")
         W_DNS_org = W_DNS
 
 
@@ -198,20 +207,20 @@ for k in range(NL):
 
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-            filename = "plots/plots_org_lat_" + str(k) + "_res_" + str(res) + ".png"
+            filename = "results/plots_org/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
             print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, res, filename)
 
-            filename = "fields/fields_org_lat_" + str(k) + "_res_" + str(res) + ".npz"
+            filename = "results/fields_org/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
             save_fields(0, U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, U_DNS_t, W_DNS_t, filename)
 
-            filename = "energy/energy_org_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
+            filename = "results/energy_org/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
             if (kk== RES_LOG2-4):
                 closePlot=True
             plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
 
             print("DNS spectrum at resolution " + str(res))
 
-        os.system("mv Energy_spectrum.png Energy_spectrum_org.png")
+        os.system("mv Energy_spectrum.png results/energy_org/Energy_spectrum_org.png")
 
         # prepare latent space
         if (CHECK=="DLATENTS"):
@@ -238,7 +247,7 @@ for k in range(NL):
         while (resDNS>tollDNS and itDNS<maxItDNS):
             resDNS, predictions, UVW_DNS, losses = find_latent_step(latent, imgA)
 
-            # print the fields 
+            # print residuals and fields
             if (itDNS%100 == 0):
 
                 # find learning rate
@@ -258,8 +267,8 @@ for k in range(NL):
                 #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
                 W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-                filename = "Plots_DNS_fromGAN.png"
-                #filename = "Plots_DNS_fromGAN" + str(itDNS) + ".png"
+                filename = "results/plots/Plots_DNS_fromGAN.png"
+                #filename = "results/plots/Plots_DNS_fromGAN" + str(itDNS) + ".png"
 
                 #print_fields_1(W_DNS_t, filename)
                 print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, N, filename)
@@ -274,8 +283,8 @@ for k in range(NL):
         #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-        print_fields_1(W_DNS_t, "Plots_DNS_fromGAN.png", legend=False)
-        print_fields_1(W_DNS_org,   "Plots_DNS_org.png", legend=False)
+        print_fields_1(W_DNS_t, "results/plots/Plots_DNS_fromGAN.png", legend=False)
+        print_fields_1(W_DNS_org,   "results/plots_org/Plots_DNS_org.png", legend=False)
 
     else:
 
@@ -304,17 +313,17 @@ for k in range(NL):
     #W_t = UVW[0, 2, :, :].numpy()
     W_t = find_vorticity(U_t, V_t)
 
-    filename = "plots/plots_fil_lat_" + str(k) + "_res_" + str(res) + ".png"
+    filename = "results/plots/plots_fil_lat_" + str(k) + "_res_" + str(res) + ".png"
     print_fields(U_t, V_t, U_t, W_t, res, filename)
 
-    filename = "fields/fields_fil_lat_" + str(k) + "_res_" + str(res) + ".npz"
+    filename = "results/fields/fields_fil_lat_" + str(k) + "_res_" + str(res) + ".npz"
     save_fields(0, U_t, V_t, U_t, U_t, U_t, W_t, filename)
 
-    filename = "energy/energy_spectrum_fil_lat_" + str(k) + "_res_" + str(res) + ".txt"
+    filename = "results/energy/energy_spectrum_fil_lat_" + str(k) + "_res_" + str(res) + ".txt"
     closePlot=True
     plot_spectrum(U_t, V_t, L, filename, close=closePlot)
     
-    os.system("mv Energy_spectrum.png Energy_spectrum_filtered.png")
+    os.system("mv Energy_spectrum.png results/energy/Energy_spectrum_filtered.png")
 
 
 
@@ -335,18 +344,20 @@ for k in range(NL):
         #W_DNS_t = UVW_DNS[0, 2, :, :].numpy()
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-        filename = "plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
+        filename = "results/plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
         print_fields(U_DNS_t, V_DNS_t, U_DNS_t, W_DNS_t, res, filename)
 
-        filename = "fields/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
+        filename = "results/fields/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
         save_fields(0, U_DNS_t, V_DNS_t, U_DNS_t, U_DNS_t, U_DNS_t, W_DNS_t, filename)
 
-        filename = "energy/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
+        filename = "results/energy/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk== RES_LOG2-4):
             closePlot=True
         plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
 
-        print("done energy spectrum for resolution " + str(res))
+        print("From GAN spectrum at resolution " + str(res))
 
+
+    os.system("mv Energy_spectrum.png results/energy/Energy_spectrum_fromGAN.png")
 
     print ("done lantent " + str(k))
