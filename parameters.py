@@ -29,7 +29,7 @@ else:
 
 
 TRAIN             = True
-DATASET           = '../../data/N1024_single/fields_4copies/'
+DATASET           = '../../data/N1024_single/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
