@@ -27,55 +27,61 @@ from IO_functions import *
 from LES_Solvers.testcases.HIT_2D.HIT_2D import uRef
 
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
+
+
+with mirrored_strategy.scope():
+    def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_images, images):
+
+        # discriminator loss
+        loss_real_per_sample  = tf.math.softplus(-real_output_per_sample)
+
+        loss_fake_per_sample  = tf.math.softplus(fake_output_per_sample)
+        r1_penalty_per_sample = gradient_penalty(images)
+
+        # generator loss
+        loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
+
+        # filter loss
+        loss_fil_per_sample = tf.math.squared_difference(f_images, g_images[RES_LOG2-5])
+
+        loss_real   = tf.nn.compute_average_loss(loss_real_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)
+        loss_fake   = tf.nn.compute_average_loss(loss_fake_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)
+        loss_gen    = tf.nn.compute_average_loss(loss_gen_per_sample,    global_batch_size=GLOBAL_BATCH_SIZE)
+        loss_fil    = tf.nn.compute_average_loss(loss_fil_per_sample,    global_batch_size=GLOBAL_BATCH_SIZE)
+        r1_penalty  = tf.nn.compute_average_loss(r1_penalty_per_sample,  global_batch_size=GLOBAL_BATCH_SIZE)
+        real_output = tf.nn.compute_average_loss(real_output_per_sample, global_batch_size=GLOBAL_BATCH_SIZE)
+        fake_output = tf.nn.compute_average_loss(fake_output_per_sample, global_batch_size=GLOBAL_BATCH_SIZE)
+
+        return loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output
+
+ 
+
+
 #-------------------------------------define training step and loop
 @tf.function
-def train_step(input, images):
+def train_step(input, inputVariances, images):
     with tf.GradientTape() as map_tape, \
         tf.GradientTape() as syn_tape, \
         tf.GradientTape() as fil_tape, \
         tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
-        g_images = synthesis(dlatents, training = True)
+        g_images = synthesis([dlatents, inputVariances], training = True)
         f_images = filter(g_images[RES_LOG2-2], training = True)
-
-        # # find divergence loss
-        # loss_div=0.
-        # for res in range(2,RES_LOG2-1):
-        #     U  = g_images[res][:,0,:,:]*2*uRef - uRef
-        #     V  = g_images[res][:,1,:,:]*2*uRef - uRef
-        #     loss_div = loss_div + tf.math.reduce_sum(tf.abs(((tr(U, 1, 0)-tr(U, -1, 0)) + (tr(V, 0, 1)-tr(V, 0, -1)))))
-        # loss_div = loss_div*iNN
-
-        # # find vorticity loss
-        # Wt = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
-        # Wt = (Wt - tf.math.reduce_min(Wt))/(tf.math.reduce_max(Wt) - tf.math.reduce_min(Wt) + 1.e-20)
-        # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
-        # W  = (W - tf.math.reduce_min(W))/(tf.math.reduce_max(W) - tf.math.reduce_min(W) + 1.e-20)
-        loss_vor = 0.  #tf.reduce_mean(tf.math.squared_difference(W, Wt))*iNN
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
-        # find discriminator loss
-        loss_real  = tf.reduce_mean(tf.math.softplus(-real_output))
-        loss_fake  = tf.reduce_mean(tf.math.softplus(fake_output))
-        r1_penalty = gradient_penalty(images)
+        # find losses
+        loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output = compute_losses(real_output, fake_output, f_images, g_images, images)
+
+        # find loss discriminator
         loss_disc  = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5)  #10.0 is the gradient penalty weight
 
-        # find generator loss
-        loss_gen  = tf.reduce_mean(tf.math.softplus(-fake_output))
-
-        # find filter loss
-        loss_fil = tf.reduce_mean(tf.math.squared_difference(f_images, g_images[RES_LOG2-5]))
-
-        # find total loss for the generator
-        #loss_gen = loss_gen + loss_div + loss_vor
-
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
-    gradients_of_filter        = fil_tape.gradient(loss_fil,          filter.trainable_variables)
-    gradients_of_discriminator = disc_tape.gradient(loss_disc,        discriminator.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping.trainable_variables)
+    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis.trainable_variables)
+    gradients_of_filter        = fil_tape.gradient(loss_fil,   filter.trainable_variables)
+    gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
     gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis ]
@@ -87,9 +93,20 @@ def train_step(input, images):
     filter_optimizer.apply_gradients(zip(gradients_of_filter,               filter.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-    metrics = [loss_disc, loss_gen, loss_vor, loss_fil, r1_penalty, tf.reduce_mean(real_output), tf.reduce_mean(fake_output)]
+    metrics = [loss_disc, loss_gen, loss_fil, r1_penalty, real_output, fake_output]
 
     return metrics
+
+
+@tf.function
+def distributed_train_step(input, inputVariances, images):
+    losses = mirrored_strategy.run(train_step, args=(input, inputVariances, images))
+    mtr=[]
+    for i in range(len(losses)):
+        mtr.append(mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, losses[i], axis=None))
+
+    return mtr
+
 
 
 
@@ -102,13 +119,14 @@ def train(dataset, LR, train_summary_writer):
 
     # Create noise for sample images
     tf.random.set_seed(1)
-    input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
+    input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+    inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
     lr = LR
     mtr = np.zeros([5], dtype=DTYPE)
 
 
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -124,23 +142,22 @@ def train(dataset, LR, train_summary_writer):
     for it in range(TOT_ITERATIONS):
     
         # take next batch
-        input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
+        input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         image_batch = next(iter(dataset))
-        mtr = train_step(input_batch, image_batch)
+        mtr = distributed_train_step(input_batch, inputVariances, image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
             tend = time.time()
             lr = lr_schedule(it)
-            print ('Total time {0:3.1f} h, Iteration {1:8d}, Time Step {2:6.1f} s, ' \
-                'ld {3:6.1e}, ' \
-                'lg {4:6.1e}, ' \
-                'lv {5:6.1e}, ' \
-                'lf {6:6.1e}, ' \
-                'r1 {7:6.1e}, ' \
-                'sr {8:6.1e}, ' \
-                'sf {9:6.1e}, ' \
-                'lr {10:6.1e}, ' \
+            print ('Total time {0:3.2f} h, Iteration {1:8d}, Time Step {2:6.2f} s, ' \
+                'ld {3:6.2e}, ' \
+                'lg {4:6.2e}, ' \
+                'lf {5:6.2e}, ' \
+                'r1 {6:6.2e}, ' \
+                'sr {7:6.2e}, ' \
+                'sf {8:6.2e}, ' \
+                'lr {9:6.2e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
@@ -148,7 +165,6 @@ def train(dataset, LR, train_summary_writer):
                 mtr[3], \
                 mtr[4], \
                 mtr[5], \
-                mtr[6], \
                 lr))
             tint = tend
 
@@ -156,17 +172,16 @@ def train(dataset, LR, train_summary_writer):
             with train_summary_writer.as_default():
                 tf.summary.scalar('a/loss_disc',   mtr[0], step=it)
                 tf.summary.scalar('a/loss_gen',    mtr[1], step=it)
-                tf.summary.scalar('a/loss_vor',    mtr[2], step=it)
-                tf.summary.scalar('a/loss_filter', mtr[3], step=it)
-                tf.summary.scalar('a/r1_penalty',  mtr[4], step=it)
-                tf.summary.scalar('a/score_real',  mtr[5], step=it)
-                tf.summary.scalar('a/score_fake',  mtr[6], step=it)                                
+                tf.summary.scalar('a/loss_filter', mtr[2], step=it)
+                tf.summary.scalar('a/r1_penalty',  mtr[3], step=it)
+                tf.summary.scalar('a/score_real',  mtr[4], step=it)
+                tf.summary.scalar('a/score_fake',  mtr[5], step=it)                                
                 tf.summary.scalar('a/lr',              lr, step=it)
 
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, it+1)
 
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
@@ -222,3 +237,23 @@ def train(dataset, LR, train_summary_writer):
         #                 new_weights.append(old_weights[j] * Gs_beta + (1-Gs_beta) * up_weights[j])
         #             if (len(new_weights)>0):
         #                 synthesis_ave.layers[i].set_weights(new_weights)
+
+
+                # # find divergence loss
+        # loss_div_per_sample=0.
+        # for res in range(2,RES_LOG2-1):
+        #     U  = g_images[res][:,0,:,:]*2*uRef - uRef
+        #     V  = g_images[res][:,1,:,:]*2*uRef - uRef
+        #     loss_div_per_sample = loss_div_per_sample + tf.math.reduce_sum(tf.abs(((tr(U, 1, 0)-tr(U, -1, 0)) + (tr(V, 0, 1)-tr(V, 0, -1)))))
+        # loss_div_per_sample = loss_div_per_sample*iNN
+
+        # # find vorticity loss
+        # Wt = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
+        # Wt = (Wt - tf.math.reduce_min(Wt))/(tf.math.reduce_max(Wt) - tf.math.reduce_min(Wt) + 1.e-20)
+        # W  = g_images[RES_LOG2-2][:,2,:,:]  # we want the difference between W inferred and W calculated
+        # W  = (W - tf.math.reduce_min(W))/(tf.math.reduce_max(W) - tf.math.reduce_min(W) + 1.e-20)
+        # loss_vor_per_sample = tf.reduce_mean(tf.math.squared_difference(W, Wt))*iNN
+
+        # total loss for the generator
+        #loss_gen_per_sample = loss_gen_per_sample + loss_div_per_sample + loss_vor_per_sample
+

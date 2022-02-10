@@ -17,8 +17,19 @@ import os
 DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     tf.keras.backend.set_floatx('float64')
+
+DEBUG = False
+if (DEBUG):
+    tf.random.set_seed(seed=0)
+    MINVALRAN = 0.5
+    MAXVALRAN = 0.5
+else:
+    MINVALRAN = 0.0
+    MAXVALRAN = None
+
+
 TRAIN             = True
-DATASET           = '../../data/N1024_single/fields/'
+DATASET           = '../../data/N1024_single/fields_4copies/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -29,7 +40,7 @@ READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
+OUTPUT_DIM        = 128
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -45,13 +56,13 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
-NEXAMPLES         = 1
+NEXAMPLES         = 1 
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
-PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
+TOT_ITERATIONS = 50000
+PRINT_EVERY    = 100
+IMAGES_EVERY   = 1000
 SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False

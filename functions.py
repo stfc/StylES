@@ -187,10 +187,10 @@ class layer_bias(layers.Layer):
             trainable=TRAIN,
         )
 
-    def call(self, x):
+    def call(self, x, varNoise=1):
         if len(x.shape) == 2:
-            return x + self.b*self.lrmul
-        return x + tf.reshape(self.b*self.lrmul, [1, -1, 1, 1])
+            return x + self.b*self.lrmul * varNoise
+        return x + tf.reshape(self.b*self.lrmul, [1, -1, 1, 1]) * varNoise
 
 
 
@@ -221,8 +221,8 @@ class apply_noise(layers.Layer):
             name="Noise_weight"
         )
 
-    def call(self, x, noise):
-        return x + noise * tf.reshape(tf.cast(self.w, DTYPE), [1, -1, 1, 1])
+    def call(self, x, noise, varNoise=1):
+        return x + noise * tf.reshape(tf.cast(self.w, DTYPE), [1, -1, 1, 1]) * varNoise
 
 
 

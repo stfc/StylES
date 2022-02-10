@@ -61,8 +61,9 @@ if (not USE_GPU):
 #------------------------------------- main: train the model
 def main():
 
-    train_images = prepare_for_training(labeled_ds, batch_size=BATCH_SIZE)
-    train(train_images, LR, train_summary_writer)
+    train_images = prepare_for_training(labeled_ds)
+    dist_dataset = mirrored_strategy.experimental_distribute_dataset(train_images)
+    train(dist_dataset, LR, train_summary_writer)
 
 if __name__ == "__main__":
     main()
