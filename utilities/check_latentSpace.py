@@ -22,31 +22,30 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-CHECK       = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthetis
+CHECK       = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL          = 1         # number of different latent vectors randomly selected
 LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL   = "../../../data/N1024_single2/fields/fields_run0_9te.npz"
+FILE_REAL   = "../../../data/N1024_1DNS_seed10/fields/fields_run0_134te.npz"
 #FILE_REAL   = "../LES_Solvers/fields/fields_run0_9te.npz"
 WL_IRESTART = False
 WL_CHKP_DIR = './wl_checkpoints/'
 
 
 # clean up and prepare folders
-if LOAD_FIELD:
-    if TRAIN:
-        print("Set TRAIN flag to False in parameters!")
-        exit()    
+if TRAIN:
+    print("Set TRAIN flag to False in parameters!")
+    exit()    
 
+
+os.system("rm -rf results/plots")
+os.system("rm -rf results/fields")
+os.system("rm -rf results/uvw")
+os.system("rm -rf results/energy")
 if (LOAD_FIELD):
     os.system("rm -rf results/plots_org")
     os.system("rm -rf results/fields_org")
     os.system("rm -rf results/uvw_org")
     os.system("rm -rf results/energy_org")
-else:
-    os.system("rm -rf results/plots")
-    os.system("rm -rf results/fields")
-    os.system("rm -rf results/uvw")
-    os.system("rm -rf results/energy")
 os.system("rm -rf logs")
 
 os.system("mkdir -p results/plots")
@@ -63,55 +62,60 @@ train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(2)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
-
-# Download VGG16 model
-VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
-VGG_features_list = [layer.output for layer in VGG_model.layers]
-VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
-
-
-# loading StyleGAN checkpoint and filter
-checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+with mirrored_strategy.scope():
+        
+    # define noise variances
+    inputVariances = tf.constant(1.0, shape=[BATCH_SIZE, G_LAYERS], dtype=DTYPE)
 
 
-# create variable synthesis model
-if (CHECK=="DLATENTS"):
-    dlatents     = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
-    wlatents     = layer_wlatent(dlatents)
-    ndlatents    = wlatents(dlatents)
-    outputs      = synthesis(ndlatents, training=False)
-    wl_synthesis = tf.keras.Model(dlatents, outputs)
-else:
-    latents      = tf.keras.Input(shape=[LATENT_SIZE])
-    wlatents     = layer_wlatent(latents)
-    nlatents     = wlatents(latents)
-    dlatents     = mapping(nlatents)
-    outputs      = synthesis(dlatents, training=False)
-    wl_synthesis = tf.keras.Model(latents, outputs)
+    # Download VGG16 model
+    VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
+    VGG_features_list = [layer.output for layer in VGG_model.layers]
+    VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
 
 
-# define learnin rate schedule and optimizer
-if (lrDNS_POLICY=="EXPONENTIAL"):
-    lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate=lrDNS,
-        decay_steps=lrDNS_STEP,
-        decay_rate=lrDNS_RATE,
-        staircase=lrDNS_EXP_ST)
-elif (lrDNS_POLICY=="PIECEWISE"):
-    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lrDNS_BOUNDS, lrDNS_VALUES)
-opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
+    # loading StyleGAN checkpoint and filter
+    checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+
+
+    # create variable synthesis model
+    if (CHECK=="DLATENTS"):
+        dlatents       = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+        wlatents       = layer_wlatent(dlatents)
+        ndlatents      = wlatents(dlatents)
+        outputs        = synthesis([ndlatents, inputVariances], training=False)
+        wl_synthesis   = tf.keras.Model(dlatents, outputs)
+    else:
+        latents        = tf.keras.Input(shape=[LATENT_SIZE])
+        wlatents       = layer_wlatent(latents)
+        nlatents       = wlatents(latents)
+        dlatents       = mapping(nlatents)
+        outputs        = synthesis([dlatents, inputVariances], training=False)
+        wl_synthesis   = tf.keras.Model(latents, outputs)
+
+
+    # define learnin rate schedule and optimizer
+    if (lrDNS_POLICY=="EXPONENTIAL"):
+        lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=lrDNS,
+            decay_steps=lrDNS_STEP,
+            decay_rate=lrDNS_RATE,
+            staircase=lrDNS_EXP_ST)
+    elif (lrDNS_POLICY=="PIECEWISE"):
+        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lrDNS_BOUNDS, lrDNS_VALUES)
+    opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 
 
 
-# define checkpoint
-checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis,
-                                 opt=opt)
+    # define checkpoint
+    checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis,
+                                    opt=opt)
 
 
 
 # define step for finding latent space
 @tf.function
-def find_latent_step(latent, imgA):
+def find_latent(latent, imgA):
     with tf.GradientTape() as tape_DNS:
         predictions = wl_synthesis(latent, training=False)
         UVW_DNS     = predictions[RES_LOG2-2]
@@ -128,13 +132,22 @@ def find_latent_step(latent, imgA):
         imgB = tf.concat([U,V,W], 1)
 
         # normalize values
-        loss_fea    = VGG_loss(imgA, imgB, VGG_extractor) 
-        resDNS      =  tf.math.reduce_sum(loss_fea[2:])    # loss pixel (UV) + sum loss features
+        # loss_UV = VGG_loss(imgA, imgB, VGG_extractor) 
+        # resDNS  =  tf.math.reduce_sum(loss_fea[2:])    # loss pixel (UV) + sum loss features
+        loss_UV = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], imgB[0,0:2,:,:]))
+        resDNS  =  tf.math.reduce_sum(loss_UV)
 
         gradients_DNS  = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
         opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
 
+    return resDNS, predictions, UVW_DNS, loss_UV
+
+
+@tf.function
+def find_latent_step(input, images):
+    resDNS, predictions, UVW_DNS, loss_fea = mirrored_strategy.run(find_latent, args=(input, images))
     return resDNS, predictions, UVW_DNS, loss_fea
+
 
 
 # Load latest checkpoint, if restarting
@@ -245,7 +258,7 @@ for k in range(NL):
         resDNS = large
         tstart = time.time()
         while (resDNS>tollDNS and itDNS<maxItDNS):
-            resDNS, predictions, UVW_DNS, losses = find_latent_step(latent, imgA)
+            resDNS, predictions, UVW_DNS, loss_UV = find_latent_step(latent, imgA)
 
             # print residuals and fields
             if (itDNS%100 == 0):
@@ -254,12 +267,12 @@ for k in range(NL):
                 lr = lr_schedule(itDNS)
                 with train_summary_writer.as_default():
                     tf.summary.scalar("residuals/loss", resDNS, step=itDNS)
-                    tf.summary.scalar("residuals/pixel_loss_UV", losses[0], step=itDNS)
+                    tf.summary.scalar("residuals/pixel_loss_UV", loss_UV, step=itDNS)
                     tf.summary.scalar("lr", lr, step=itDNS)
 
                 # print residuals
                 tend = time.time()
-                print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pixel loss UV {3:3e}  lr {4:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), losses[1], lr))
+                print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pixel loss UV {3:3e}  lr {4:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), loss_UV, lr))
 
                 # print fields
                 U_DNS_t = UVW_DNS[0, 0, :, :].numpy()
@@ -292,10 +305,10 @@ for k in range(NL):
         if (CHECK=="DLATENTS"):
             zlatent     = tf.random.uniform([1, LATENT_SIZE])
             dlatents    = mapping(zlatent, training=False)
-            predictions = wl_synthesis(dlatents, training=False)
+            predictions = wl_synthesis([dlatents, inputVariances], training=False)
         else:
             latents      = tf.random.uniform([1, LATENT_SIZE])
-            predictions  = wl_synthesis(latents, training=False)
+            predictions  = wl_synthesis([latents, inputVariances], training=False)
 
 
 

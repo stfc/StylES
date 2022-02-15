@@ -5,7 +5,6 @@ import scipy as sc
 from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
-from train import *
 
 sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
 from HIT_2D import delt
@@ -119,7 +118,7 @@ else:
 
 
 # prepare training dataset
-def prepare_for_training(ds, cache=True, batch_size=GLOBAL_BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
+def prepare_for_training(ds, cache=True, batch_size=0, shuffle_buffer_size=BUFFER_SIZE, augment=False):
 
     # take batch size
     ds = ds.batch(batch_size)
@@ -290,9 +289,9 @@ def check_divergence_staggered(img, res):
     return div, dUdt, dVdt
 
 
-def generate_and_save_images(mapping, synthesis, input, inputVariances, iteration):
+def generate_and_save_images(mapping, synthesis, input, iteration):
     dlatents    = mapping(input, training=False)
-    predictions = synthesis([dlatents, inputVariances], training=False)
+    predictions = synthesis(dlatents, training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
@@ -307,8 +306,8 @@ def generate_and_save_images(mapping, synthesis, input, inputVariances, iteratio
         # setup figure size
         nr = NEXAMPLES
         nc = 4
-        dpi = 11.5*res  # scale to a 512 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(1, 1), dpi=dpi)
+        dpi = 100  # scale to a 512 pixel on a 1024x1024 image
+        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 10*nr), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]
