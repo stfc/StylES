@@ -54,19 +54,21 @@ def save_fields(totTime, U, V, P, C, B, W, filename):
 
     # save field for StyleGAN training
     maxU = np.max(U)
-    maxV = np.max(V)
     minU = np.min(U)
+    U_ = two*(U - minU)/(maxU- minU) - one
+
+    maxV = np.max(V)
     minV = np.min(V)
-    maxVel = max(maxU, maxV)
-    minVel = min(minU, minV)
-    U_ = (U - minVel)/(maxVel - minVel)
-    V_ = (V - minVel)/(maxVel - minVel)
+    V_ = two*(V - minV)/(maxV - minV) - one
 
-    maxW = np.max(W)
-    minW = np.min(W)
-    W_ = (W - minW)/(maxW - minW + small)
+    maxP = np.max(P)
+    minP = np.min(P)
+    if (maxP!=minP):
+        P_ = two*(P - minP)/(maxP - minP) - one
+    else:
+        P_ = P
 
-    nc.savez(filename, U=U_, V=V_, W=W_)
+    nc.savez(filename, U=U_, V=V_, P=P_)
 
 
 

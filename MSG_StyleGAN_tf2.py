@@ -120,7 +120,11 @@ with mirrored_strategy.scope():
         for ldx in range(G_LAYERS):
             reslog = ldx // 2 + 2
             shape = [1, 2**reslog, 2**reslog]
-            lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
+            if (reslog<RES_TARGET+1):
+                lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
+            else:
+                lnoise = layer_noise_notTrainable(dlatents, shape, name="input_noise%d" % ldx)
+
             noise = lnoise(dlatents)
             noise_inputs.append(noise)
 

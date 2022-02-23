@@ -42,7 +42,7 @@ with mirrored_strategy.scope():
         loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
 
         # filter loss
-        loss_fil_per_sample = tf.math.squared_difference(f_images, g_images[RES_LOG2-5])
+        loss_fil_per_sample = tf.math.squared_difference(f_images, g_images[RES_LOG2_FIL-2])
 
         loss_real   = tf.nn.compute_average_loss(loss_real_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)
         loss_fake   = tf.nn.compute_average_loss(loss_fake_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)

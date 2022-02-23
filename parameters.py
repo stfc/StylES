@@ -29,7 +29,7 @@ else:
 
 
 TRAIN             = False
-DATASET           = '../../data/N1024_1DNS/fields/'
+DATASET           = './LES_Solvers/temp/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -50,8 +50,10 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 RES_LOG2_FIL      = RES_LOG2-3    # fix filter layer
+RES_TARGET        = 4   # 4=16x16
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
+G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient

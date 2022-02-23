@@ -209,6 +209,20 @@ class layer_noise(layers.Layer):
     def call(self, x):
         return tf.cast(self.w, DTYPE)
 
+class layer_noise_notTrainable(layers.Layer):
+    def __init__(self, x, shape, **kwargs):
+        super(layer_noise_notTrainable, self).__init__()
+
+        w_init = tf.random_normal_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=shape, dtype=DTYPE),
+            trainable=TRAIN,
+            name="Noise_init"
+        )
+
+    def call(self, x):
+        return tf.cast(self.w, DTYPE)
+
 
 class apply_noise(layers.Layer):
     def __init__(self, x, noise_var=None, randomize_noise=True, **kwargs):

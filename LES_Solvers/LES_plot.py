@@ -22,7 +22,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
     if (PASSIVE):
         C = convert(C_)
 
-
+    N = len(U[0,:])
 
     #---------------------------------- plot surfaces
     if (PASSIVE):
