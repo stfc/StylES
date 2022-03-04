@@ -49,7 +49,6 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 RES_LOG2_FIL      = RES_LOG2-3    # fix filter layer
-RES_TARGET        = RES_LOG2_FIL   # 4=16x16
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter

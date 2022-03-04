@@ -25,6 +25,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
+RES_TARGET     = RES_LOG2_FIL   # target for the matching fields. Usually equal to the filter style
 FILE_REAL      = "../LES_Solvers/temp/fields_run0_9te.npz"
 WL_IRESTART    = True
 WL_CHKP_DIR    = "./wl_checkpoints"
