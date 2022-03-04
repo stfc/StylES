@@ -82,12 +82,12 @@ with mirrored_strategy.scope():
             with tf.control_dependencies([update_op]):
                 dlatents = tf.identity(dlatents)
 
-        if (not TRAIN):
-            if truncation_psi is not None and truncation_cutoff is not None:
-                layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
-                ones = np.ones(layer_idx.shape, dtype=DTYPE)
-                coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
-                dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
+        # if (not TRAIN):
+        #     if truncation_psi is not None and truncation_cutoff is not None:
+        #         layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
+        #         ones = np.ones(layer_idx.shape, dtype=DTYPE)
+        #         coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
+        #         dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
 
 
         mapping_model = Model(inputs=latents_in, outputs=dlatents)
@@ -120,11 +120,7 @@ with mirrored_strategy.scope():
         for ldx in range(G_LAYERS):
             reslog = ldx // 2 + 2
             shape = [1, 2**reslog, 2**reslog]
-            if (reslog<RES_TARGET+1):
-                lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
-            else:
-                lnoise = layer_noise_notTrainable(dlatents, shape, name="input_noise%d" % ldx)
-
+            lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
             noise = lnoise(dlatents)
             noise_inputs.append(noise)
 
@@ -424,6 +420,21 @@ with mirrored_strategy.scope():
             r1_penalty = r1_penalty + tf.reduce_sum(tf.square(tf.cast(grad, DTYPE)*SCALING_DOWN), axis=[1, 2, 3])
         return r1_penalty
 
+
+list_DNS_trainable_variables = []
+list_LES_trainable_variables = []
+for layer in synthesis.layers:
+    if "input_noise" in layer.name:
+        lname = layer.name
+        ldx = int(lname.replace("input_noise",""))
+        reslog = ldx // 2 + 2
+
+        for variable in layer.trainable_variables:
+            list_DNS_trainable_variables.append(variable)
+
+        if (reslog<RES_LOG2_FIL+1):
+            for variable in layer.trainable_variables:
+                list_LES_trainable_variables.append(variable)
 
 
 #----------------------------------------------extra pieces----------------------------------------------

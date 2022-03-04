@@ -22,20 +22,15 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-CHECK          = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
+USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL      = "../LES_Solvers/fields/fields_run0_it436.npz"
+FILE_REAL      = "../LES_Solvers/temp/fields_run0_9te.npz"
 WL_IRESTART    = True
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 
 # clean up and prepare folders
-if TRAIN:
-    print("Set TRAIN flag to False in parameters!")
-    exit()    
-
-
 os.system("rm -rf results/plots")
 os.system("rm -rf results/fields")
 os.system("rm -rf results/uvw")
@@ -88,7 +83,7 @@ with mirrored_strategy.scope():
 
 
     # create variable synthesis model
-    if (CHECK=="DLATENTS"):
+    if (USE_DLATENTS=="DLATENTS"):
         dlatents       = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
         wlatents       = layer_wlatent(dlatents)
         ndlatents      = wlatents(dlatents)
@@ -122,7 +117,7 @@ with mirrored_strategy.scope():
 
     # Load latest checkpoint, if restarting
     if (WL_IRESTART):
-        wl_checkpoint.restore(tf.train.latest_checkpoint(WL_CHKP_DIR))
+        status = wl_checkpoint.restore(tf.train.latest_checkpoint(WL_CHKP_DIR))
 
 
 # define step for finding latent space
@@ -226,9 +221,9 @@ for k in range(NL):
                 V_DNS_t = V_DNS[:,:]
                 P_DNS_t = P_DNS[:,:]
             else:
-                U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
-                V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
-                P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
+                U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
+                V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
+                P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
 
                 U_DNS_t = U_DNS_t[::rs, ::rs]
                 V_DNS_t = V_DNS_t[::rs, ::rs]
@@ -253,7 +248,7 @@ for k in range(NL):
 
 
         # prepare latent space
-        if (CHECK=="DLATENTS"):
+        if (USE_DLATENTS=="DLATENTS"):
             zlatent = tf.random.uniform([1, LATENT_SIZE])
             latent  = mapping(zlatent, training=False)
         else:
@@ -270,9 +265,9 @@ for k in range(NL):
             V_DNS_t = V_DNS[:,:]
             P_DNS_t = P_DNS[:,:]
         else:            
-            U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
-            V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
-            P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs*np.sqrt(1.0/12.0), mode='grid-wrap')
+            U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
+            V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
+            P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
 
             U_DNS_t = U_DNS_t[::rs, ::rs]
             V_DNS_t = V_DNS_t[::rs, ::rs]
@@ -329,6 +324,17 @@ for k in range(NL):
                
             itDNS = itDNS+1
 
+        # print final values
+        lr = lr_schedule(itDNS)
+        with train_summary_writer.as_default():
+            tf.summary.scalar("residuals/loss", resDNS, step=itDNS)
+            tf.summary.scalar("residuals/pixel_loss_UV", loss_UV, step=itDNS)
+            tf.summary.scalar("lr", lr, step=itDNS)
+
+        # print residuals
+        tend = time.time()
+        print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pixel loss UV {3:3e}  lr {4:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), loss_UV, lr))
+
         # reprint but only vorticity
         resDNS, predictions, UVP_DNS, _ = find_latent_step(latent, imgA)
 
@@ -346,7 +352,7 @@ for k in range(NL):
     else:
 
         # find DNS and LES fields from random input 
-        if (CHECK=="DLATENTS"):
+        if (USE_DLATENTS=="DLATENTS"):
             zlatent     = tf.random.uniform([1, LATENT_SIZE])
             dlatents    = mapping(zlatent, training=False)
             predictions = wl_synthesis([dlatents, inputVariances], training=False)

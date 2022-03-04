@@ -18,22 +18,26 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = False
-SAVE_UVW  = True
-N         = 1024      # number of points   [-]
+RESTART   = True
+SAVE_UVW  = False
+N         = 256      # number of points   [-]
 finalTime = 0.152751599
-totSteps  = 1000000
-print_res = 100
-print_img = 1000
-print_ckp = 1000
+totSteps  = 1000
+print_res = 10
+print_img = 100
+print_ckp = totSteps+1
 print_spe = totSteps+1
+NRUNS     = 1   # number of total runs to execute
 
-te_s      = [0.010259436, 0.027358495, 0.110573918, 0.152751599] # specific turnover times for Lowe and Davidson in secs  
-te        = [9, 24, 97, 134]                                     #corresponding eddy turnover time
+te_s = []
+te   = []
+# te_s = [0.152751599]
+# te = [134]
+# te_s      = [0.010259436, 0.027358495, 0.110573918, 0.152751599] # specific turnover times for Lowe and Davidson in secs  
+# te        = [9, 24, 97, 134]                                     #corresponding eddy turnover time
 # te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 # te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
 
-NRUNS     = 1   # number of total runs to execute
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
 rho       = 1.0e0     # density                    [kg/m3]
@@ -41,7 +45,7 @@ nu        = 1.87e-4   # dynamic viscosity          [Pa*s]  This should be found 
 Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 1000      # number of modes
 METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
-L         = 0.95      # system dimension   [m]
+L         = 0.35760      # system dimension   [m]
 CNum      = 0.5       # Courant number 
 delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
 maxDelt   = 1.0e-4

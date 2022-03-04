@@ -88,9 +88,9 @@ def StyleGAN_load_fields(file_path):
             data[1,:,:] = V
             data[2,:,:] = W
         else:
-            U_DNS_g = sc.ndimage.gaussian_filter(U, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
-            V_DNS_g = sc.ndimage.gaussian_filter(V, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
-            W_DNS_g = sc.ndimage.gaussian_filter(W, 1.0/s*np.sqrt(1.0/12.0), mode='grid-wrap')
+            U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
+            V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
+            W_DNS_g = sc.ndimage.gaussian_filter(W, rs, mode='grid-wrap')
             
             data[0,:,:] = U_DNS_g[::rs,::rs]
             data[1,:,:] = V_DNS_g[::rs,::rs]  
@@ -359,7 +359,7 @@ def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteratio
 
                 axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
                 axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='gray')
+                axs[i*4+2].imshow(nimg[:,:,2],cmap='RdPu')
                 axs[i*4+3].imshow(nimg,cmap='jet')
 
             else:

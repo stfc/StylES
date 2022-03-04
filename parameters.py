@@ -28,7 +28,6 @@ else:
     MAXVALRAN = None
 
 
-TRAIN             = False
 DATASET           = './LES_Solvers/temp/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
@@ -40,7 +39,7 @@ READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
+OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -50,7 +49,7 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 RES_LOG2_FIL      = RES_LOG2-3    # fix filter layer
-RES_TARGET        = 4   # 4=16x16
+RES_TARGET        = RES_LOG2_FIL   # 4=16x16
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
@@ -62,10 +61,10 @@ NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 50000
+TOT_ITERATIONS = 20000
 PRINT_EVERY    = 100
 IMAGES_EVERY   = 1000
-SAVE_EVERY     = 50000 
+SAVE_EVERY     = 20000 
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 LR             = 3.0e-3

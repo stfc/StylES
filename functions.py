@@ -120,7 +120,7 @@ class layer_get_Weight(layers.Layer):
         w_init = tf.random_normal_initializer(mean=0.0, stddev=init_std)
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=TRAIN,
+            trainable=True,
             name="weights"
         )
 
@@ -136,7 +136,7 @@ class layer_const(layers.Layer):
         w_init = tf.ones_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=[fmaps, 4*4], dtype=DTYPE),
-            trainable=TRAIN,
+            trainable=True,
             name="const_weight"
         )
 
@@ -166,7 +166,7 @@ class layer_dense(layers.Layer):
         w_init = tf.random_normal_initializer(mean=0.0, stddev=init_std)
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=TRAIN,
+            trainable=True,
         )
 
     def call(self, x):
@@ -184,7 +184,7 @@ class layer_bias(layers.Layer):
         self.lrmul = lrmul
         self.b = tf.Variable(
             initial_value=b_init(shape=x.shape[1], dtype=DTYPE),
-            trainable=TRAIN,
+            trainable=True,
         )
 
     def call(self, x, varNoise=1):
@@ -197,27 +197,13 @@ class layer_bias(layers.Layer):
 #-------------Layer Noise
 class layer_noise(layers.Layer):
     def __init__(self, x, shape, **kwargs):
-        super(layer_noise, self).__init__()
+        super(layer_noise, self).__init__(**kwargs)
 
         w_init = tf.random_normal_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=not TRAIN,
-            name="Noise_init"
-        )
-
-    def call(self, x):
-        return tf.cast(self.w, DTYPE)
-
-class layer_noise_notTrainable(layers.Layer):
-    def __init__(self, x, shape, **kwargs):
-        super(layer_noise_notTrainable, self).__init__()
-
-        w_init = tf.random_normal_initializer()
-        self.w = tf.Variable(
-            initial_value=w_init(shape=shape, dtype=DTYPE),
-            trainable=TRAIN,
-            name="Noise_init"
+            trainable=True,
+            **kwargs
         )
 
     def call(self, x):
@@ -231,7 +217,7 @@ class apply_noise(layers.Layer):
         w_init = tf.zeros_initializer()
         self.w = tf.Variable(
             initial_value=w_init(shape=x.shape[1], dtype=DTYPE),
-            trainable=TRAIN,
+            trainable=True,
             name="Noise_weight"
         )
 
@@ -248,7 +234,7 @@ class layer_wlatent(layers.Layer):
         wl_init = tf.ones_initializer()
         self.wl = tf.Variable(
             initial_value=wl_init(shape=x.shape[1:], dtype=DTYPE),
-            trainable=not TRAIN,
+            trainable=True,
             name="wlatent"
         )
 

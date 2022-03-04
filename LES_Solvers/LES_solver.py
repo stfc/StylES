@@ -64,13 +64,13 @@ os.system("rm Energy_spectrum.png")
 
 os.system("rm -rf plots")
 os.system("rm -rf fields")
-os.system("rm -rf uvw")
+os.system("rm -rf uvp")
 os.system("rm -rf energy")
 os.system("rm -rf v_viol")
 
 os.system("mkdir plots")
 os.system("mkdir fields")
-os.system("mkdir uvw")
+os.system("mkdir uvp")
 os.system("mkdir energy")
 os.system("mkdir v_viol")
 
@@ -85,10 +85,9 @@ for run in range(NRUNS):
     # print fields
     if (run==0):
         W = find_vorticity(U, V)
-        if (TEST_CASE=="HIT_2D_L&D"):
-            print_fields(U, V, P, W, N, "plots_0te.png")
-        else:
-            print_fields(U, V, P, W, N, "plots_it0.png")
+        print_fields(U, V, P, W, N, "Plots.png")
+        save_fields(totTime, U, V, P, C, B, W, "Fields.npz")
+        plot_spectrum(U, V, L, "Energy_spectrum.txt")
 
 
     # find face velocities first guess as forward difference (i.e. on side east and north)
@@ -122,13 +121,6 @@ for run in range(NRUNS):
             "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
         .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
         resC_cpu, res_cpu, its, div_cpu))
-
-    # plot spectrum
-    if (run==0):
-        if (TEST_CASE == "HIT_2D_L&D"):
-            plot_spectrum(U, V, L, "energy/energy_spectrum_0te.txt")
-        else:
-            plot_spectrum(U, V, L, "energy/energy_spectrum_it0.txt")
 
 
     # track center point velocities and pressure
@@ -389,17 +381,18 @@ for run in range(NRUNS):
 
 
 # plot, save, find spectrum fields
-tail = "run{0:d}_it{1:d}".format(run,tstep)
+if (len(te)==0):
+    tail = "run{0:d}_it{1:d}".format(run,tstep)
 
-# save images
-W = find_vorticity(U, V)
-print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
+    # save images
+    W = find_vorticity(U, V)
+    print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
 
-# write checkpoint
-save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
+    # write checkpoint
+    save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
-# print spectrum
-plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
+    # print spectrum
+    plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
 
 # save center values
 filename = "DNS_center_values" + ".txt"

@@ -1,5 +1,5 @@
 set terminal png
-set output "energy_zoom.png"
+set output "energy.png"
 
 set logscale x
 set logscale y
@@ -8,15 +8,20 @@ set logscale y
 
 #set yrange [1e-8:0.2]
 #set xrange [10:3000]
-set yrange [1e-9:0.05]
-#set xrange [10:700]
+set yrange [1e-4:0.1]
+set xrange [10:10000]
 
 set grid
 
 set style circle radius screen 0.003
 
-plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
-     'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with circles title 'StyleGAN 256'
+plot '../LES_Solvers/energy/energy_run0_24te.txt'                 using 1:2 with lines title '24te',  \
+     '../../../data/N1024_UVP_1DNS/energy/energy_run0_24te.txt'  using 1:2 with lines title '24te 1024',  \
+     '../LES_Solvers/testcases/HIT_2D/ld_spectrum_24te.txt'      using 1:2 with circles title '24\t_e (L\&D)'
+
+
+# plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
+#      'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with circles title 'StyleGAN 256'
 
 
 # plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
@@ -37,19 +42,6 @@ plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lin
 #      'utilities/energy/energy_spectrum_lat_0_res_32.txt'      using 1:2 with lines title 'StyleGAN 32', \
 #      'utilities/energy/energy_spectrum_lat_0_res_16.txt'      using 1:2 with lines title 'StyleGAN 16'
 
-
-# plot 'LES_Solvers/energy_spectrum_0te.txt'                using 1:2 with lines title '0te',  \
-#      'LES_Solvers/energy_spectrum_9te.txt'                using 1:2 with lines title '9te',  \
-#      'LES_Solvers/energy_spectrum_24te.txt'               using 1:2 with lines title '24te', \
-#      'LES_Solvers/energy_spectrum_97te.txt'               using 1:2 with lines title '97te',  \
-#      'LES_Solvers/energy_spectrum_134te.txt'              using 1:2 with lines title '134te', \
-#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_0te.txt'   using 1:2 with circles title '0te (L\&D)', \
-#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'   using 1:2 with circles title '9te (L\&D)', \
-#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_24te.txt'  using 1:2 with circles title '24te (L\&D)', \
-#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_97te.txt'  using 1:2 with circles title '97te (L\&D)', \
-#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt' using 1:2 with circles title '134te (L\&D)'
-# #      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'    using 1:(1e5*$1**(-3)) with lines lc 'red' title 'k^-3', \
-# #      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'    using 1:(1e5*$1**(-4)) with lines lc 'black' title 'k^-4'
 
 # filename = 'spectrum_134te.png'
 # set output filename
