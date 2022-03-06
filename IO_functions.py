@@ -307,7 +307,7 @@ def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteratio
         nr = NEXAMPLES
         nc = 4
         dpi = 100  # scale to a 512 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 10*nr), dpi=dpi)
+        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 10), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]
@@ -359,7 +359,7 @@ def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteratio
 
                 axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
                 axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='RdPu')
+                axs[i*4+2].imshow(nimg[:,:,2],cmap='YlGn')
                 axs[i*4+3].imshow(nimg,cmap='jet')
 
             else:
