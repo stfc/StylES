@@ -114,7 +114,8 @@ def train(dataset, LR, train_summary_writer):
 
     # Load latest checkpoint, if restarting
     if (IRESTART):
-        checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
+        with mirrored_strategy.scope():
+            checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
 
 
     # Create noise for sample images

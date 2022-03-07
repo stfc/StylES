@@ -401,12 +401,12 @@ with mirrored_strategy.scope():
 
     #-------------------------------------define checkpoint
     checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                    filter_optimizer=filter_optimizer,
-                                    discriminator_optimizer=discriminator_optimizer,
-                                    mapping=mapping,
-                                    synthesis=synthesis,
-                                    filter=filter,
-                                    discriminator=discriminator)
+                                     filter_optimizer=filter_optimizer,
+                                     discriminator_optimizer=discriminator_optimizer,
+                                     mapping=mapping,
+                                     synthesis=synthesis,
+                                     filter=filter,
+                                     discriminator=discriminator)
 
 
     def gradient_penalty(x):
