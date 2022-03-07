@@ -354,12 +354,12 @@ def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteratio
 
                 # axs[i*4+0].imshow(nimg[res/2,:,0],cmap='Blues')
                 # axs[i*4+1].imshow(nimg[res/2,:,1],cmap='Reds_r')
-                # axs[i*4+2].imshow(nimg[res/2,:,2],cmap='gray')
+                # axs[i*4+2].imshow(nimg[res/2,:,2],cmap='RdBu')
                 # axs[i*4+3].imshow(nimg,cmap='jet')
 
                 axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
                 axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='YlGn')
+                axs[i*4+2].imshow(nimg[:,:,2],cmap='RdBu')
                 axs[i*4+3].imshow(nimg,cmap='jet')
 
             else:
