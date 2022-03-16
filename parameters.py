@@ -31,7 +31,7 @@ else:
 DATASET           = '../../data/N256_test_procedureA1/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
-PROFILE           = True
+PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
