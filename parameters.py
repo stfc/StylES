@@ -28,10 +28,10 @@ else:
     MAXVALRAN = None
 
 
-DATASET           = './LES_Solvers/temp/'
+DATASET           = '../../data/N256_test_procedureA1/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
-PROFILE           = False
+PROFILE           = True
 CONVERTTOTFRECORD = False
 USE_GPU           = True
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
@@ -60,7 +60,7 @@ NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 20000
+TOT_ITERATIONS = 1
 PRINT_EVERY    = 100
 IMAGES_EVERY   = 1000
 SAVE_EVERY     = 20000 

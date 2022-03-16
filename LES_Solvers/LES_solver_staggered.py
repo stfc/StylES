@@ -163,7 +163,7 @@ for run in range(NRUNS):
 
             Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
             iApU = one/Ap
-            sU   = Ao*Uo -(P - cr(P, -1, 0))*A + hf*(B + cr(B, -1, 0))
+            sU = Ao*Uo -(P - cr(P, -1, 0))*A + hf*(B + cr(B, -1, 0))
 
             itM  = 0
             resM = large
@@ -175,7 +175,8 @@ for run in range(NRUNS):
                 resM = nc.sum(nc.abs(Ap*U - sU - Aw*cr(U, -1, 0) - Ae*cr(U, 1, 0) - As*cr(U, 0, -1) - An*cr(U, 0, 1)))
                 resM = resM*iNN
                 resM_cpu = convert(resM)
-                # print("x-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
+                if ((itM+1)%100 == 0):                
+                    print("x-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
                 itM = itM+1
 
 
@@ -193,7 +194,7 @@ for run in range(NRUNS):
 
             Ap  = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
             iApV = one/Ap
-            sV   = Ao*Vo -(P - cr(P, 0, -1))*A + hf*(B + cr(B, 0, -1))
+            sV = Ao*Vo -(P - cr(P, 0, -1))*A + hf*(B + cr(B, 0, -1))
 
             itM  = 0
             resM = one
@@ -206,7 +207,8 @@ for run in range(NRUNS):
 
                 resM = resM*iNN
                 resM_cpu = convert(resM)
-                # print("y-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(it, resM_cpu))
+                if ((itM+1)%100 == 0):             
+                    print("y-momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
                 itM = itM+1
 
 
@@ -235,7 +237,8 @@ for run in range(NRUNS):
                 resP = resP*iNN
 
                 resP_cpu = convert(resP)
-                # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
+                if ((itP+1)%100 == 0):
+                    print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
                 itP = itP+1
 
 
@@ -252,7 +255,8 @@ for run in range(NRUNS):
             res = nc.sum(nc.abs(So))
             res = res*iNN
             res_cpu = convert(res)
-            # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
+            if ((it+1)%100 == 0):
+                print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
 
 
@@ -285,7 +289,8 @@ for run in range(NRUNS):
                     resC = nc.sum(nc.abs(Ap*C - Ao*Co - Aw*cr(C, -1, 0) - Ae*cr(C, 1, 0) - As*cr(C, 0, -1) - An*cr(C, 0, 1)))
                     resC = resC*iNN
                     resC_cpu = convert(resC)
-                    # print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(itC, resC_cpu))
+                    if ((itC+1)%100==0):                    
+                        print("Passive scalar:  it {0:3d}  residuals {1:3e}".format(itC, resC_cpu))
                     itC = itC+1
 
                 # find integral of passive scalar
@@ -392,7 +397,7 @@ if (len(te)==0):
 
 # save center values
 filename = "DNS_center_values" + ".txt"
-np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')   # use exponential notation
 
 
 print("Simulation successfully completed!")

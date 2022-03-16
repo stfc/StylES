@@ -47,28 +47,10 @@ def load_fields(filename='restart.npz'):
     return U, V, P, C, B, totTime
 
 
-def save_fields(totTime, U, V, P, C, B, W, filename):
+def save_fields(totTime, U, V, P, C, B, W, filename="restart.npz"):
 
     # save restart file
-    nc.savez("restart.npz", t=totTime, U=U, V=V, P=P, C=C, B=B, W=W)
-
-    # save field for StyleGAN training
-    maxU = np.max(U)
-    minU = np.min(U)
-    U_ = two*(U - minU)/(maxU- minU) - one
-
-    maxV = np.max(V)
-    minV = np.min(V)
-    V_ = two*(V - minV)/(maxV - minV) - one
-
-    maxP = np.max(P)
-    minP = np.min(P)
-    if (maxP!=minP):
-        P_ = two*(P - minP)/(maxP - minP) - one
-    else:
-        P_ = P
-
-    nc.savez(filename, U=U_, V=V_, P=P_)
+    nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B, W=W)
 
 
 

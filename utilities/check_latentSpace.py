@@ -26,8 +26,8 @@ USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only s
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
 RES_TARGET     = RES_LOG2_FIL   # target for the matching fields. Usually equal to the filter style
-FILE_REAL      = "../LES_Solvers/temp/fields_run0_9te.npz"
-WL_IRESTART    = True
+FILE_REAL      = "../../../data/N256_1000runs/fields_9te/fields_run0_9te.npz"
+WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 
@@ -123,7 +123,7 @@ with mirrored_strategy.scope():
 
 # define step for finding latent space
 @tf.function
-def find_latent(latent, imgA):
+def find_latent(latent, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions = wl_synthesis(latent, training=False)
         UVP_DNS     = predictions[RES_LOG2-2]
@@ -150,15 +150,15 @@ def find_latent(latent, imgA):
         loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,:,:,:], imgB[0,:,:,:]))
         resDNS   = tf.math.reduce_sum(loss_pix)
 
-        gradients_DNS  = tape_DNS.gradient(resDNS, wl_synthesis.trainable_variables)
-        opt.apply_gradients(zip(gradients_DNS, wl_synthesis.trainable_variables))
+        gradients_DNS  = tape_DNS.gradient(resDNS, list_trainable_variables)
+        opt.apply_gradients(zip(gradients_DNS, list_trainable_variables))
 
     return resDNS, predictions, UVP_DNS, loss_pix
 
 
 @tf.function
-def find_latent_step(input, images):
-    resDNS, predictions, UVP_DNS, loss_fea = mirrored_strategy.run(find_latent, args=(input, images))
+def find_latent_step(input, images, list_trainable_variables):
+    resDNS, predictions, UVP_DNS, loss_fea = mirrored_strategy.run(find_latent, args=(input, images, list_trainable_variables))
     return resDNS, predictions, UVP_DNS, loss_fea
 
 
@@ -247,6 +247,7 @@ for k in range(NL):
 
         os.system("mv Energy_spectrum.png results/energy_org/Energy_spectrum_org.png")
 
+        exit()
 
         # prepare latent space
         if (USE_DLATENTS=="DLATENTS"):
@@ -295,7 +296,7 @@ for k in range(NL):
         resDNS = large
         tstart = time.time()
         while (resDNS>tollDNS and itDNS<maxItDNS):
-            resDNS, predictions, UVP_DNS, loss_UV = find_latent_step(latent, imgA)
+            resDNS, predictions, UVP_DNS, loss_UV = find_latent_step(latent, imgA, list_LES_trainable_variables)
 
             # print residuals and fields
             if (itDNS%1000 == 0):
@@ -337,7 +338,7 @@ for k in range(NL):
         print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pixel loss UV {3:3e}  lr {4:3e} ".format(tend-tstart, itDNS, resDNS.numpy(), loss_UV, lr))
 
         # reprint but only vorticity
-        resDNS, predictions, UVP_DNS, _ = find_latent_step(latent, imgA)
+        resDNS, predictions, UVP_DNS, _ = find_latent_step(latent, imgA, list_LES_trainable_variables)
 
         U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVP_DNS[0, 1, :, :].numpy()

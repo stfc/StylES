@@ -1,27 +1,26 @@
-set terminal png
-set output "energy.png"
+# set terminal png
+# set output "energy.png"
 
-set logscale x
-set logscale y
+#set logscale x
+#set logscale y
 
 #set format y "10^{%T}"
 
 #set yrange [1e-8:0.2]
 #set xrange [10:3000]
-set yrange [1e-4:0.1]
-set xrange [10:10000]
+#set yrange [1e-4:0.1]
+#set xrange [10:10000]
+
+set yrange [-3:2]
 
 set grid
 
 set style circle radius screen 0.003
 
-plot '../LES_Solvers/energy/energy_run0_24te.txt'                 using 1:2 with lines title '24te',  \
-     '../../../data/N1024_UVP_1DNS/energy/energy_run0_24te.txt'  using 1:2 with lines title '24te 1024',  \
-     '../LES_Solvers/testcases/HIT_2D/ld_spectrum_24te.txt'      using 1:2 with circles title '24\t_e (L\&D)'
-
-
-# plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
-#      'utilities/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with circles title 'StyleGAN 256'
+plot './LES_Solvers/results/DNS_N256/DNS_center_values.txt'  using 1:2 with lines title 'LES',  \
+     './LES_Solvers/DNS_fromGAN_center_values.txt'           using 1:2 with circles title 'DNS from DNS', \
+     './LES_Solvers/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
+     './LES_Solvers/LES_center_values.txt'                   using 1:2 with circles title 'LES'
 
 
 # plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \

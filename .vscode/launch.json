@@ -12,8 +12,8 @@
             // "cwd": "${workspaceFolder}/",
             "program": "StylES.py",
             "cwd": "${workspaceFolder}/LES_Solvers/",
-            //"program": "check_noises.py",
-            //"cwd": "${workspaceFolder}/utilities/",
+            // "program": "test.py",
+            // "cwd": "${workspaceFolder}/utilities/",
             "console": "integratedTerminal"
         }
     ]

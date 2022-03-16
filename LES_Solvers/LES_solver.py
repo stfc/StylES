@@ -184,7 +184,8 @@ for run in range(NRUNS):
 
                 resM = hf*(resMU+resMV)*iNN
                 resM_cpu = convert(resM)
-                # print("Momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
+                if ((itM+1)%100==0):          
+                    print("Momemtum iterations:  it {0:3d}  residuals {1:3e}".format(itM, resM_cpu))
                 itM = itM+1
 
 
@@ -234,7 +235,8 @@ for run in range(NRUNS):
                 resP = resP*iNN
 
                 resP_cpu = convert(resP)
-                # print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
+                if ((itP+1)%100==0):
+                    print("Pressure correction:  it {0:3d}  residuals {1:3e}".format(itP, resP_cpu))
                 itP = itP+1
 
 
@@ -256,7 +258,8 @@ for run in range(NRUNS):
             res = nc.sum(nc.abs(So))
             res = res*iNN
             res_cpu = convert(res)
-            # print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
+            if ((it+1)%100==0):
+                print("SIMPLE iterations:  it {0:3d}  residuals {1:3e}".format(it, res_cpu))
 
 
 
@@ -295,7 +298,8 @@ for run in range(NRUNS):
                 # find integral of passive scalar
                 totSca = convert(nc.sum(C))
                 maxSca = convert(nc.max(C))
-                print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
+                if ((itC+1)%100==0):
+                    print("Tot scalar {0:.8e}  max scalar {1:3e}".format(totSca, maxSca))
 
             it = it+1
 
@@ -396,7 +400,7 @@ if (len(te)==0):
 
 # save center values
 filename = "DNS_center_values" + ".txt"
-np.savetxt(filename, np.c_[DNS_cv[0:tstep,0], DNS_cv[0:tstep,1], DNS_cv[0:tstep,2], DNS_cv[0:tstep,3]], fmt='%1.4e')   # use exponential notation
+np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')   # use exponential notation
 
 
 print("Simulation successfully completed!")

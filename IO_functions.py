@@ -71,30 +71,53 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    W = data['P']
+    P = data['P']
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
-    W = np.cast[DTYPE](W)
+    P = np.cast[DTYPE](P)
     DIM_DATA, _ = U.shape
 
+    # normalize the data
+    maxU = np.max(U)
+    minU = np.min(U)
+    if (maxU!=minU):
+        U = 2.0*(U - minU)/(maxU - minU) - 1.0
+    else:
+        U = U
+    
+    maxV = np.max(V)
+    minV = np.min(V)
+    if (maxV!=minV):
+        V = 2.0*(V - minV)/(maxV - minV) - 1.0
+    else:
+        V = V
+
+    maxP = np.max(P)
+    minP = np.min(P)
+    if (maxP!=minP):
+        P = 2.0*(P - minP)/(maxP - minP) - 1.0
+    else:
+        P = P
+
+    # downscale
     img_out = []
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
         data = np.zeros([3, res, res], dtype=DTYPE)
         s = res/DIM_DATA
         rs = int(DIM_DATA/res)
-        if (int(s)==1):
+        if (rs==1):
             data[0,:,:] = U
             data[1,:,:] = V
-            data[2,:,:] = W
+            data[2,:,:] = P
         else:
             U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
             V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-            W_DNS_g = sc.ndimage.gaussian_filter(W, rs, mode='grid-wrap')
+            P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
             
             data[0,:,:] = U_DNS_g[::rs,::rs]
             data[1,:,:] = V_DNS_g[::rs,::rs]  
-            data[2,:,:] = W_DNS_g[::rs,::rs]  
+            data[2,:,:] = P_DNS_g[::rs,::rs]  
 
         img_out.append(data)
 
