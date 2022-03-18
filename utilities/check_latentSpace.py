@@ -15,6 +15,7 @@ from HIT_2D import L
 os.chdir('../')
 from MSG_StyleGAN_tf2 import *
 from IO_functions import StyleGAN_load_fields
+from functions    import gaussian_kernel
 os.chdir('./utilities')
 
 from tensorflow.keras.applications.vgg16 import VGG16
@@ -222,13 +223,41 @@ for k in range(NL):
                 V_DNS_t = V_DNS[:,:]
                 P_DNS_t = P_DNS[:,:]
             else:
-                U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
-                V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
-                P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+                # U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
+                # V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
+                # P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
 
-                U_DNS_t = U_DNS_t[::rs, ::rs]
-                V_DNS_t = V_DNS_t[::rs, ::rs]
-                P_DNS_t = P_DNS_t[::rs, ::rs]
+                # U_DNS_t = U_DNS_t[::rs, ::rs]
+                # V_DNS_t = V_DNS_t[::rs, ::rs]
+                # P_DNS_t = P_DNS_t[::rs, ::rs]
+
+                # preprare Gaussian Kernel
+                gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+                gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+
+                # convert to tensor
+                U_DNS_t = tf.convert_to_tensor(U_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+                V_DNS_t = tf.convert_to_tensor(V_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+                P_DNS_t = tf.convert_to_tensor(P_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+
+                # add padding
+                pleft   = 4*rs
+                pright  = 4*rs
+                ptop    = 4*rs
+                pbottom = 4*rs
+
+                U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+                V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+                P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+                # Convolve.
+                U_DNS_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+                V_DNS_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+                P_DNS_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+                U_DNS_t = U_DNS_t[0,::rs,::rs,0].numpy()
+                V_DNS_t = V_DNS_t[0,::rs,::rs,0].numpy()
+                P_DNS_t = P_DNS_t[0,::rs,::rs,0].numpy()
 
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
@@ -247,7 +276,6 @@ for k in range(NL):
 
         os.system("mv Energy_spectrum.png results/energy_org/Energy_spectrum_org.png")
 
-        exit()
 
         # prepare latent space
         if (USE_DLATENTS=="DLATENTS"):
