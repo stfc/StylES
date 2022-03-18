@@ -50,7 +50,21 @@ def nr(phi, i, j):
 
 #------------------------------ functions to build StyleGAN network
 
-# define periodic padding
+#------------- define Gaussian kernel
+def gaussian_kernel(size: int, mean: float, std: float):
+
+    """Makes 2D gaussian Kernel for convolution."""
+
+    x = tf.range(start = -size, limit = size + 1, dtype = DTYPE)
+    Z = (2 * np.pi * std**2)**0.5
+    d = tf.math.exp(-0.5 * (x - mean)**2 / std**2) / Z
+    gauss_kernel = tf.einsum('i,j->ij', d, d)
+
+    filtered = gauss_kernel / tf.reduce_sum(gauss_kernel)
+
+    return filtered
+
+#-------------define periodic padding
 def periodic_padding_flexible(tensor, axis, padding=1):
     """
         add periodic padding to a tensor for specified axis

@@ -6,22 +6,31 @@
 
 #set format y "10^{%T}"
 
-#set yrange [1e-8:0.2]
 #set xrange [10:3000]
+#set yrange [1e-12:0.2]
+
 #set yrange [1e-4:0.1]
 #set xrange [10:10000]
 
-set yrange [-3:2]
+set yrange [-3:1]
 
 set grid
 
 set style circle radius screen 0.003
 
-plot './LES_Solvers/results/DNS_N256/DNS_center_values.txt'  using 1:2 with lines title 'LES',  \
-     './LES_Solvers/DNS_fromGAN_center_values.txt'           using 1:2 with circles title 'DNS from DNS', \
-     './LES_Solvers/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
-     './LES_Solvers/LES_center_values.txt'                   using 1:2 with circles title 'LES'
+plot './LES_Solvers/results/DNS_N256_200it/DNS_center_values.txt'  using 1:2 with lines title 'LES',  \
+     './LES_Solvers/n128_rs32/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
+     './LES_Solvers/n128_rs32/LES_center_values.txt'                   using 1:2 with circles title 'LES', \
+     './LES_Solvers/n128_rs16/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
+     './LES_Solvers/n128_rs16/LES_center_values.txt'                   using 1:2 with circles title 'LES', \
+     './LES_Solvers/n128_rs8/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
+     './LES_Solvers/n128_rs8/LES_center_values.txt'                   using 1:2 with circles title 'LES'
 
+
+# plot './LES_Solvers/energy/energy_spectrum_DNS_fromGAN_it0.txt' using 1:2 with lines title 'DNS 256', \
+#      './LES_Solvers/energy/energy_spectrum_LES_it0.txt'         using 1:2 with lines title 'LES 128', \
+#      './LES_Solvers/energy/energy_spectrum_nonlinear_.txt'      using 1:2 with lines title 'UU', \
+#      './LES_Solvers/energy/energy_spectrum_filtered_nonlinear_.txt'      using 1:2 with lines title 'fUU'
 
 # plot 'utilities/energy/energy_org_spectrum_lat_0_res_256.txt' using 1:2 with lines title 'DNS 256', \
 #      'utilities/energy/energy_org_spectrum_lat_0_res_32.txt' using 1:2 with lines title 'DNS 32', \

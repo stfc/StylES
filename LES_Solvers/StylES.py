@@ -57,6 +57,8 @@ DTYPE = DTYPE_LES  # this is only because the StyleGAN is trained with float32 u
 
 #---------------------------- local variables
 NLES = 2**RES_LOG2_FIL
+SIG  = 32 #*int(N/NLES)  # Gaussian (tf and np) filter sigma
+DW   = int(N/NLES)      # downscaling factor
 PROCEDURE = "DNS"
 
 if PROCEDURE=="A1":
@@ -64,7 +66,7 @@ if PROCEDURE=="A1":
     USE_DLATENTS = True
     INIT_BC      = 0
 elif PROCEDURE=="A2":
-    FILTER       = "Trained_filter"
+    FILTER       = "Gaussian_tf"
     USE_DLATENTS = True
     INIT_BC      = 0
 elif PROCEDURE=="B2":
@@ -73,9 +75,11 @@ elif PROCEDURE=="B2":
     INIT_BC      = 0
     firstRetrain = True
 elif PROCEDURE=="DNS":
-    FILTER       = "Gaussian"
+    FILTER       = "Gaussian_np"
     USE_DLATENTS = False
     INIT_BC      = 3
+
+print("Procedure ", PROCEDURE)
 
 Uo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old x-velocity
 Vo = nc.zeros([NLES,NLES], dtype=DTYPE)   # old y-velocity
@@ -252,9 +256,54 @@ def find_latents_LES(latents, imgA, list_trainable_variables=wl_synthesis.traina
 
         if (FILTER=="Trained_filter"):
             UVP = filter(predictions[RES_LOG2-2], training=False)
+
         elif (FILTER=="StyleGAN_layer"):
             UVP = predictions[RES_LOG2_FIL-2]
-        elif (FILTER=="Gaussian"):
+
+        elif (FILTER=="Gaussian_tf"):
+
+            # separate DNS fields
+            rs = SIG
+            U_DNS_t = predictions[RES_LOG2-2][0,0,:,:]
+            V_DNS_t = predictions[RES_LOG2-2][0,1,:,:]
+            P_DNS_t = predictions[RES_LOG2-2][0,2,:,:]
+
+            U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            P_DNS_t = P_DNS_t[tf.newaxis,:,:,tf.newaxis]
+
+            # prepare Gaussian Kernel
+            gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+            gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+            gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+            # add padding
+            pleft   = 4*rs
+            pright  = 4*rs
+            ptop    = 4*rs
+            pbottom = 4*rs
+
+            U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+            # convolve
+            fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fP_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+            # downscale
+            fU = fU_t[:,::DW,::DW,0]
+            fV = fV_t[:,::DW,::DW,0]
+            fP = fP_t[:,::DW,::DW,0]
+
+            fU = fU[tf.newaxis, :, :, :]
+            fV = fV[tf.newaxis, :, :, :]
+            fP = fP[tf.newaxis, :, :, :]
+
+            UVP = tf.concat([fU, fV, fP], 1)
+
+        elif (FILTER=="Gaussian_np"):
             pass
 
         resDNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP[0,0:2,:,:]))  # match only the U and V values!
@@ -281,34 +330,33 @@ if (INIT_BC==0):
     # find DNS and LES fields from a reference DNS field
 
     # load DNS reference fields
-    U_DNS_org, V_DNS_org, P_DNS_org, C_DNS_org, B_DNS_org, totTime = load_fields()  #from restart.npz file
+    U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields()  #from restart.npz file
 
-    W_DNS_org = find_vorticity(U_DNS_org, V_DNS_org)
-    print_fields(U_DNS_org, V_DNS_org, P_DNS_org, W_DNS_org, N, filename="plots/plots_DNS_org.png")
+    W_DNS = find_vorticity(U_DNS, V_DNS)
+    print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_org.png")
 
     # find max/min values and normalize
-    maxU = np.max(U_DNS_org)
-    minU = np.min(U_DNS_org)
-    U_DNS_org = two*(U_DNS_org - minU)/(maxU- minU) - one
+    maxU_DNS = np.max(U_DNS)
+    minU_DNS = np.min(U_DNS)
+    maxV_DNS = np.max(V_DNS)
+    minV_DNS = np.min(V_DNS)
+    maxP_DNS = np.max(P_DNS)
+    minP_DNS = np.min(P_DNS)
 
-    maxV = np.max(V_DNS_org)
-    minV = np.min(V_DNS_org)
-    V_DNS_org = two*(V_DNS_org - minV)/(maxV - minV) - one
-
-    maxP = np.max(P_DNS_org)
-    minP = np.min(P_DNS_org)
-    P_DNS_org = two*(P_DNS_org - minP)/(maxP - minP) - one
+    U_DNS = two*(U_DNS - minU_DNS)/(maxU_DNS - minU_DNS) - one
+    V_DNS = two*(V_DNS - minV_DNS)/(maxV_DNS - minV_DNS) - one
+    P_DNS = two*(P_DNS - minP_DNS)/(maxP_DNS - minP_DNS) - one
 
     # create image for TensorFlow
     itDNS   = 0
     resDNS  = large
-    tU_DNS = tf.convert_to_tensor(U_DNS_org, dtype=np.float32)
-    tV_DNS = tf.convert_to_tensor(V_DNS_org, dtype=np.float32)
-    tP_DNS = tf.convert_to_tensor(P_DNS_org, dtype=np.float32)
+    tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
+    tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
+    tP_DNS = tf.convert_to_tensor(P_DNS, dtype=np.float32)
 
-    tU_DNS = tU_DNS[np.newaxis,:,:]
-    tV_DNS = tV_DNS[np.newaxis,:,:]
-    tP_DNS = tP_DNS[np.newaxis,:,:]
+    tU_DNS = tU_DNS[tf.newaxis,:,:]
+    tV_DNS = tV_DNS[tf.newaxis,:,:]
+    tP_DNS = tP_DNS[tf.newaxis,:,:]
 
     imgA_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], 0)
 
@@ -348,13 +396,14 @@ if (INIT_BC==0):
     # find numpy arrays from GAN inference
     U_DNS = UVP_DNS[0, 0, :, :].numpy()
     V_DNS = UVP_DNS[0, 1, :, :].numpy()
-    P_DNS = UVP_DNS[0, 2, :, :].numpy()
+    #P_DNS = UVP_DNS[0, 2, :, :].numpy()  # Note: this is important, We only want U and V from the GAN!
     W_DNS = find_vorticity(U_DNS, V_DNS)
 
-    # re-normalize
-    U_DNS = (U_DNS+one)*(maxU-minU)/two + minU
-    V_DNS = (V_DNS+one)*(maxV-minV)/two + minV
-    P_DNS = (P_DNS+one)*(maxP-minP)/two + minP
+    # rescale DNS field
+    U_DNS = (U_DNS+one)*(maxU_DNS-minU_DNS)/two + minU_DNS
+    V_DNS = (V_DNS+one)*(maxV_DNS-minV_DNS)/two + minV_DNS
+    P_DNS = (P_DNS+one)*(maxP_DNS-minP_DNS)/two + minP_DNS
+
 
     # find LES field
     if (FILTER=="Trained_filter"):
@@ -362,18 +411,61 @@ if (INIT_BC==0):
         U = UVP[0, 0, :, :].numpy()
         V = UVP[0, 1, :, :].numpy()
         P = UVP[0, 2, :, :].numpy()
+
     elif (FILTER=="StyleGAN_layer"):
         U = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()
         V = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()
         P = predictions[RES_LOG2_FIL-2][0, 2, :, :].numpy()
-    elif (FILTER=="Gaussian"):
-        pass
 
-    # re-normalize new DNS and LES fields
-    U = (U+one)*(maxU-minU)/two + minU
-    V = (V+one)*(maxV-minV)/two + minV
-    P = (P+one)*(maxP-minP)/two + minP    
+    elif (FILTER=="Gaussian_tf"):
 
+        # separate DNS fields
+        rs = SIG
+        U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+        V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+        P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+
+        # prepare Gaussian Kernel
+        gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+        gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+        gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+        # add padding
+        pleft   = 4*rs
+        pright  = 4*rs
+        ptop    = 4*rs
+        pbottom = 4*rs
+
+        U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+        # convolve
+        fU = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        fV = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        fP = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+        # downscale
+        U = fU[0,::DW,::DW,0].numpy()
+        V = fV[0,::DW,::DW,0].numpy()
+        P = fP[0,::DW,::DW,0].numpy()
+
+
+    elif (FILTER=="Gaussian_np"):
+
+        rs = SIG
+        if (rs==1):
+            U = U_DNS[:,:]
+            V = V_DNS[:,:]  
+            P = P_DNS[:,:]  
+        else:
+            fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
+            fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
+            fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+            
+            U = fU[::DW,::DW]
+            V = fV[::DW,::DW]  
+            P = fP[::DW,::DW]  
 
 elif (INIT_BC==1):
 
@@ -461,71 +553,94 @@ elif (INIT_BC==3):
     W_DNS = find_vorticity(U_DNS, V_DNS)
     print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N, filename="plots/plots_DNS_org.png")
 
+    # find max/min values and normalize
+    maxU_DNS = np.max(U_DNS)
+    minU_DNS = np.min(U_DNS)
+    maxV_DNS = np.max(V_DNS)
+    minV_DNS = np.min(V_DNS)
+    maxP_DNS = np.max(P_DNS)
+    minP_DNS = np.min(P_DNS)
+
+    U_DNS = two*(U_DNS - minU_DNS)/(maxU_DNS - minU_DNS) - one
+    V_DNS = two*(V_DNS - minV_DNS)/(maxV_DNS - minV_DNS) - one
+    P_DNS = two*(P_DNS - minP_DNS)/(maxP_DNS - minP_DNS) - one
+
+    # create tensor
+    tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
+    tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
+    tP_DNS = tf.convert_to_tensor(P_DNS, dtype=np.float32)
+
+    tU_DNS = tU_DNS[tf.newaxis,tf.newaxis,:,:]
+    tV_DNS = tV_DNS[tf.newaxis,tf.newaxis,:,:]
+    tP_DNS = tP_DNS[tf.newaxis,tf.newaxis,:,:]
+
+    UVP_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], 1)
+
+    # rescale DNS field
+    U_DNS = (U_DNS+one)*(maxU_DNS-minU_DNS)/two + minU_DNS
+    V_DNS = (V_DNS+one)*(maxV_DNS-minV_DNS)/two + minV_DNS
+    P_DNS = (P_DNS+one)*(maxP_DNS-minP_DNS)/two + minP_DNS
+
     # find LES field
     if (FILTER=="Trained_filter"):
-
-        # find max/min values and normalize
-        maxU = np.max(U_DNS)
-        minU = np.min(U_DNS)
-        U_DNS = two*(U_DNS - minU)/(maxU- minU) - one
-
-        maxV = np.max(V_DNS)
-        minV = np.min(V_DNS)
-        V_DNS = two*(V_DNS - minV)/(maxV - minV) - one
-
-        maxP = np.max(P_DNS)
-        minP = np.min(P_DNS)
-        P_DNS = two*(P_DNS - minP)/(maxP - minP) - one
-
-        # create image for TensorFlow
-        itDNS   = 0
-        resDNS  = large
-        tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
-        tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
-        tP_DNS = tf.convert_to_tensor(P_DNS, dtype=np.float32)
-
-        tU_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
-        tV_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
-        tP_DNS = tP_DNS[np.newaxis,np.newaxis,:,:]
-
-        UVP_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], 1)
-
-        # filter
         UVP = filter(UVP_DNS, training=False)
         U = UVP[0, 0, :, :].numpy()
         V = UVP[0, 1, :, :].numpy()
-        P = UVP[0, 2, :, :].numpy()      
-
-        # re-normalize new DNS and LES fields
-        U_DNS = (U_DNS+one)*(maxU-minU)/two + minU
-        V_DNS = (V_DNS+one)*(maxV-minV)/two + minV
-        P_DNS = (P_DNS+one)*(maxP-minP)/two + minP
-
-        U = (U+one)*(maxU-minU)/two + minU
-        V = (V+one)*(maxV-minV)/two + minV
-        P = (P+one)*(maxP-minP)/two + minP   
+        P = UVP[0, 2, :, :].numpy()
 
     elif (FILTER=="StyleGAN_layer"):
+        U = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()
+        V = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()
+        P = predictions[RES_LOG2_FIL-2][0, 2, :, :].numpy()
 
-        pass
+    elif (FILTER=="Gaussian_tf"):
 
-    elif (FILTER=="Gaussian"):
-        rs = int(N/NLES)
+        # separate DNS fields
+        rs = SIG
+        U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis])
+        V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis])
+        P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis])
+
+        # prepare Gaussian Kernel
+        gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+        gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+        gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+        # add padding
+        pleft   = 4*rs
+        pright  = 4*rs
+        ptop    = 4*rs
+        pbottom = 4*rs
+
+        U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+        # convolve
+        fU = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        fV = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        fP = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+        # downscale
+        U = fU[0,::DW,::DW,0].numpy()
+        V = fV[0,::DW,::DW,0].numpy()
+        P = fP[0,::DW,::DW,0].numpy()
+
+    elif (FILTER=="Gaussian_np"):
+
+        rs = SIG
         if (rs==1):
-            U = U_DNS[::rs,::rs]
-            V = V_DNS[::rs,::rs]  
-            P = P_DNS[::rs,::rs]  
+            U = U_DNS[:,:]
+            V = U_DNS[:,:] 
+            P = U_DNS[:,:]
         else:
             fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
             fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
             fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
             
-            U = fU[::rs,::rs]
-            V = fV[::rs,::rs]  
-            P = fP[::rs,::rs]  
-
-
-
+            U = fU[::DW,::DW]
+            V = fV[::DW,::DW]  
+            P = fP[::DW,::DW]  
 
 
 #---------------------------- main time step loop
@@ -618,7 +733,6 @@ LES_cv_fromDNS[tstep,3] = P[NLES//2, NLES//2]
 
 
 
-
 # start loop
 while (tstep<totSteps and totTime<finalTime):
 
@@ -641,48 +755,96 @@ while (tstep<totSteps and totTime<finalTime):
     NL_DNS[0,2,:,:] = Vo_DNS*Vo_DNS
 
     # filter them
-    if (FILTER=="Gaussian"):
-
-        rs = int(N/NLES)
-        if (rs==1):
-            fUU = NL_DNS[0,0,::rs,::rs]
-            fUV = NL_DNS[0,1,::rs,::rs]
-            fVV = NL_DNS[0,2,::rs,::rs]        
-        else:
-            UU = sc.ndimage.gaussian_filter(NL_DNS[0,0,:,:], rs, mode='grid-wrap')
-            UV = sc.ndimage.gaussian_filter(NL_DNS[0,1,:,:], rs, mode='grid-wrap')
-            VV = sc.ndimage.gaussian_filter(NL_DNS[0,2,:,:], rs, mode='grid-wrap')
-            
-            fUU = UU[::rs,::rs]
-            fUV = UV[::rs,::rs]
-            fVV = VV[::rs,::rs]        
-
-    else:
-
-        # find max/min values and normalize
-        maxUU = np.max(NL_DNS[:,0,:,:])
-        minUU = np.min(NL_DNS[:,0,:,:])
-        NL_DNS[:,0,:,:] = two*(NL_DNS[:,0,:,:] - minUU)/(maxUU- minUU) - one
-
-        maxUV = np.max(NL_DNS[:,1,:,:])
-        minUV = np.min(NL_DNS[:,1,:,:])
-        NL_DNS[:,1,:,:] = two*(NL_DNS[:,1,:,:] - minUV)/(maxUV - minUV) - one
-
-        maxVV = np.max(NL_DNS[:,2,:,:])
-        minVV = np.min(NL_DNS[:,2,:,:])
-        NL_DNS[:,2,:,:] = two*(NL_DNS[:,2,:,:] - minVV)/(maxVV - minVV) - one
+    if (FILTER=="Trained_filter"):
 
         tNL_DNS = tf.convert_to_tensor(NL_DNS)
-
         NL = filter(tNL_DNS, training=False)
         fUU = NL[0, 0, :, :].numpy()
         fUV = NL[0, 1, :, :].numpy()
         fVV = NL[0, 2, :, :].numpy()
 
-        # re-normalize new DNS and LES fields
-        fUU = (fUU+one)*(maxUU-minUU)/two + minUU
-        fUV = (fUV+one)*(maxUV-minUV)/two + minUV
-        fVV = (fVV+one)*(maxVV-minVV)/two + minVV
+    elif (FILTER=="StyleGAN_layer"):
+
+        # separate DNS fields
+        rs = SIG
+        UU_t = tf.convert_to_tensor(NL_DNS[0,0,:,:][tf.newaxis,:,:,tf.newaxis])
+        UV_t = tf.convert_to_tensor(NL_DNS[0,1,:,:][tf.newaxis,:,:,tf.newaxis])
+        VV_t = tf.convert_to_tensor(NL_DNS[0,2,:,:][tf.newaxis,:,:,tf.newaxis])
+
+        # preprare Gaussian Kernel
+        gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+        gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+        gauss_kernel = tf.cast(gauss_kernel, dtype=UU_t.dtype)
+
+        # add padding
+        pleft   = 4*rs
+        pright  = 4*rs
+        ptop    = 4*rs
+        pbottom = 4*rs
+
+        UU_t = periodic_padding_flexible(UU_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        UV_t = periodic_padding_flexible(UV_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        VV_t = periodic_padding_flexible(VV_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+        # convolve
+        UU = tf.nn.conv2d(UU_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        UV = tf.nn.conv2d(UV_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        VV = tf.nn.conv2d(VV_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+        # downscale
+        fUU = UU[0,::DW,::DW,0].numpy()
+        fUV = UV[0,::DW,::DW,0].numpy()
+        fVV = VV[0,::DW,::DW,0].numpy()
+
+    elif (FILTER=="Gaussian_tf"):
+
+        # separate DNS fields
+        rs = SIG
+        UU_t = tf.convert_to_tensor(NL_DNS[0,0,:,:][tf.newaxis,:,:,tf.newaxis])
+        UV_t = tf.convert_to_tensor(NL_DNS[0,1,:,:][tf.newaxis,:,:,tf.newaxis])
+        VV_t = tf.convert_to_tensor(NL_DNS[0,2,:,:][tf.newaxis,:,:,tf.newaxis])
+
+        # preprare Gaussian Kernel
+        gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+        gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+        gauss_kernel = tf.cast(gauss_kernel, dtype=UU_t.dtype)
+
+        # add padding
+        pleft   = 4*rs
+        pright  = 4*rs
+        ptop    = 4*rs
+        pbottom = 4*rs
+
+        UU_t = periodic_padding_flexible(UU_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        UV_t = periodic_padding_flexible(UV_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+        VV_t = periodic_padding_flexible(VV_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+        # convolve
+        UU = tf.nn.conv2d(UU_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        UV = tf.nn.conv2d(UV_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        VV = tf.nn.conv2d(VV_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+        # downscale
+        fUU = UU[0,::DW,::DW,0].numpy()
+        fUV = UV[0,::DW,::DW,0].numpy()
+        fVV = VV[0,::DW,::DW,0].numpy()
+
+    elif (FILTER=="Gaussian_np"):
+
+        # filter
+        rs = SIG
+        if (rs==1):
+            fUU = NL_DNS[0,0,::DW,::DW]
+            fUV = NL_DNS[0,1,::DW,::DW]
+            fVV = NL_DNS[0,2,::DW,::DW]        
+        else:
+            UU = sc.ndimage.gaussian_filter(NL_DNS[0,0,:,:], rs, mode='grid-wrap')
+            UV = sc.ndimage.gaussian_filter(NL_DNS[0,1,:,:], rs, mode='grid-wrap')
+            VV = sc.ndimage.gaussian_filter(NL_DNS[0,2,:,:], rs, mode='grid-wrap')
+            
+            fUU = UU[::DW,::DW]
+            fUV = UV[::DW,::DW]
+            fVV = VV[::DW,::DW]        
 
 
 
@@ -826,79 +988,110 @@ while (tstep<totSteps and totTime<finalTime):
         # find DNS and LES fields from a reference DNS time series
 
         # load DNS reference fields
-        filename = "./results/DNS_N256/fields/fields_run0_it" + str(tstep+1) + ".npz"
+        filename = "./results/DNS_N256_200it/fields/fields_run0_it" + str(tstep+1) + ".npz"
 
         # load DNS reference fields from restart.npz file
         U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, newtotTime = load_fields(filename)
 
+        # find max/min values and normalize
+        maxU_DNS = np.max(U_DNS)
+        minU_DNS = np.min(U_DNS)
+        maxV_DNS = np.max(V_DNS)
+        minV_DNS = np.min(V_DNS)
+        maxP_DNS = np.max(P_DNS)
+        minP_DNS = np.min(P_DNS)
+
+        U_DNS = two*(U_DNS - minU_DNS)/(maxU_DNS - minU_DNS) - one
+        V_DNS = two*(V_DNS - minV_DNS)/(maxV_DNS - minV_DNS) - one
+        P_DNS = two*(P_DNS - minP_DNS)/(maxP_DNS - minP_DNS) - one
+
+        # create tensor
+        tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
+        tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
+        tP_DNS = tf.convert_to_tensor(P_DNS, dtype=np.float32)
+
+        tU_DNS = tU_DNS[tf.newaxis,tf.newaxis,:,:]
+        tV_DNS = tV_DNS[tf.newaxis,tf.newaxis,:,:]
+        tP_DNS = tP_DNS[tf.newaxis,tf.newaxis,:,:]
+
+        UVP_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], 1)
+
+        # rescale DNS field
+        U_DNS = (U_DNS+one)*(maxU_DNS-minU_DNS)/two + minU_DNS
+        V_DNS = (V_DNS+one)*(maxV_DNS-minV_DNS)/two + minV_DNS
+        P_DNS = (P_DNS+one)*(maxP_DNS-minP_DNS)/two + minP_DNS
+
         # find LES field
-        itDNS   = 0
-        resDNS  = large
         if (FILTER=="Trained_filter"):
-
-            # find max/min values and normalize
-            maxU = np.max(U_DNS)
-            minU = np.min(U_DNS)
-            U_DNS = two*(U_DNS - minU)/(maxU- minU) - one
-
-            maxV = np.max(V_DNS)
-            minV = np.min(V_DNS)
-            V_DNS = two*(V_DNS - minV)/(maxV - minV) - one
-
-            maxP = np.max(P_DNS)
-            minP = np.min(P_DNS)
-            P_DNS = two*(P_DNS - minP)/(maxP - minP) - one
-
-            # create image for TensorFlow
-            itDNS   = 0
-            resDNS  = large
-            tU_DNS = tf.convert_to_tensor(U_DNS, dtype=np.float32)
-            tV_DNS = tf.convert_to_tensor(V_DNS, dtype=np.float32)
-            tP_DNS = tf.convert_to_tensor(P_DNS, dtype=np.float32)
-
-            tU_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
-            tV_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
-            tP_DNS = tP_DNS[np.newaxis,np.newaxis,:,:]
-
-            UVP_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], 1)
-
-            # filter
             UVP = filter(UVP_DNS, training=False)
             newU = UVP[0, 0, :, :].numpy()
             newV = UVP[0, 1, :, :].numpy()
-            newP = UVP[0, 2, :, :].numpy()      
-
-            # re-normalize new DNS and LES fields
-            U_DNS = (U_DNS+one)*(maxU-minU)/two + minU
-            V_DNS = (V_DNS+one)*(maxV-minV)/two + minV
-            P_DNS = (P_DNS+one)*(maxP-minP)/two + minP
-
-            newU = (newU+one)*(maxU-minU)/two + minU
-            newV = (newV+one)*(maxV-minV)/two + minV
-            newP = (newP+one)*(maxP-minP)/two + minP   
+            newP = UVP[0, 2, :, :].numpy()
 
         elif (FILTER=="StyleGAN_layer"):
+            newU = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()
+            newV = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()
+            newP = predictions[RES_LOG2_FIL-2][0, 2, :, :].numpy()
 
-            pass
+        elif (FILTER=="Gaussian_tf"):
 
-        elif (FILTER=="Gaussian"):
-            rs = int(N/NLES)
+            # separate DNS fields
+            rs = SIG
+            U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis])
+            V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis])
+            P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis])
+
+            # preprare Gaussian Kernel
+            gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+            gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+            gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+            # add padding
+            pleft   = 4*rs
+            pright  = 4*rs
+            ptop    = 4*rs
+            pbottom = 4*rs
+
+            U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+            # convolve
+            fU = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fV = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fP = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+            # downscale
+            newU = fU[0,::DW,::DW,0].numpy()
+            newV = fV[0,::DW,::DW,0].numpy()
+            newP = fP[0,::DW,::DW,0].numpy()
+
+        elif (FILTER=="Gaussian_np"):
+
+            rs = SIG
             if (rs==1):
-                newU = U_DNS[::rs,::rs]
-                newV = V_DNS[::rs,::rs]  
-                newP = P_DNS[::rs,::rs]  
+                newU = U_DNS[:,:]
+                newV = V_DNS[:,:]
+                newP = P_DNS[:,:]
             else:
                 fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
                 fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
                 fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
                 
-                newU = fU[::rs,::rs]
-                newV = fV[::rs,::rs]  
-                newP = fP[::rs,::rs]
+                newU = fU[::DW,::DW]
+                newV = fV[::DW,::DW]
+                newP = fP[::DW,::DW]
 
     else:
 
         # find new max/min values and normalize LES field
+        maxU_DNS = np.max(U_DNS)
+        minU_DNS = np.min(U_DNS)
+        maxV_DNS = np.max(V_DNS)
+        minV_DNS = np.min(V_DNS)
+        maxP_DNS = np.max(P_DNS)
+        minP_DNS = np.min(P_DNS)
+
         maxU = np.max(U)
         minU = np.min(U)
         maxV = np.max(V)
@@ -914,9 +1107,9 @@ while (tstep<totSteps and totTime<finalTime):
         tV = tf.convert_to_tensor(V, dtype=np.float32)
         tP = tf.convert_to_tensor(P, dtype=np.float32)
 
-        tU = tU[np.newaxis,:,:]
-        tV = tV[np.newaxis,:,:]
-        tP = tP[np.newaxis,:,:]
+        tU = tU[tf.newaxis,:,:]
+        tV = tV[tf.newaxis,:,:]
+        tP = tP[tf.newaxis,:,:]
 
         imgA = tf.concat([tU, tV, tP], 0)
 
@@ -926,7 +1119,7 @@ while (tstep<totSteps and totTime<finalTime):
             if (PROCEDURE=="A1"):
                 resDNS, predictions, UVP = find_latents_LES_step(latents, imgA, list_LES_trainable_variables)
             elif (PROCEDURE=="A2"):
-                resDNS, predictions, UVP = find_latents_LES_step(latents, imgA, list_LES_trainable_variables)
+                resDNS, predictions, UVP = find_latents_LES_step(latents, imgA, list_DNS_trainable_variables)
             elif (PROCEDURE=="B1"):
                 resDNS, predictions, UVP = find_latents_LES_step(latents, imgA, list_LES_trainable_variables)
 
@@ -951,9 +1144,9 @@ while (tstep<totSteps and totTime<finalTime):
         P_DNS = predictions[RES_LOG2-2].numpy()[0,2,:,:]
 
         # re-normalize new DNS and LES fields
-        U_DNS = (U_DNS+one)*(maxU-minU)/two + minU
-        V_DNS = (V_DNS+one)*(maxV-minV)/two + minV
-        P_DNS = (P_DNS+one)*(maxP-minP)/two + minP    
+        U_DNS = (U_DNS+one)*(maxU_DNS-minU_DNS)/two + minU_DNS
+        V_DNS = (V_DNS+one)*(maxV_DNS-minV_DNS)/two + minV_DNS
+        P_DNS = (P_DNS+one)*(maxP_DNS-minP_DNS)/two + minP_DNS    
 
         U = (U+one)*(maxU-minU)/two + minU
         V = (V+one)*(maxV-minV)/two + minV
