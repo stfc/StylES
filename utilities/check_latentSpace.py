@@ -27,7 +27,7 @@ USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only s
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
 RES_TARGET     = RES_LOG2_FIL   # target for the matching fields. Usually equal to the filter style
-FILE_REAL      = "../../../data/N256_1000runs/fields_9te/fields_run0_9te.npz"
+FILE_REAL      = "../../../data/N256_test_procedures/fields/fields_run0_it100.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -250,11 +250,12 @@ for k in range(NL):
                 V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
                 P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
 
-                # Convolve.
+                # convolve
                 U_DNS_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
                 V_DNS_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
                 P_DNS_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
 
+                # downscale
                 U_DNS_t = U_DNS_t[0,::rs,::rs,0].numpy()
                 V_DNS_t = V_DNS_t[0,::rs,::rs,0].numpy()
                 P_DNS_t = P_DNS_t[0,::rs,::rs,0].numpy()
@@ -276,6 +277,7 @@ for k in range(NL):
 
         os.system("mv Energy_spectrum.png results/energy_org/Energy_spectrum_org.png")
 
+        exit()
 
         # prepare latent space
         if (USE_DLATENTS=="DLATENTS"):
