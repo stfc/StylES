@@ -57,7 +57,7 @@ DTYPE = DTYPE_LES  # this is only because the StyleGAN is trained with float32 u
 
 #---------------------------- local variables
 NLES = 2**RES_LOG2_FIL
-SIG  = 32 #*int(N/NLES)  # Gaussian (tf and np) filter sigma
+SIG  = int(N/NLES)  # Gaussian (tf and np) filter sigma
 DW   = int(N/NLES)      # downscaling factor
 PROCEDURE = "DNS"
 
@@ -631,8 +631,8 @@ elif (INIT_BC==3):
         rs = SIG
         if (rs==1):
             U = U_DNS[:,:]
-            V = U_DNS[:,:] 
-            P = U_DNS[:,:]
+            V = V_DNS[:,:] 
+            P = P_DNS[:,:]
         else:
             fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
             fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
@@ -988,7 +988,7 @@ while (tstep<totSteps and totTime<finalTime):
         # find DNS and LES fields from a reference DNS time series
 
         # load DNS reference fields
-        filename = "./results/DNS_N256_200it/fields/fields_run0_it" + str(tstep+1) + ".npz"
+        filename = "./results/DNS_N256_1000it/fields/fields_run0_it" + str(tstep+1) + ".npz"
 
         # load DNS reference fields from restart.npz file
         U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, newtotTime = load_fields(filename)
