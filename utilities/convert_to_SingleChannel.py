@@ -9,15 +9,13 @@ sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers/')
 sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D/')
 
-from IO_functions import StyleGAN_load_fields
-
 from LES_plot import *
 from LES_functions  import *
-from HIT_2D import N, L, uRef
+from HIT_2D import N, L
 
 
 sca  = 1
-PATH = "./temp/"
+PATH = "../../../data/N256_test_procedures/fields/"
 DEST = "./single/"
 os.system("rm -rf single")
 os.system("mkdir single")
@@ -33,10 +31,10 @@ for i,file in enumerate(sorted(files)):
 
         # load numpy array
         nimg = np.zeros([N,N,3], dtype=DTYPE)
-        img_in = StyleGAN_load_fields(filename)
-        nimg[:,:,0] = img_in[-1][0,:,:]
-        nimg[:,:,1] = img_in[-1][1,:,:]
-        nimg[:,:,2] = img_in[-1][2,:,:]
+        U, V, P, _, _, _ = load_fields(filename)
+        nimg[:,:,0] = U
+        nimg[:,:,1] = V
+        nimg[:,:,2] = P
         nimg = np.cast[DTYPE](nimg)
 
     elif (filename.endswith('.png')):
@@ -45,8 +43,8 @@ for i,file in enumerate(sorted(files)):
         nimg = np.asarray(nimg)
         nimg = nimg/256.0
 
-    U = nimg[:,:,0]*2*uRef - uRef
-    V = nimg[:,:,1]*2*uRef - uRef
+    U = nimg[:,:,0]
+    V = nimg[:,:,1]
 
     #W = nimg[:,:,2]
     W = find_vorticity(U, V)

@@ -9,14 +9,15 @@ sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers/')
 sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D/')
 
+from LES_functions import load_fields
+
 from parameters import OUTPUT_DIM, DTYPE
 from functions import nr
-from IO_functions import StyleGAN_load_fields
 
 
 
 N = OUTPUT_DIM
-PATH = '../../../data/N1024_1DNS/fields/'
+PATH = '../../../data/N256_test_procedures/fields/'
 nimg = np.zeros([N, N, 3], dtype=DTYPE)
 fimg = np.zeros([N, N, 3], dtype=DTYPE)
 
@@ -27,10 +28,10 @@ for file in files:
 
     if (tail == '.npz'):
         img = np.zeros([N,N,3], dtype=DTYPE)
-        img_in = StyleGAN_load_fields(filename)
-        img[:,:,0] = img_in[-1][0,:,:]
-        img[:,:,1] = img_in[-1][1,:,:]
-        img[:,:,2] = img_in[-1][2,:,:]
+        U, V, P, B, C, totTime = load_fields(filename)
+        img[:,:,0] = U
+        img[:,:,1] = V
+        img[:,:,2] = P
         
         # #flip horizontally
         # for ch in range(3):
@@ -38,7 +39,7 @@ for file in files:
         # new_tail = "_fliph.npz"
         # filename_new = PATH + file
         # filename_new = filename_new.replace(tail, new_tail)
-        # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], W=nimg[:,:,2])
+        # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
 
 
         # #flip vertically
@@ -47,15 +48,15 @@ for file in files:
         # new_tail = "_flipv.npz"
         # filename_new = PATH + file
         # filename_new = filename_new.replace(tail, new_tail)
-        # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], W=nimg[:,:,2])
+        # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
 
-        # #flip horizontally and vertically
-        # for ch in range(3):
-        #     nimg[:,:,ch] = np.flip(img[:,:,ch], 0)
-        # new_tail = "_fliphv.npz"
-        # filename_new = PATH + file
-        # filename_new = filename_new.replace(tail, new_tail)
-        # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], W=nimg[:,:,2])
+        #flip horizontally and vertically
+        for ch in range(3):
+            nimg[:,:,ch] = np.flip(img[:,:,ch], 0)
+        new_tail = "_fliphv.npz"
+        filename_new = PATH + file
+        filename_new = filename_new.replace(tail, new_tail)
+        np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
 
         #random shifts
         ranx = np.random.randint(-N/2+1,N/2-1,3)
@@ -64,24 +65,20 @@ for file in files:
         for ii in ranx:
             for jj in rany:
 
-                # if   (cont%4 == 0):
-                #     for ch in range(3):
-                #         fimg[:,:,ch] = np.flip(img[:,:,ch], 1)
-                # elif (cont%3 == 0):
-                #     for ch in range(3):
-                #         fimg[:,:,ch] = np.flip(img[:,:,ch],  axis=(1,0))
-                # elif (cont%2 == 0):
-                #     for ch in range(3):
-                #         fimg[:,:,ch] = np.flip(img[:,:,ch], 0)
-                # else:
-                #     pass
+                if (cont%2 == 0):
+                    for ch in range(3):
+                        fimg[:,:,ch] = np.flip(img[:,:,ch], 0)
+                else:
+                    for ch in range(3):                    
+                        fimg[:,:,ch] = img[:,:,ch]
 
                 for ch in range(3):
-                    nimg[:,:,ch] = nr(img[:,:,ch], ii, jj)
+                    nimg[:,:,ch] = nr(fimg[:,:,ch], ii, jj)
+
                 new_tail = "_shift_" + str(cont) + ".npz"
                 filename_new = PATH + file
                 filename_new = filename_new.replace(tail, new_tail)
-                np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], W=nimg[:,:,2])
+                np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
                 cont=cont+1
 
     elif (tail == '.png'):
