@@ -44,16 +44,17 @@ for file in files:
 
         # #flip vertically
         # for ch in range(3):
-        #     nimg[:,:,ch] = np.flip(img[:,:,ch],  axis=(1,0))
-        # new_tail = "_flipv.npz"
+        #     nimg[:,:,ch] = np.flip(img[:,:,ch], 0)
+        # new_tail = "_fliphv.npz"
         # filename_new = PATH + file
         # filename_new = filename_new.replace(tail, new_tail)
         # np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
 
+
         #flip horizontally and vertically
         for ch in range(3):
-            nimg[:,:,ch] = np.flip(img[:,:,ch], 0)
-        new_tail = "_fliphv.npz"
+            nimg[:,:,ch] = np.flip(img[:,:,ch],  axis=(1,0))
+        new_tail = "_flipv.npz"
         filename_new = PATH + file
         filename_new = filename_new.replace(tail, new_tail)
         np.savez(filename_new, U=nimg[:,:,0], V=nimg[:,:,1], P=nimg[:,:,2], C=C, B=B, t=totTime)
@@ -67,7 +68,7 @@ for file in files:
 
                 if (cont%2 == 0):
                     for ch in range(3):
-                        fimg[:,:,ch] = np.flip(img[:,:,ch], 0)
+                        fimg[:,:,ch] = np.flip(img[:,:,ch], axis=(1,0))
                 else:
                     for ch in range(3):                    
                         fimg[:,:,ch] = img[:,:,ch]
