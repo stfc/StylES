@@ -26,7 +26,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-RES_TARGET     = RES_LOG2_FIL   # target for the matching fields. Usually equal to the filter style
+RES_TARGET     = RES_LOG2   # target for the matching fields. Usually equal to the filter style
 FILE_REAL      = "../../../data/N256_test_procedures/fields/fields_run0_it100.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
@@ -277,7 +277,6 @@ for k in range(NL):
 
         os.system("mv Energy_spectrum.png results/energy_org/Energy_spectrum_org.png")
 
-        exit()
 
         # prepare latent space
         if (USE_DLATENTS=="DLATENTS"):

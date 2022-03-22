@@ -1,5 +1,7 @@
-# set terminal png
-# set output "energy.png"
+system ("rm energy.png")
+
+set terminal png size 1024,768
+set output "energy.png"
 
 #set logscale x
 #set logscale y
@@ -10,21 +12,30 @@
 #set yrange [1e-12:0.2]
 
 #set yrange [1e-4:0.1]
-#set xrange [10:10000]
+set xrange [0.06:0.07]
 
-set yrange [-3:1]
+#set yrange [-2:0.5]
 
 set grid
 
 set style circle radius screen 0.003
 
-plot './LES_Solvers/results/DNS_N256_200it/DNS_center_values.txt'  using 1:2 with lines title 'LES',  \
-     './LES_Solvers/n128_rs32/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
-     './LES_Solvers/n128_rs32/LES_center_values.txt'                   using 1:2 with circles title 'LES', \
-     './LES_Solvers/n128_rs16/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
-     './LES_Solvers/n128_rs16/LES_center_values.txt'                   using 1:2 with circles title 'LES', \
-     './LES_Solvers/n128_rs8/LES_fromGAN_center_values.txt'           using 1:2 with lines title 'LES from DNS', \
-     './LES_Solvers/n128_rs8/LES_center_values.txt'                   using 1:2 with circles title 'LES'
+# plot './LES_Solvers/results/LES_N256_rs8/DNS_fromGAN_center_values.txt' using 1:2 with lines title   'DNS ', \
+#      './LES_Solvers/results/LES_N256_rs8/LES_center_values.txt'         using 1:2 with lines linecolor 5 title   'LES ', \
+#      './LES_Solvers/results/LES_N256_rs8/LES_fromGAN_center_values.txt' using 1:2 every 20 w circles t 'LES from DNS'
+
+plot './LES_Solvers/results/LES_N256_rs8/DNS_fromGAN_center_values.txt' using 1:2 with lines title   'DNS', \
+     './LES_Solvers/results/LES_N256_rs8/LES_fromGAN_center_values.txt' using 1:2 with lines title   'LES from DNS rs8', \
+     './LES_Solvers/DNS_fromGAN_center_values.txt'                      using 1:2 with circles title 'DNS from LES rs8', \
+     './LES_Solvers/LES_center_values.txt'                              using 1:2 with circles title 'LES rs8'
+
+
+# plot './LES_Solvers/results/curves/n128_rs32/LES_fromGAN_center_values.txt'  using 1:2 with lines title   'LES from DNS rs32', \
+#      './LES_Solvers/results/curves/n128_rs32/LES_center_values.txt'          using 1:2 with circles title 'LES 128 rs32', \
+#      './LES_Solvers/results/curves/n64_rs32/LES_center_values.txt'           using 1:2 with circles title 'LES 64 rs32', \
+#      './LES_Solvers/results/curves/n32_rs32/LES_center_values.txt'           using 1:2 with circles title 'LES 32 rs32', \
+#      './LES_Solvers/results/curves/n16_rs32/LES_center_values.txt'           using 1:2 with circles title 'LES 16 rs32', \
+#      './LES_Solvers/results/curves/n8_rs32/LES_center_values.txt'           using 1:2 with circles title 'LES 8 rs32'
 
 
 # plot './LES_Solvers/energy/energy_spectrum_DNS_fromGAN_it0.txt' using 1:2 with lines title 'DNS 256', \
