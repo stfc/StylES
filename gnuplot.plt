@@ -12,7 +12,7 @@
 #set yrange [1e-12:0.2]
 
 #set yrange [1e-4:0.1]
-#set xrange [10:10000]
+set xrange [0.06:0.07]
 
 set xrange [0.069:0.075]
 set yrange [-2:0.5]

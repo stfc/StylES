@@ -22,11 +22,19 @@ RESTART   = True
 SAVE_UVW  = False
 N         = 256      # number of points   [-]
 finalTime = 1.152751599
+<<<<<<< HEAD
 totSteps  = 30
 print_res = 1
 print_img = 100
 print_ckp = 100
 print_spe = 100
+=======
+totSteps  = 10
+print_res = 1
+print_img = 1
+print_ckp = 1000
+print_spe = 1000
+>>>>>>> e36158852ad9e67b2602850b197e18570d26d56b
 NRUNS     = 1   # number of total runs to execute
 
 te_s = []

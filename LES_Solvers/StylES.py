@@ -366,6 +366,81 @@ def find_scaling(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis
             gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
             gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
             gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+>>>>>>> e36158852ad9e67b2602850b197e18570d26d56b
+
+            # add padding
+            pleft   = 4*rs
+            pright  = 4*rs
+            ptop    = 4*rs
+            pbottom = 4*rs
+
+            U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+            # convolve
+            fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fP_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+            # downscale
+            fU = fU_t[:,::DW,::DW,0]
+            fV = fV_t[:,::DW,::DW,0]
+            fP = fP_t[:,::DW,::DW,0]
+
+            fU = fU[tf.newaxis, :, :, :]
+            fV = fV[tf.newaxis, :, :, :]
+            fP = fP[tf.newaxis, :, :, :]
+
+            UVP = tf.concat([fU, fV, fP], 1)
+
+        elif (FILTER=="Gaussian_np"):
+            pass
+
+
+        div = rho*A*tf.math.reduce_sum(tf.math.abs(tr(UVP[0,0,:,:], 1, 0) - UVP[0,0,:,:] + tr(UVP[0,1,:,:], 0, 1) - UVP[0,1,:,:]))
+        div_DNS = div*iNN
+        pdiff_DNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP[0,0:2,:,:]))  # match only the U and V values!
+        loss_DNS = pdiff_DNS + div_DNS 
+
+        gradients_DNS = tape_DNS.gradient(loss_DNS, list_trainable_variables)
+        opt_LES.apply_gradients(zip(gradients_DNS, list_trainable_variables))
+
+        return loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP
+
+
+@tf.function
+def find_scaling_step(latents, minMaxUVP, imgA, list_trainable_variables):
+    loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = mirrored_strategy.run(find_scaling, args=(latents, minMaxUVP, imgA, list_trainable_variables))
+    return loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP
+
+@tf.function
+def find_scaling(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
+    with tf.GradientTape() as tape_DNS:
+        predictions, UVP_DNS = wl_synthesis([latents, minMaxUVP])
+
+        if (FILTER=="Trained_filter"):
+            UVP = filter(predictions[RES_LOG2-2], training=False)
+
+        elif (FILTER=="StyleGAN_layer"):
+            UVP = predictions[RES_LOG2_FIL-2]
+
+        elif (FILTER=="Gaussian_tf"):
+
+            # separate DNS fields
+            rs = SIG
+            U_DNS_t = UVP_DNS[0,0,:,:]
+            V_DNS_t = UVP_DNS[0,1,:,:]
+            P_DNS_t = UVP_DNS[0,2,:,:]
+
+            U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            P_DNS_t = P_DNS_t[tf.newaxis,:,:,tf.newaxis]
+
+            # prepare Gaussian Kernel
+            gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+            gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+            gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
 
             # add padding
             pleft   = 4*rs
