@@ -257,6 +257,41 @@ class layer_wlatent(layers.Layer):
 
 
 
+#-------------Layer wlatent
+class layer_rescale(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_rescale, self).__init__()
+
+        wl_init = tf.ones_initializer()
+        self.wl = tf.Variable(
+            initial_value=wl_init(shape=[6], dtype=DTYPE),
+            trainable=True,
+            name="scaling_layer_variable"
+        )
+
+    def call(self, x, minMaxUVP):
+        maxU = self.wl[0]*minMaxUVP[0,0]
+        minU = self.wl[1]*minMaxUVP[0,1]
+        maxV = self.wl[2]*minMaxUVP[0,2]
+        minV = self.wl[3]*minMaxUVP[0,3]
+        maxP = self.wl[4]*minMaxUVP[0,4]
+        minP = self.wl[5]*minMaxUVP[0,5]
+
+        U_DNS = (x[RES_LOG2-2][:,0,:,:]+1.0)*(maxU-minU)/2.0 + minU
+        V_DNS = (x[RES_LOG2-2][:,1,:,:]+1.0)*(maxV-minV)/2.0 + minV
+        P_DNS = (x[RES_LOG2-2][:,2,:,:]+1.0)*(maxP-minP)/2.0 + minP
+
+        U_DNS = U_DNS[:,tf.newaxis,:,:]
+        V_DNS = V_DNS[:,tf.newaxis,:,:]
+        P_DNS = P_DNS[:,tf.newaxis,:,:]
+
+        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
+
+        return x, UVP_DNS
+
+
+
+
 #-------------Instance normalization
 def instance_norm(x, epsilon=1e-8):
     assert len(x.shape) == 4  # NCHW
