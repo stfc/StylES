@@ -1410,7 +1410,7 @@ while (tstep<totSteps and totTime<finalTime):
         itDNS  = 0
         div_DNS = large
         loss_DNS = large
-        while (((loss_DNS>tollDNS) or (div_DNS>toll)) and itDNS<maxItDNS):
+        while (div_DNS>toll and itDNS<maxItDNS):
             if (PROCEDURE=="A1"):
                 loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
             elif (PROCEDURE=="A2"):
