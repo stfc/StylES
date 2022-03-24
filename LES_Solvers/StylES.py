@@ -366,7 +366,6 @@ def find_scaling(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis
             gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
             gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
             gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
->>>>>>> e36158852ad9e67b2602850b197e18570d26d56b
 
             # add padding
             pleft   = 4*rs
