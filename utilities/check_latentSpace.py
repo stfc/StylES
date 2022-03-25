@@ -122,6 +122,15 @@ with mirrored_strategy.scope():
         status = wl_checkpoint.restore(tf.train.latest_checkpoint(WL_CHKP_DIR))
 
 
+
+
+# add latent space to trainable variables
+for variable in wlatents.trainable_variables:
+    list_LES_trainable_variables.append(variable)
+
+
+
+
 # define step for finding latent space
 @tf.function
 def find_latent(latent, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
