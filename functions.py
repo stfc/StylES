@@ -245,15 +245,26 @@ class layer_wlatent(layers.Layer):
     def __init__(self, x=None, **kwargs):
         super(layer_wlatent, self).__init__()
 
-        wl_init = tf.ones_initializer()
-        self.wl = tf.Variable(
-            initial_value=wl_init(shape=x.shape[1:], dtype=DTYPE),
+        wl_init_LES = tf.ones_initializer()
+        self.wl_LES = tf.Variable(
+            initial_value=wl_init_LES(shape=[RES_LOG2_FIL*2-2,LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="wlatent"
+            name="wlatent_LES"
+        )
+
+        wl_init_DNS = tf.ones_initializer()
+        self.wl_DNS = tf.Variable(
+            initial_value=wl_init_DNS(shape=[(RES_LOG2 - RES_LOG2_FIL)*2,LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="wlatent_DNS"
         )
 
     def call(self, x):
-        return x*self.wl
+        x_LES = x[:,               0:RES_LOG2_FIL*2-2,:]*self.wl_LES
+        x_DNS = x[:,RES_LOG2_FIL*2-2:RES_LOG2*2-2    ,:]*self.wl_DNS
+        x = tf.concat([x_LES, x_DNS], 1)
+        return x
+
 
 
 

@@ -57,7 +57,7 @@ DTYPE = DTYPE_LES  # this is only because the StyleGAN is trained with float32 u
 
 #---------------------------- local variables
 NLES = 2**RES_LOG2_FIL
-SIG  = 8*int(N/NLES)  # Gaussian (tf and np) filter sigma
+SIG  = int(N/NLES)  # Gaussian (tf and np) filter sigma
 DW   = int(N/NLES)      # downscaling factor
 PROCEDURE = "A1"
 
@@ -566,10 +566,6 @@ if (INIT_BC==0):
     #P_DNS = UVP_DNS[0, 2, :, :].numpy()  # Note: this is important, We only want U and V from the GAN!
     W_DNS = find_vorticity(U_DNS, V_DNS)
 
-    # # rescale DNS field
-    # U_DNS = (U_DNS+one)*(maxU_DNS-minU_DNS)/two + minU_DNS
-    # V_DNS = (V_DNS+one)*(maxV_DNS-minV_DNS)/two + minV_DNS
-    # P_DNS = (P_DNS+one)*(maxP_DNS-minP_DNS)/two + minP_DNS
 
 
     # find LES field

@@ -10,10 +10,10 @@
             "request": "launch",
             // "program": "main.py",
             // "cwd": "${workspaceFolder}/",
-            "program": "StylES.py",
-            "cwd": "${workspaceFolder}/LES_Solvers/",
-            // "program": "check_latentSpace.py",
-            // "cwd": "${workspaceFolder}/utilities/",
+            // "program": "LES_solver_staggered.py",
+            // "cwd": "${workspaceFolder}/LES_Solvers/",
+            "program": "check_latentSpace.py",
+            "cwd": "${workspaceFolder}/utilities/",
             "console": "integratedTerminal"
         }
     ]

@@ -12,10 +12,10 @@
 #set yrange [1e-12:0.2]
 
 #set yrange [1e-4:0.1]
-set xrange [0.06:0.07]
+#set xrange [0.06:0.07]
 
-set xrange [0.069:0.075]
-set yrange [-2:0.5]
+#set xrange [0.069:0.075]
+#set yrange [-2:0.5]
 
 set grid
 
@@ -28,7 +28,7 @@ set style circle radius screen 0.003
 plot './LES_Solvers/paper_results/tollm5/DNS_N256_1000it/DNS_center_values.txt'        using 1:2 with lines title 'DNS', \
      './LES_Solvers/paper_results/tollm5/DNS_N256_rs8/LES_fromGAN_center_values.txt'   using 1:2 with lines title 'LES from GAN', \
      './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM4/LES_center_values.txt'  using 1:2 with lines title 'LES tollM4', \
-     './LES_Solvers/LES_center_values.txt'  using 1:2 with lines title 'LES tollM5'
+     './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM8/LES_center_values.txt'  using 1:2 with lines title 'LES tollM8'
 
 # plot './LES_Solvers/results/curves/n128_rs32/LES_fromGAN_center_values.txt'  using 1:2 with lines title   'LES from DNS rs32', \
 #      './LES_Solvers/results/curves/n128_rs32/LES_center_values.txt'          using 1:2 with circles title 'LES 128 rs32', \
