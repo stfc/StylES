@@ -38,11 +38,17 @@ def load_fields(filename='restart.npz'):
     data = nc.load(filename)
     ctotTime = data['t']
     totTime = convert(ctotTime)
-    U = data['U']
-    V = data['V']
-    P = data['P']
-    C = data['C']
-    B = data['B']
+    U_ = data['U']
+    V_ = data['V']
+    P_ = data['P']
+    C_ = data['C']
+    B_ = data['B']
+
+    U = convert(U_)
+    V = convert(V_)
+    P = convert(P_)
+    C = convert(C_)
+    B = convert(B_)
 
     return U, V, P, C, B, totTime
 

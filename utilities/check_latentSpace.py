@@ -27,7 +27,7 @@ USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only s
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
 FILE_REAL      = "../../../data/N256_test_procedures/fields/fields_run0_it100.npz"
-WL_IRESTART    = False
+WL_IRESTART    = True
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 
@@ -54,7 +54,7 @@ os.system("mkdir -p results/energy_org")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
-tf.random.set_seed(2)
+tf.random.set_seed(0)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
@@ -119,8 +119,7 @@ with mirrored_strategy.scope():
 
 
     # define checkpoint
-    wl_checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis,
-                                        opt=opt)
+    wl_checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
 
 
     # Load latest checkpoint, if restarting
@@ -223,12 +222,12 @@ for k in range(NL):
         if (FILE_REAL.endswith('.npz')):
             
             # load numpy array
-            orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
-            img_in = StyleGAN_load_fields(FILE_REAL)
-            orig[:,:,0] = img_in[-1][0,:,:]
-            orig[:,:,1] = img_in[-1][1,:,:]
-            orig[:,:,2] = img_in[-1][2,:,:]
-            orig = np.cast[DTYPE](orig)
+            U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields(FILE_REAL)
+            U_DNS = np.cast[DTYPE](U_DNS)
+            V_DNS = np.cast[DTYPE](V_DNS)
+            P_DNS = np.cast[DTYPE](P_DNS)
+            C_DNS = np.cast[DTYPE](C_DNS)
+            B_DNS = np.cast[DTYPE](B_DNS)
 
         elif (FILE_REAL.endswith('.png')):
 
@@ -249,10 +248,10 @@ for k in range(NL):
             orig = np.asarray(orig, dtype=DTYPE)
             orig = orig/255.0
 
-        # normalize values
-        U_DNS = orig[:,:,0]
-        V_DNS = orig[:,:,1]
-        P_DNS = orig[:,:,2]
+            U_DNS = orig[:,:,0]
+            V_DNS = orig[:,:,1]
+            P_DNS = orig[:,:,2]
+
         W_DNS = find_vorticity(U_DNS, V_DNS)
 
         #print_fields_1(W_DNS, "Plots_DNS_org.png")
