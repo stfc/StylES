@@ -72,7 +72,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
         ax9.set_aspect(1)
 
 
-    colors = plt.cm.jet(np.linspace(0,1,11))
+    colors = plt.cm.jet(np.linspace(10,1,21))
     lineColor = colors[0]
     if ("4" in filename):
         lineColor = colors[0]
