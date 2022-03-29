@@ -27,7 +27,7 @@ USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only s
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
 FILE_REAL      = "../../../data/N256_test_procedures/fields/fields_run0_it100.npz"
-WL_IRESTART    = True
+WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 
@@ -65,7 +65,7 @@ C_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
 B_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
 SIG   = int(N_DNS/N_LES)  # Gaussian (tf and np) filter sigma
 DW    = int(N_DNS/N_LES)  # downscaling factor
-minMaxUVP = np.zeros((1,6), dtype="float32")
+minMaxUVP = np.zeros((RES_LOG2-3,6), dtype="float32")
 
 with mirrored_strategy.scope():
         
@@ -310,6 +310,13 @@ for k in range(NL):
 
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
+            minMaxUVP[kk-4,0] = np.max(U_DNS_t)
+            minMaxUVP[kk-4,1] = np.min(U_DNS_t)
+            minMaxUVP[kk-4,2] = np.max(V_DNS_t)
+            minMaxUVP[kk-4,3] = np.min(V_DNS_t)
+            minMaxUVP[kk-4,4] = np.max(P_DNS_t)
+            minMaxUVP[kk-4,5] = np.min(P_DNS_t)
+
             filename = "results/plots_org/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
             print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, res, filename)
 
@@ -337,13 +344,7 @@ for k in range(NL):
         # preprare target image
         kk = RES_LOG2
         res = 2**kk
-        minMaxUVP[0,0] = np.max(U_DNS)
-        minMaxUVP[0,1] = np.min(U_DNS)
-        minMaxUVP[0,2] = np.max(V_DNS)
-        minMaxUVP[0,3] = np.min(V_DNS)
-        minMaxUVP[0,4] = np.max(P_DNS)
-        minMaxUVP[0,5] = np.min(P_DNS)
-        tminMaxUVP = tf.convert_to_tensor(minMaxUVP, dtype="float32")
+        tminMaxUVP = tf.convert_to_tensor(minMaxUVP[RES_LOG2-4,:][np.newaxis,:], dtype="float32")
         s = int(res/DIM_DATA)
         rs = int(DIM_DATA/res)
         if (s==1):
@@ -443,18 +444,17 @@ for k in range(NL):
 
         # find DNS and LES fields from random input 
         if (USE_DLATENTS=="DLATENTS"):
-            zlatent     = tf.random.uniform([1, LATENT_SIZE])
-            dlatents    = mapping(zlatent, training=False)
-            predictions = wl_synthesis([dlatents, inputVariances], training=False)
+            zlatent              = tf.random.uniform([1, LATENT_SIZE])
+            dlatents             = mapping(zlatent, training=False)
+            predictions, UVP_DNS = wl_synthesis([dlatents, inputVariances], training=False)
         else:
-            latents      = tf.random.uniform([1, LATENT_SIZE])
-            predictions  = wl_synthesis([latents, inputVariances], training=False)
+            latents               = tf.random.uniform([1, LATENT_SIZE])
+            predictions, UVP_DNS  = wl_synthesis([latents, inputVariances], training=False)
 
 
 
 
     # print spectrum from filter
-    UVP_DNS = predictions[RES_LOG2-2]
     UVP_LES = filter(UVP_DNS, training=False)
     res = 2**RES_LOG2_FIL
     U_t = UVP_LES[0, 0, :, :].numpy()
@@ -486,6 +486,15 @@ for k in range(NL):
         U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
         V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
         P_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+        
+        U_DNS_t = two*(U_DNS_t - np.min(U_DNS_t))/(np.max(U_DNS_t) - np.min(U_DNS_t)) - one
+        V_DNS_t = two*(V_DNS_t - np.min(V_DNS_t))/(np.max(V_DNS_t) - np.min(V_DNS_t)) - one
+        P_DNS_t = two*(P_DNS_t - np.min(P_DNS_t))/(np.max(P_DNS_t) - np.min(P_DNS_t)) - one
+
+        U_DNS_t = (U_DNS_t+one)*(minMaxUVP[kk-4,0]-minMaxUVP[kk-4,1])/two + minMaxUVP[kk-4,1]
+        V_DNS_t = (V_DNS_t+one)*(minMaxUVP[kk-4,2]-minMaxUVP[kk-4,3])/two + minMaxUVP[kk-4,3]
+        P_DNS_t = (P_DNS_t+one)*(minMaxUVP[kk-4,4]-minMaxUVP[kk-4,5])/two + minMaxUVP[kk-4,5]
+
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
         filename = "results/plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
