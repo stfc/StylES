@@ -23,10 +23,10 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-USE_DLATENTS   = "DLATENTS"   # "LATENTS" consider also mapping, DLATENTS only synthesis
+USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL      = "../../../data/N256_test_procedures/fields/fields_run0_it100.npz"
+FILE_REAL      = "../temp/restart_fromit5000_converged.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -66,6 +66,10 @@ B_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
 SIG   = int(N_DNS/N_LES)  # Gaussian (tf and np) filter sigma
 DW    = int(N_DNS/N_LES)  # downscaling factor
 minMaxUVP = np.zeros((RES_LOG2-3,6), dtype="float32")
+minMaxUVP[:,0] = 1.0
+minMaxUVP[:,2] = 1.0
+minMaxUVP[:,4] = 1.0
+
 
 with mirrored_strategy.scope():
         
@@ -216,7 +220,7 @@ def find_latent_step(latent, minMaxUVP, images, list_trainable_variables):
 for k in range(NL):
     
     # load initial flow
-    tf.random.set_seed(k)
+    tf.random.set_seed(0)
     if (LOAD_FIELD):
 
         if (FILE_REAL.endswith('.npz')):
@@ -334,7 +338,7 @@ for k in range(NL):
 
 
         # prepare latent space
-        if (USE_DLATENTS=="DLATENTS"):
+        if (USE_DLATENTS):
             zlatent = tf.random.uniform([1, LATENT_SIZE])
             latent  = mapping(zlatent, training=False)
         else:
@@ -442,15 +446,15 @@ for k in range(NL):
 
     else:
 
-        # find DNS and LES fields from random input 
-        if (USE_DLATENTS=="DLATENTS"):
+        # find DNS and LES fields from random input
+        tminMaxUVP = tf.convert_to_tensor(minMaxUVP[RES_LOG2-4,:][np.newaxis,:], dtype="float32")
+        if (USE_DLATENTS):
             zlatent              = tf.random.uniform([1, LATENT_SIZE])
             dlatents             = mapping(zlatent, training=False)
-            predictions, UVP_DNS = wl_synthesis([dlatents, inputVariances], training=False)
+            predictions, UVP_DNS = wl_synthesis([dlatents, tminMaxUVP], training=False)
         else:
             latents               = tf.random.uniform([1, LATENT_SIZE])
-            predictions, UVP_DNS  = wl_synthesis([latents, inputVariances], training=False)
-
+            predictions, UVP_DNS  = wl_synthesis([latents, tminMaxUVP], training=False)
 
 
 
