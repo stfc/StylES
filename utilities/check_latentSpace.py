@@ -26,7 +26,7 @@ from tensorflow.keras.applications.vgg16 import VGG16
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL      = "../temp/restart_fromit5000_converged.npz"
+FILE_REAL      = "../../../results/decayIsoTurb_2D/paper_results/tollm7/DNS_N256/fields/fields_run0_it100.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -184,6 +184,7 @@ def find_latent(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.t
         fV = fV_t[0,::DW,::DW,0]
         fP = fP_t[0,::DW,::DW,0]
 
+        # normalize
         fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*two - one
         fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*two - one
         fP = (fP - tf.math.reduce_min(fP))/(tf.math.reduce_max(fP) - tf.math.reduce_min(fP))*two - one
@@ -220,7 +221,7 @@ def find_latent_step(latent, minMaxUVP, images, list_trainable_variables):
 for k in range(NL):
     
     # load initial flow
-    tf.random.set_seed(0)
+    tf.random.set_seed(k)
     if (LOAD_FIELD):
 
         if (FILE_REAL.endswith('.npz')):
