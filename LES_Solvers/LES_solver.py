@@ -402,5 +402,8 @@ if (len(te)==0):
 filename = "DNS_center_values" + ".txt"
 np.savetxt(filename, np.c_[DNS_cv[0:tstep+1,0], DNS_cv[0:tstep+1,1], DNS_cv[0:tstep+1,2], DNS_cv[0:tstep+1,3]], fmt='%1.4e')   # use exponential notation
 
+# save restart file
+save_fields(totTime, U, V, P, C, B, W)
+
 
 print("Simulation successfully completed!")
