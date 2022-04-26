@@ -71,7 +71,7 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    P = data['P']
+    P = data['W']
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
     P = np.cast[DTYPE](P)
@@ -382,7 +382,7 @@ def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteratio
 
                 axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
                 axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='RdBu')
+                axs[i*4+2].imshow(nimg[:,:,2],cmap='hot')
                 axs[i*4+3].imshow(nimg,cmap='jet')
 
             else:

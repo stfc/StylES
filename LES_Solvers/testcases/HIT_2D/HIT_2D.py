@@ -18,25 +18,29 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = True
+RESTART   = False
 SAVE_UVW  = False
 N         = 256      # number of points   [-]
-finalTime = 1.152751599
-totSteps  = 100
-print_res = 1
-print_img = 10
+finalTime = 0.152751599
+totSteps  = 1000000
+print_res = 10
+print_img = 1000
 print_ckp = 1000
 print_spe = 1000
-NRUNS     = 1   # number of total runs to execute
+NRUNS     = 40   # number of total runs to execute
 
-te_s = []
-te   = []
+# te_s = []
+# te   = []
 #te_s = [0.010259436]
 #te = [9]
 # te_s = [0.152751599]
 # te = [134]
 # te_s      = [0.010259436, 0.027358495, 0.069536175, 0.110573918, 0.152751599] # specific turnover times for Lowe and Davidson in secs  
 # te        = [9, 24, 61, 97, 134]                                              #corresponding eddy turnover time
+
+te_s = [0.010259436, 0.016196609, 0.022133783, 0.028070956, 0.03400813, 0.039945303, 0.045882476, 0.05181965, 0.057756823, 0.063693997, 0.06963117, 0.075568344, 0.081505517, 0.087442691, 0.093379864, 0.099317037, 0.105254211, 0.111191384, 0.117128558, 0.123065731, 0.129002905, 0.134940078, 0.140877252, 0.146814425, 0.152751599]
+te   = [9, 14, 19, 25, 30, 35, 40, 45, 51, 56, 61, 66, 72, 77, 82, 87, 92, 98, 103, 108, 113, 118, 124, 129, 134]
+
 # te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
 # te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
 
@@ -47,7 +51,7 @@ nu        = 1.87e-4   # dynamic viscosity          [Pa*s]  This should be found 
 Re        = 60        # based on integral length l0 = sqrt(2*U^2/W^2) where W is the enstropy
 M         = 1000      # number of modes
 METHOD    = 0         # 0-In house, 1-Saad git repo, 2-OpenFOAM
-L         = 0.35760      # system dimension   [m]
+L         = 0.94049   # system dimension   [m]
 CNum      = 0.5       # Courant number 
 delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
 maxDelt   = 1.0e-4

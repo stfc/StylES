@@ -26,10 +26,10 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
     #---------------------------------- plot surfaces
     if (PASSIVE):
-        fig, axs = plt.subplots(2, 5, figsize=(60,30))
+        fig, axs = plt.subplots(2, 5, figsize=(20,10))
         fig.subplots_adjust(hspace=0.25)
     else:
-        fig, axs = plt.subplots(2, 4, figsize=(60,30))
+        fig, axs = plt.subplots(2, 4, figsize=(20,10))
         fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0,0]

@@ -25,8 +25,8 @@ from tensorflow.keras.applications.vgg16 import VGG16
 # local parameters
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
 NL             = 1         # number of different latent vectors randomly selected
-LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-FILE_REAL      = "../../../results/decayIsoTurb_2D/paper_results/tollm7/DNS_N256/fields/fields_run0_it100.npz"
+LOAD_FIELD     = False       # load field from DNS solver (via restart.npz file)
+FILE_REAL      = "../../../../../../shared/data/tollm4/Re240_N1024/fields/fields_run0_it5000.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -200,8 +200,8 @@ def find_latent(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.t
         # normalize values
         # loss_fea = VGG_loss(imgA, imgB, VGG_extractor) 
         # resDNS  =  tf.math.reduce_sum(loss_fea[2:])
-        loss_pix_DNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,:,:,:], UVP_DNS[0,:,:,:]))
-        loss_pix_LES = tf.math.reduce_mean(tf.math.squared_difference(imgB[0,:,:,:], UVP_LES[0,:,:,:]))
+        loss_pix_DNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], UVP_DNS[0,0:2,:,:]))
+        loss_pix_LES = 0.0 #tf.math.reduce_mean(tf.math.squared_difference(imgB[0,:,:,:], UVP_LES[0,:,:,:]))
         resDNS       = loss_pix_DNS + loss_pix_LES
 
         gradients_DNS  = tape_DNS.gradient(resDNS, list_trainable_variables)
@@ -404,18 +404,18 @@ for k in range(NL):
                 print("DNS iterations:  time {0:3f}   it {1:3d}  residuals {2:3e}  pl_DNS {3:3e}  pl_LES {4:3e}  lr {5:3e} " \
                     .format(tend-tstart, itDNS, resDNS.numpy(), loss_pix_DNS, loss_pix_LES, lr))
 
-                # # print fields
-                # U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
-                # V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
-                # P_DNS_t = UVP_DNS[0, 2, :, :].numpy()
-                # W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
+                # print fields
+                U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+                V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+                P_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+                W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-                # filename = "results/plots/Plots_DNS_fromGAN.png"
-                # #filename = "results/plots/Plots_DNS_fromGAN" + str(itDNS) + ".png"
+                filename = "results/plots/Plots_DNS_fromGAN.png"
+                #filename = "results/plots/Plots_DNS_fromGAN" + str(itDNS) + ".png"
 
-                # #print_fields_1(W_DNS_t, filename)
-                # print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, N_DNS, filename)
-               
+                #print_fields_1(W_DNS_t, filename)
+                print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, N_DNS, filename)
+
             itDNS = itDNS+1
 
         # print final values
@@ -503,7 +503,7 @@ for k in range(NL):
         W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
         filename = "results/plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
-        print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, res, filename)
+        print_fields_1(W_DNS_t, filename)
 
         filename = "results/fields/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
         save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, C_DNS, B_DNS, W_DNS_t, filename)

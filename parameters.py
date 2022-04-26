@@ -28,7 +28,7 @@ else:
     MAXVALRAN = None
 
 
-DATASET           = '../../data/N256_test_procedures/fields/'
+DATASET           = '../../data/tollm7_Re60_N1024/fields_UVW/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -39,7 +39,7 @@ READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 1024
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -60,14 +60,14 @@ NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 1000
-PRINT_EVERY    = 100
-IMAGES_EVERY   = 100
-SAVE_EVERY     = 1000 
+TOT_ITERATIONS = 100000
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
+SAVE_EVERY     = 100000 
 BATCH_SIZE     = NEXAMPLES
-IRESTART       = True
+IRESTART       = False
 LR             = 3.0e-3
-DECAY_STEPS    = TOT_ITERATIONS
-DECAY_RATE     = 1.0
+DECAY_STEPS    = 50000
+DECAY_RATE     = 0.1
 STAIRCASE      = True
 

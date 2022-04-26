@@ -1,15 +1,17 @@
-#system ("rm energy.png")
+system ("rm energy.png")
 
-# set terminal png size 1024,768
-# set output "energy.png"
+set terminal png size 512,359
+set output "energy.png"
 
-#set logscale x
-#set logscale y
+reset
 
-#set format y "10^{%T}"
+set logscale x
+set logscale y
 
-#set xrange [10:3000]
-#set yrange [1e-12:0.2]
+set format y "10^{%T}"
+
+set xrange [1:300]
+set yrange [1e-6:0.1]
 
 #set yrange [1e-4:0.1]
 #set xrange [0.06:0.07]
@@ -21,14 +23,52 @@ set grid
 
 set style circle radius screen 0.003
 
+# plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_0te.txt'          using 1:2 with circles title '0\t_e L\&D', \
+#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'          using 1:2 with circles title '9\t_e L\&D', \
+#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_24te.txt'         using 1:2 with circles title '24\t_e L\&D', \
+#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_97te.txt'         using 1:2 with circles title '97\t_e L\&D', \
+#      'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt'        using 1:2 with circles title '134\t_e L\&D', \
+#      '../../data/N256_1runs_tollm7/energy/energy_run0_9te.txt'   using 1:2 with lines title  '9te ', \
+#      '../../data/N256_1runs_tollm7/energy/energy_run0_24te.txt'  using 1:2 with lines title  '24te ', \
+#      '../../data/N256_1runs_tollm7/energy/energy_run0_97te.txt'  using 1:2 with lines title  '97te ', \
+#      '../../data/N256_1runs_tollm7/energy/energy_run0_134te.txt' using 1:2 with lines title  '134te ', \
+#      '../../data/N256_1000runs/energy/energy_run1_9te.txt'       using 1:2 with lines title  '9te tollm4', \
+#      '../../data/N256_1000runs/energy/energy_run1_24te.txt'      using 1:2 with lines title  '24te tollm4', \
+#      '../../data/N256_1000runs/energy/energy_run1_97te.txt'      using 1:2 with lines title  '97te tollm4', \
+#      '../../data/N256_1000runs/energy/energy_run1_134te.txt'     using 1:2 with lines title  '134te tollm4', \
+#      '../../../../rubbish/06Mar2022/data/N1024_1DNS_seed10/energy/energy_run0_9te.txt' using 1:2 with lines title '1024 9te', \
+#      '../../../../rubbish/06Mar2022/data/N1024_1DNS_seed10/energy/energy_run0_24te.txt' using 1:2 with lines title '1024 24te', \
+#      '../../../../rubbish/06Mar2022/data/N1024_1DNS_seed10/energy/energy_run0_97te.txt' using 1:2 with lines title '1024 97te', \
+#      '../../../../rubbish/06Mar2022/data/N1024_1DNS_seed10/energy/energy_run0_134te.txt' using 1:2 with lines title '1024 134te'  
+
+
+plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt'                                 using 1:2 with circles title '9\t_e L\&D', \
+     '../../../../../shared/data_All/tollm7/Re60_N256_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 256', \
+     '../../../../../shared/data_All/tollm7/Re60_N512_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 512', \
+     '../../../../../shared/data_All/tollm7/Re60_N1024_1DNS/energy/energy_run0_134te.txt' using 1:2 with lines title '9\t_e L\&D 1024'
+
+
+# plot '../../../../../shared/data/tollm4/Re60_N256/energy/energy_run873_9te.txt' using 1:2 with circles title 'ref', \
+#      './LES_Solvers/energy/energy_run0_9te.txt' using 1:2 with circles title '0\t_e L\&D'
+
+
+
+
+
+
+# plot '../../data/N1024_100runs_Re240/energy/energy_spectrum_run0_it4000.txt' using 1:2 with lines title   '4000 ', \
+#      '../../data/N1024_100runs_Re240/energy/energy_spectrum_run0_it10000.txt' using 1:2 with lines title   '10000 ', \
+#      '../../data/N1024_100runs_Re240/energy/energy_spectrum_run0_it1000.txt' using 1:2 with lines title   '1000 '
+
+
 # plot './LES_Solvers/results/LES_N256_rs8/DNS_fromGAN_center_values.txt' using 1:2 with lines title   'DNS ', \
 #      './LES_Solvers/results/LES_N256_rs8/LES_center_values.txt'         using 1:2 with lines linecolor 5 title   'LES ', \
 #      './LES_Solvers/results/LES_N256_rs8/LES_fromGAN_center_values.txt' using 1:2 every 20 w circles t 'LES from DNS'
 
-plot './LES_Solvers/paper_results/tollm5/DNS_N256_1000it/DNS_center_values.txt'        using 1:2 with lines title 'DNS', \
-     './LES_Solvers/paper_results/tollm5/DNS_N256_rs8/LES_fromGAN_center_values.txt'   using 1:2 with lines title 'LES from GAN', \
-     './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM4/LES_center_values.txt'  using 1:2 with lines title 'LES tollM4', \
-     './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM8/LES_center_values.txt'  using 1:2 with lines title 'LES tollM8'
+# plot './LES_Solvers/paper_results/tollm5/DNS_N256_1000it/DNS_center_values.txt'        using 1:2 with lines title 'DNS', \
+#      './LES_Solvers/paper_results/tollm5/DNS_N256_rs8/LES_fromGAN_center_values.txt'   using 1:2 with lines title 'LES from GAN', \
+#      './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM4/LES_center_values.txt'  using 1:2 with lines title 'LES tollM4', \
+#      './LES_Solvers/paper_results/tollm5/A1_N256_rs8_DNStollM8/LES_center_values.txt'  using 1:2 with lines title 'LES tollM8'
 
 # plot './LES_Solvers/results/curves/n128_rs32/LES_fromGAN_center_values.txt'  using 1:2 with lines title   'LES from DNS rs32', \
 #      './LES_Solvers/results/curves/n128_rs32/LES_center_values.txt'          using 1:2 with circles title 'LES 128 rs32', \

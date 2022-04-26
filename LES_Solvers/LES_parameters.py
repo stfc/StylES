@@ -5,8 +5,8 @@ from matplotlib.pyplot import xlim
 DEBUG      = False
 PATH       = "./"
 maxIt      = 100000
-maxItDNS   = 10000
-toll       = 1.0e-5   # tollerance for convergence of SIMPLE
+maxItDNS   = 100000
+toll       = 1.0e-6   # tollerance for convergence of SIMPLE
 tollM      = 1.0e-3
 tollP      = 1.0e-3
 tollC      = 1.0e-3
@@ -23,7 +23,7 @@ yLinLim    = [0.0e0, 0.1]
 
 # learning rate for DNS field
 lrDNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
-lrDNS        = 1.0      # exponential policy initial learning rate
+lrDNS        = 1.0     # exponential policy initial learning rate
 lrDNS_RATE   = 0.01       # exponential policy decay rate
 lrDNS_STEP   = maxItDNS     # exponential policy decay step
 lrDNS_EXP_ST = False      # exponential policy staircase
