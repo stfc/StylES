@@ -26,7 +26,9 @@ from MSG_StyleGAN_tf2 import *
 from IO_functions import *
 from LES_Solvers.testcases.HIT_2D.HIT_2D import uRef
 
+# local parameters
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
+RANDOMIZE_NOISE = True
 
 
 with mirrored_strategy.scope():
@@ -66,7 +68,7 @@ def train_step(input, inputVariances, images):
         tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
         g_images = synthesis([dlatents, inputVariances], training = True)
-        f_images = filter(g_images[RES_LOG2-2], training = True)
+        f_images, _ = filter(g_images[RES_LOG2-2], training = True)
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -99,8 +101,8 @@ def train_step(input, inputVariances, images):
 
 
 @tf.function
-def distributed_train_step(input, inputVariances, images):
-    losses = mirrored_strategy.run(train_step, args=(input, inputVariances, images))
+def distributed_train_step(input, noise, images):
+    losses = mirrored_strategy.run(train_step, args=(input, noise, images))
     mtr=[]
     for i in range(len(losses)):
         mtr.append(mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, losses[i], axis=None))
@@ -110,7 +112,7 @@ def distributed_train_step(input, inputVariances, images):
 
 
 
-def train(dataset, LR, train_summary_writer):
+def train(dataset, train_summary_writer):
 
     # Load latest checkpoint, if restarting
     if (IRESTART):
@@ -118,16 +120,21 @@ def train(dataset, LR, train_summary_writer):
             checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
 
 
-    # Create noise for sample images
+    # Create noise for sample images, different layers and noise variance
     tf.random.set_seed(1)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
-    inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
-    lr = LR
+
+    noise = []
+    for ldx in range(G_LAYERS):
+        reslog = ldx // 2 + 2
+        shape = [BATCH_SIZE, 1, 2**reslog, 2**reslog]
+        rnoise = tf.random.uniform(shape=shape, dtype=DTYPE)
+        noise.append(rnoise)
+
     mtr = np.zeros([5], dtype=DTYPE)
 
-
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, noise, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -145,12 +152,20 @@ def train(dataset, LR, train_summary_writer):
         # take next batch
         input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         image_batch = next(iter(dataset))
-        mtr = distributed_train_step(input_batch, inputVariances, image_batch)
+        if (RANDOMIZE_NOISE):
+            noise = []
+            for ldx in range(G_LAYERS):
+                reslog = ldx // 2 + 2
+                shape = [BATCH_SIZE, 1, 2**reslog, 2**reslog]
+                rnoise = tf.random.uniform(shape=shape, dtype=DTYPE)
+                noise.append(rnoise)
+        mtr = distributed_train_step(input_batch, noise, image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
             tend = time.time()
-            lr = lr_schedule(it)
+            lr_gen = lr_schedule_gen(it)
+            lr_dis = lr_schedule_dis(it)
             print ('Total time {0:3.2f} h, Iteration {1:8d}, Time Step {2:6.2f} s, ' \
                 'ld {3:6.2e}, ' \
                 'lg {4:6.2e}, ' \
@@ -158,7 +173,8 @@ def train(dataset, LR, train_summary_writer):
                 'r1 {6:6.2e}, ' \
                 'sr {7:6.2e}, ' \
                 'sf {8:6.2e}, ' \
-                'lr {9:6.2e}, ' \
+                'lr_gen {9:6.2e}, ' \
+                'lr_dis {10:6.2e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
@@ -166,7 +182,8 @@ def train(dataset, LR, train_summary_writer):
                 mtr[3], \
                 mtr[4], \
                 mtr[5], \
-                lr))
+                lr_gen, \
+                lr_dis))
             tint = tend
 
             # write losses to tensorboard
@@ -177,12 +194,13 @@ def train(dataset, LR, train_summary_writer):
                 tf.summary.scalar('a/r1_penalty',  mtr[3], step=it)
                 tf.summary.scalar('a/score_real',  mtr[4], step=it)
                 tf.summary.scalar('a/score_fake',  mtr[5], step=it)                                
-                tf.summary.scalar('a/lr',              lr, step=it)
+                tf.summary.scalar('a/lr_gen',      lr_gen, step=it)
+                tf.summary.scalar('a/lr_dis',      lr_dis, step=it)                
 
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, noise, it+1)
 
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):

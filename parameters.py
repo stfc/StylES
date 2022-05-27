@@ -16,11 +16,15 @@ import os
 # General parameters
 DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
+    SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
+else:
+    SMALL = 1.0e-15
 
 DEBUG = False
+tf.random.set_seed(seed=0)
+
 if (DEBUG):
-    tf.random.set_seed(seed=0)
     MINVALRAN = 0.5
     MAXVALRAN = 0.5
 else:
@@ -28,7 +32,7 @@ else:
     MAXVALRAN = None
 
 
-DATASET           = '../../data/tollm7_Re60_N1024/fields_UVW/'
+DATASET           = './LES_Solvers/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -39,7 +43,7 @@ READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
+OUTPUT_DIM        = 256
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -55,19 +59,37 @@ G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 1000 #same size of the number of images in DATASET
+BUFFER_SIZE       = 2625 #same size of the number of images in DATASET
 NEXAMPLES         = 1
 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
+TOT_ITERATIONS = 200000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
-SAVE_EVERY     = 100000 
+IMAGES_EVERY   = 1000
+SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
-LR             = 3.0e-3
-DECAY_STEPS    = 50000
-DECAY_RATE     = 0.1
-STAIRCASE      = True
+
+# learning rates
+LR_GEN           = 7.5e-4
+DECAY_STEPS_GEN  = 150000
+DECAY_RATE_GEN   = 0.1
+STAIRCASE_GEN    = True
+BETA1_GEN        = 0.0
+BETA2_GEN        = 0.99
+
+LR_FIL           = 1.0e-4
+DECAY_STEPS_FIL  = 100000
+DECAY_RATE_FIL   = 0.1
+STAIRCASE_FIL    = True
+BETA1_FIL        = 0.0
+BETA2_FIL        = 0.99
+
+LR_DIS           = 3.0e-3
+DECAY_STEPS_DIS  = 150000
+DECAY_RATE_DIS   = 0.1
+STAIRCASE_DIS    = True
+BETA1_DIS        = 0.0
+BETA2_DIS        = 0.99
 

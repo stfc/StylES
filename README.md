@@ -24,7 +24,7 @@ The following results are obtained via these steps
  - *python LES_solver_staggered.py* (from **LES_Solvers** folder. This will take ~5h)
 
 2) Train the StyleGAN
- - *python main.py* (from **root** folder). This will take ~3h and the training should looks like those in the log file reference (open with TensorBoard). The following divergence values are obtained:
+ - *python main.py* (from **root** folder). This will take ~4h and the training should looks like those in the log file reference (open with TensorBoard). The following divergence values are obtained:
 
 Total divergencies, dUdt and dVdt for each resolution:
    4x   4:   1.731917e-05   6.164761e-05   1.462779e-05\
@@ -36,7 +36,7 @@ Total divergencies, dUdt and dVdt for each resolution:
  256x 256:   1.120220e-04   1.598327e-04   2.454020e-04
 
 3) For a given DNS field, generate the matching field from the StyleGAN via search in the latent space
- - *python check_latentSpace* (from **utility** folder. This will take ~10min)
+ - *python check_latentSpace* (from **utility** folder. This will take ~30min)
 
 4) Compare results
  - *python compare_images.py* (from **utility** folder) 

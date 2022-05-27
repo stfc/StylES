@@ -103,8 +103,6 @@ with mirrored_strategy.scope():
         use_wscale        = True         # Enable equalized learning rate
         use_instance_norm = True         # Enable instance normalization
         use_noise         = True         # Enable noise inputs
-        randomize_noise   = False        # True = randomize noise inputs every time (non-deterministic),
-                                        # False = read noise inputs from variables.
         use_styles        = True         # Enable style inputs                             
         blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
                                         # None = no filtering.
@@ -113,36 +111,23 @@ with mirrored_strategy.scope():
 
         # Inputs
         dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
-        noiseVariances = tf.keras.Input(shape=([G_LAYERS]), dtype=DTYPE)
 
-        # Noise inputs
-        noise_inputs = []
+        noise = []
         for ldx in range(G_LAYERS):
             reslog = ldx // 2 + 2
             shape = [1, 2**reslog, 2**reslog]
-            lnoise = layer_noise(dlatents, shape, name="input_noise%d" % ldx)
-            noise = lnoise(dlatents)
-            noise_inputs.append(noise)
+            noise_in = tf.keras.Input(shape=shape, dtype=DTYPE)
+            noise.append(noise_in)
 
 
         # Things to do at the end of each layer.
         def layer_epilogue(in_x, ldx):
             if use_noise:
-                if noise_inputs[ldx] is None or randomize_noise:
-                    rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
-                                            dtype=DTYPE,
-                                            name="random_noise%d" % ldx)
-                else:
-                    rnoise = tf.cast(noise_inputs[ldx], DTYPE)
-
-                noise = apply_noise(in_x,
-                                    noise_inputs[ldx],
-                                    randomize_noise=randomize_noise,
-                                    name="noise%d" % ldx)
-                in_x = noise(in_x, rnoise, noiseVariances[0, ldx])
+                lnoise = layer_noise(in_x, ldx) 
+                in_x   = lnoise(in_x, noise[ldx])
 
             bias = layer_bias(in_x, name ="Noise_bias%d" % ldx)
-            in_x = bias(in_x, noiseVariances[0, ldx])
+            in_x = bias(in_x, 1)
             in_x = layers.LeakyReLU(name ="Noise_ReLU%d" % ldx)(in_x)
             if use_pixel_norm:
                 in_x = pixel_norm(in_x)
@@ -213,7 +198,7 @@ with mirrored_strategy.scope():
             x = block(res, x)
             images_out.append(torgb(res, x))
 
-        synthesis_model = Model(inputs=[dlatents, noiseVariances], outputs=images_out)
+        synthesis_model = Model(inputs=[dlatents, noise], outputs=images_out)
 
         return synthesis_model
 
@@ -221,49 +206,26 @@ with mirrored_strategy.scope():
 
 
     #-------------------------------------define filter
-    def make_filter_model(f_res, t_res):
-
-        # inner parameters
-        use_wscale  = True        # Enable equalized learning rate
-        blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
-                                # None = no filtering.
-        fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
-
-        # inner functions
-        def blur(in_x):
-            return blur2d(in_x, blur_filter) if blur_filter else in_x
-
-        def torgb(in_res, in_x):  # res = 2..RES_LOG2
-            in_lod = RES_LOG2 - in_res
-            in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-            bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
-            in_x = bias(in_x)
-            return in_x
-
-        # create model
-        f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-
-        f_x = tf.identity(f_in)
-        for res in range(f_res, t_res, -1):
-            f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
-            bias = layer_bias(f_x, name="filter_bias_0")
-            f_x = bias(f_x)
-            f_x = layers.LeakyReLU()(f_x)
-
-            f_x = blur(f_x)
-            f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
-                    use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
-            bias = layer_bias(f_x, name="filter_bias_1")
-            f_x = bias(f_x)
-            f_x = layers.LeakyReLU()(f_x)
-            f_x = torgb(res-1, f_x)
-
-        fout_x = tf.identity(f_x)
+    def make_filter_model():
 
         # Create model
-        filter_model = Model(inputs=f_in, outputs=fout_x)
 
-        return filter_model 
+        # pass inputs
+        in_x = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+
+        # filter images
+        fil_x = gaussian_filter(in_x)
+
+        # convolve and add bias
+        lweights = layer_weights(fil_x)
+        weighted_x = lweights(fil_x)
+
+        # define model
+        filter_model = Model(inputs=in_x, outputs=[weighted_x, fil_x])
+
+        return filter_model
+
+
 
 
 
@@ -275,10 +237,10 @@ with mirrored_strategy.scope():
         label_size         = 0           # Dimensionality of the labels, 0 if no labels. Overridden based on dataset
         mbstd_group_size   = 4           # Group size for the minibatch standard deviation layer, 0 = disable.
         mbstd_num_features = 1           # Number of features for the minibatch standard deviation layer.
-        blur_filter        = None # Low-pass filter to apply when resampling activations. 
-                                        # None = no filtering.
+        blur_filter        = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+                                         # None = no filtering.
         fused_scale        = False       # True = fused convolution + scaling, 
-                                        # False = separate ops, 'auto' = decide automatically.
+                                         # False = separate ops, 'auto' = decide automatically.
 
         def blur(in_x):
             return blur2d(in_x, blur_filter) if blur_filter else in_x
@@ -371,21 +333,34 @@ with mirrored_strategy.scope():
 
 
     #-------------------------------------define optimizer and loss functions
-    lr_schedule = tf.keras.optimizers.schedules.ExponentialDecay(
-        initial_learning_rate=LR,
-        decay_steps=DECAY_STEPS,
-        decay_rate=DECAY_RATE,
-        staircase=STAIRCASE)
+    lr_schedule_gen = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=LR_GEN,
+        decay_steps=DECAY_STEPS_GEN,
+        decay_rate=DECAY_RATE_GEN,
+        staircase=STAIRCASE_GEN)
 
-    generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
-    filter_optimizer        = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
-    discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule, beta_1=0.0, beta_2=0.99, epsilon=1e-8)
+    lr_schedule_fil = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=LR_FIL,
+        decay_steps=DECAY_STEPS_FIL,
+        decay_rate=DECAY_RATE_FIL,
+        staircase=STAIRCASE_FIL)
+
+    lr_schedule_dis = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=LR_DIS,
+        decay_steps=DECAY_STEPS_DIS,
+        decay_rate=DECAY_RATE_DIS,
+        staircase=STAIRCASE_DIS)
+
+    generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_schedule_gen, beta_1=BETA1_GEN, beta_2=BETA2_GEN, epsilon=SMALL)
+    filter_optimizer        = tf.keras.optimizers.Adam(learning_rate=lr_schedule_fil, beta_1=BETA1_FIL, beta_2=BETA2_FIL, epsilon=SMALL)
+    discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule_dis, beta_1=BETA1_DIS, beta_2=BETA2_DIS, epsilon=SMALL)
+
 
 
     #-------------------------------------create an instance of the generator and discriminator
     mapping       = make_mapping_model()
     synthesis     = make_synthesis_model()
-    filter        = make_filter_model(RES_LOG2, RES_LOG2_FIL)
+    filter        = make_filter_model()
     discriminator = make_discriminator_model()
 
     #mapping.summary()
@@ -424,17 +399,22 @@ with mirrored_strategy.scope():
 list_DNS_trainable_variables = []
 list_LES_trainable_variables = []
 for layer in synthesis.layers:
-    if "input_noise" in layer.name:
-        lname = layer.name
-        ldx = int(lname.replace("input_noise",""))
-        reslog = ldx // 2 + 2
+    for variable in layer.trainable_variables:
+        if "noise_weight" in variable.name:
+            lname = variable.name
+            lname = lname.replace(":0","")
+            ldx = int(lname.replace("noise_weight",""))
+            reslog = ldx // 2 + 2
 
-        for variable in layer.trainable_variables:
             list_DNS_trainable_variables.append(variable)
 
-        if (reslog<RES_LOG2_FIL+1):
-            for variable in layer.trainable_variables:
+            if (reslog<RES_LOG2_FIL+1):
                 list_LES_trainable_variables.append(variable)
+
+
+# print("Noise variables")
+# for variable in list_DNS_trainable_variables:
+#     print(variable.name)
 
 
 #----------------------------------------------extra pieces----------------------------------------------

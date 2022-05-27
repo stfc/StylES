@@ -21,13 +21,13 @@ PASSIVE   = False
 RESTART   = False
 SAVE_UVW  = False
 N         = 256      # number of points   [-]
-finalTime = 0.152751599
+finalTime = 2.0
 totSteps  = 1000000
-print_res = 10
+print_res = 100
 print_img = 1000
 print_ckp = 1000
 print_spe = 1000
-NRUNS     = 40   # number of total runs to execute
+NRUNS     = 175   # number of total runs to execute
 
 # te_s = []
 # te   = []

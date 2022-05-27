@@ -12,7 +12,7 @@
             // "cwd": "${workspaceFolder}/",
             // "program": "LES_solver_staggered.py",
             // "cwd": "${workspaceFolder}/LES_Solvers/",
-            "program": "check_latentSpace.py",
+            "program": "compare_images.py",
             "cwd": "${workspaceFolder}/utilities/",
             "console": "integratedTerminal"
         }

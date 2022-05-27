@@ -58,18 +58,18 @@ DTYPE = DTYPE_LES  # this is only because the StyleGAN is trained with float32 u
 #---------------------------- local variables
 NLES           = 2**RES_LOG2_FIL
 iNNLES         = one/(NLES*NLES)
-SIG            = int(N/NLES)  # Gaussian (tf and np) filter sigma
+SIG            = 8*int(N/NLES)  # Gaussian (tf and np) filter sigma
 DW             = int(N/NLES)      # downscaling factor
-PROCEDURE      = "A2"
+PROCEDURE      = "A1"
 WL_CHKP_DIR    = "../utilities/wl_checkpoints/"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 FILE_REAL      = "../../../results/decayIsoTurb_2D/paper_results/tollm7/DNS_N256/fields/fields_run0_it100.npz"
 
-if PROCEDURE=="A2":
+if PROCEDURE=="A1":
     FILTER       = "Gaussian_tf"
     USE_DLATENTS = True
     INIT_BC      = 0
-    WL_IRESTART  = True
+    WL_IRESTART  = False
 elif PROCEDURE=="A2":
     FILTER       = "StyleGAN_layer"
     USE_DLATENTS = True
@@ -248,122 +248,7 @@ for layer in rescale.trainable_variables:
 def find_latents_DNS(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions, UVP_DNS = wl_synthesis([latents, minMaxUVP], training=False)
-
-        resDNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP_DNS[0,0:2,:,:]))
-
-        gradients_DNS = tape_DNS.gradient(resDNS, list_trainable_variables)
-        opt.apply_gradients(zip(gradients_DNS, list_trainable_variables))
-
-        return resDNS, predictions, UVP_DNS
-
-
-
-@tf.function
-def find_latents_DNS_step(latents, minMaxUVP, imgA, list_trainable_variables):
-    resDNS, predictions, UVP_DNS = mirrored_strategy.run(find_latents_DNS, args=(latents, minMaxUVP, imgA, list_trainable_variables))
-    return resDNS, predictions, UVP_DNS
-
-
-
-@tf.function
-def find_latents_LES(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
-    with tf.GradientTape() as tape_DNS:
-        predictions, UVP_DNS = wl_synthesis([latents, minMaxUVP])
-
-        if (FILTER=="Trained_filter"):
-            UVP = filter(predictions[RES_LOG2-2], training=False)
-
-        elif (FILTER=="StyleGAN_layer"):
-            UVP = predictions[RES_LOG2_FIL-2]
-
-        elif (FILTER=="Gaussian_tf"):
-
-            # separate DNS fields
-            rs = SIG
-            if (rs==1 and DW==1):
-                fU = UVP_DNS[0,0,:,:]
-                fV = UVP_DNS[0,1,:,:]
-                fP = UVP_DNS[0,2,:,:]
-
-                fU = fU[tf.newaxis, tf.newaxis, :, :]
-                fV = fV[tf.newaxis, tf.newaxis, :, :]
-                fP = fP[tf.newaxis, tf.newaxis, :, :]
-
-                UVP = tf.concat([fU, fV, fP], 1)
-            else:
-                U_DNS_t = UVP_DNS[0,0,:,:]
-                V_DNS_t = UVP_DNS[0,1,:,:]
-                P_DNS_t = UVP_DNS[0,2,:,:]
-
-                U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
-                V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
-                P_DNS_t = P_DNS_t[tf.newaxis,:,:,tf.newaxis]
-
-                # prepare Gaussian Kernel
-                gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
-                gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
-                gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
-
-                # add padding
-                pleft   = 4*rs
-                pright  = 4*rs
-                ptop    = 4*rs
-                pbottom = 4*rs
-
-                U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-                V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-                P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-
-                # convolve
-                fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-                fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-                fP_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-
-                # downscale
-                fU = fU_t[0,::DW,::DW,0]
-                fV = fV_t[0,::DW,::DW,0]
-                fP = fP_t[0,::DW,::DW,0]
-
-                # normalize
-                fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*two - one
-                fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*two - one
-                fP = (fP - tf.math.reduce_min(fP))/(tf.math.reduce_max(fP) - tf.math.reduce_min(fP))*two - one
-
-                fU = fU[tf.newaxis, tf.newaxis, :, :]
-                fV = fV[tf.newaxis, tf.newaxis, :, :]
-                fP = fP[tf.newaxis, tf.newaxis, :, :]
-
-                UVP = tf.concat([fU, fV, fP], 1)
-
-        elif (FILTER=="Gaussian_np"):
-            pass
-
-        div = rho*A*tf.math.reduce_sum(tf.math.abs(tr(UVP[0,0,:,:], 1, 0) - UVP[0,0,:,:] + tr(UVP[0,1,:,:], 0, 1) - UVP[0,1,:,:]))
-        div_LES = div*iNNLES
-
-        resDNS = div_LES + tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP[0,0:2,:,:]))  # match only the U and V values!
-
-        gradients_DNS = tape_DNS.gradient(resDNS, list_trainable_variables)
-        opt_LES.apply_gradients(zip(gradients_DNS, list_trainable_variables))
-
-        return resDNS, predictions, UVP_DNS, UVP, div_LES
-
-
-@tf.function
-def find_latents_LES_step(latents, minMaxUVP, imgA, list_trainable_variables):
-    resDNS, predictions, UVP_DNS, UVP, div_LES = mirrored_strategy.run(find_latents_LES, args=(latents, minMaxUVP, imgA, list_trainable_variables))
-    return resDNS, predictions, UVP_DNS, UVP, div_LES
-
-
-
-
-
-
-
-@tf.function
-def find_scaling(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
-    with tf.GradientTape() as tape_DNS:
-        predictions, UVP_DNS = wl_synthesis([latents, minMaxUVP])
+        UVP_LES     = predictions[RES_LOG2_FIL-2]
 
         # separate DNS fields
         rs = SIG
@@ -400,37 +285,120 @@ def find_scaling(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis
         fV = fV_t[0,::DW,::DW,0]
         fP = fP_t[0,::DW,::DW,0]
 
+        # normalize
+        fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*two - one
+        fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*two - one
+        fP = (fP - tf.math.reduce_min(fP))/(tf.math.reduce_max(fP) - tf.math.reduce_min(fP))*two - one
+
         fU = fU[tf.newaxis, tf.newaxis, :, :]
         fV = fV[tf.newaxis, tf.newaxis, :, :]
         fP = fP[tf.newaxis, tf.newaxis, :, :]
 
-        UVP = tf.concat([fU, fV, fP], 1)
+        imgB = tf.concat([fU, fV, fP], 1)
 
-        div = rho*A*tf.math.reduce_sum(tf.math.abs(tr(UVP[0,0,:,:], 1, 0) - UVP[0,0,:,:] + tr(UVP[0,1,:,:], 0, 1) - UVP[0,1,:,:]))
-        div_DNS = div*iNN
 
-        pdiff_DNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP[0,0:2,:,:]))  # match only the U and V values!
-        loss_DNS = pdiff_DNS + div_DNS
 
-        gradients_DNS = tape_DNS.gradient(loss_DNS, list_trainable_variables)
-        opt_LES.apply_gradients(zip(gradients_DNS, list_trainable_variables))
+        # normalize values
+        # loss_fea = VGG_loss(imgA, imgB, VGG_extractor) 
+        # resDNS  =  tf.math.reduce_sum(loss_fea[2:])
+        loss_pix_DNS = tf.math.reduce_mean(tf.math.squared_difference(imgA[:,:,:], UVP_DNS[0,:,:,:]))
+        loss_pix_LES = tf.math.reduce_mean(tf.math.squared_difference(imgB[:,:,:], UVP_LES[0,:,:,:]))
+        resDNS       = loss_pix_DNS + loss_pix_LES
 
-        return loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP
+        gradients_DNS  = tape_DNS.gradient(resDNS, list_trainable_variables)
+        opt.apply_gradients(zip(gradients_DNS, list_trainable_variables))
+
+        return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES
+
 
 
 @tf.function
-def find_scaling_step(latents, minMaxUVP, imgA, list_trainable_variables):
-    loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = mirrored_strategy.run(find_scaling, args=(latents, minMaxUVP, imgA, list_trainable_variables))
-    return loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP
+def find_latents_DNS_step(latents, minMaxUVP, imgA, list_trainable_variables):
+    resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES = mirrored_strategy.run(find_latents_DNS, args=(latents, minMaxUVP, imgA, list_trainable_variables))
+    return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES
 
 
 
+@tf.function
+def find_latents_LES(latents, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
+    with tf.GradientTape() as tape_DNS:
+        predictions, UVP_DNS = wl_synthesis([latents, minMaxUVP])
+
+        if (FILTER=="Trained_filter"):
+            UVP = filter(predictions[RES_LOG2-2], training=False)
+
+        elif (FILTER=="StyleGAN_layer"):
+            UVP = predictions[RES_LOG2_FIL-2]
+
+        elif (FILTER=="Gaussian_tf"):
+
+            # separate DNS fields
+            rs = SIG
+            U_DNS_t = UVP_DNS[0,0,:,:]
+            V_DNS_t = UVP_DNS[0,1,:,:]
+            P_DNS_t = UVP_DNS[0,2,:,:]
+
+            U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
+            P_DNS_t = P_DNS_t[tf.newaxis,:,:,tf.newaxis]
+
+            # prepare Gaussian Kernel
+            gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+            gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+            gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+            # add padding
+            pleft   = 4*rs
+            pright  = 4*rs
+            ptop    = 4*rs
+            pbottom = 4*rs
+
+            U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+            P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+            # convolve
+            fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+            fP_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+            # downscale
+            fU = fU_t[0,::DW,::DW,0]
+            fV = fV_t[0,::DW,::DW,0]
+            fP = fP_t[0,::DW,::DW,0]
+
+            div = rho*A*tf.math.reduce_sum(tf.math.abs(tr(fU[:,:], 1, 0) - fU[:,:] + tr(fV[:,:], 0, 1) - fV[:,:]))
+            div_LES = div*iNNLES
+
+            # normalize
+            fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*two - one
+            fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*two - one
+            fP = (fP - tf.math.reduce_min(fP))/(tf.math.reduce_max(fP) - tf.math.reduce_min(fP))*two - one
+
+            fU = fU[tf.newaxis, tf.newaxis, :, :]
+            fV = fV[tf.newaxis, tf.newaxis, :, :]
+            fP = fP[tf.newaxis, tf.newaxis, :, :]
+
+            UVP = tf.concat([fU, fV, fP], 1)
+
+        elif (FILTER=="Gaussian_np"):
+            pass
+
+        div = rho*A*tf.math.reduce_sum(tf.math.abs(tr(UVP_DNS[0,0,:,:], 1, 0) - UVP_DNS[0,0,:,:] + tr(UVP_DNS[0,1,:,:], 0, 1) - UVP_DNS[0,1,:,:]))
+        div_DNS = div*iNN
+
+        resDNS = div_DNS + div_LES + tf.math.reduce_mean(tf.math.squared_difference(imgA[0:2,:,:], UVP[0,0:2,:,:]))
+
+        gradients_DNS = tape_DNS.gradient(resDNS, list_trainable_variables)
+        opt_LES.apply_gradients(zip(gradients_DNS, list_trainable_variables))
+
+        return resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES
 
 
-
-
-
-
+@tf.function
+def find_latents_LES_step(latents, minMaxUVP, imgA, list_trainable_variables):
+    resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES = mirrored_strategy.run(find_latents_LES, args=(latents, minMaxUVP, imgA, list_trainable_variables))
+    return resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES
 
 
 
@@ -486,12 +454,12 @@ if (INIT_BC==0):
         # find latent space
         itDNS   = 0
         resDNS  = large
-        while (resDNS>tollDNS and itDNS<maxItDNS):
-            resDNS, predictions, UVP_DNS = find_latents_DNS_step(latents, tminMaxUVP, imgA_DNS, list_DNS_trainable_variables)
+        while (resDNS>tollDNS and itDNS<maxItDNS/10):
+            resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES = find_latents_DNS_step(latents, tminMaxUVP, imgA_DNS, list_DNS_trainable_variables)
 
             lr = lr_schedule(itDNS)
             if (itDNS%100 == 0):
-                print("Search DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+                print("Search LES iterations:  it {0:3d}  residuals {1:3e}  loss_pix_DNS {2:3e}  loss_pix_LES {3:3e}  lr {4:3e} ".format(itDNS, resDNS, loss_pix_DNS, loss_pix_LES, lr))
                 # U_DNS = UVP_DNS[0, 0, :, :].numpy()
                 # V_DNS = UVP_DNS[0, 1, :, :].numpy()
                 # P_DNS = UVP_DNS[0, 2, :, :].numpy()
@@ -504,7 +472,7 @@ if (INIT_BC==0):
             itDNS = itDNS+1
 
         # print final residuals
-        print("Search DNS iterations:  it {0:3d}  residuals {1:3e}  lr {2:3e} ".format(itDNS, resDNS, lr))
+        print("Search LES iterations:  it {0:3d}  residuals {1:3e}  loss_pix_DNS {2:3e}  loss_pix_LES {3:3e}  lr {4:3e} ".format(itDNS, resDNS, loss_pix_DNS, loss_pix_LES, lr))
         
         with train_summary_writer.as_default():
             tf.summary.scalar("residuals", resDNS, step=itDNS)
@@ -699,7 +667,7 @@ its      = 0
 
 # check divergence
 div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
-div = div*iNN
+div = div*iNNLES
 div_cpu = convert(div)
 
 # find new delt based on Courant number
@@ -1260,17 +1228,17 @@ while (tstep<totSteps and totTime<finalTime):
 
         itDNS  = 0
         resDNS = large
-        while ((resDNS>tollDNS or div_LES>toll) and itDNS<maxItDNS):
+        while ((resDNS>tollDNS or div_DNS>toll or div_LES>toll) and itDNS<maxItDNS):
             if (PROCEDURE=="A1"):
-                resDNS, predictions, UVP_DNS, UVP, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
+                resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
             elif (PROCEDURE=="A2"):
-                resDNS, predictions, UVP_DNS, UVP, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
+                resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
             elif (PROCEDURE=="B1"):
-                resDNS, predictions, UVP_DNS, UVP, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
+                resDNS, predictions, UVP_DNS, UVP, div_DNS, div_LES = find_latents_LES_step(latents, tminMaxUVP, imgA, list_LES_trainable_variables)
 
             if (itDNS%100 == 0):
                 lr = lr_schedule_LES(itDNS)
-                print("Search LES iterations:  it {0:3d}  residuals {1:3e}  div_LES {2:3e}  lr {3:3e} ".format(itDNS, resDNS, div_LES, lr))
+                print("Search LES iterations:  it {0:3d}  residuals {1:3e}  div_DNS {2:3e}  div_LES {3:3e}  lr {4:3e} ".format(itDNS, resDNS, div_DNS, div_LES, lr))
                 # U_LES = UVP[0, 0, :, :].numpy()
                 # V_LES = UVP[0, 1, :, :].numpy()
                 # P_LES = UVP[0, 2, :, :].numpy()
@@ -1281,34 +1249,34 @@ while (tstep<totSteps and totTime<finalTime):
             itDNS = itDNS+1
 
         lr = lr_schedule(itDNS)
-        print("Search LES iterations:  it {0:3d}  residuals {1:3e}  div_LES {2:3e}  lr {3:3e} ".format(itDNS, resDNS, div_LES, lr))
+        print("Search LES iterations:  it {0:3d}  residuals {1:3e}  div_DNS {2:3e}  div_LES {3:3e}  lr {4:3e} ".format(itDNS, resDNS, div_DNS, div_LES, lr))
 
 
-        # find rescaling factors
-        itDNS  = 0
-        div_DNS = large
-        loss_DNS = large
-        while (div_DNS>toll and itDNS<maxItDNS):
-            if (PROCEDURE=="A1"):
-                loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
-            elif (PROCEDURE=="A2"):
-                loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
-            elif (PROCEDURE=="B1"):
-                loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
+        # # find rescaling factors
+        # itDNS  = 0
+        # div_DNS = large
+        # loss_DNS = large
+        # while (div_DNS>toll and itDNS<maxItDNS):
+        #     if (PROCEDURE=="A1"):
+        #         loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
+        #     elif (PROCEDURE=="A2"):
+        #         loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
+        #     elif (PROCEDURE=="B1"):
+        #         loss_DNS, div_DNS, pdiff_DNS, predictions, UVP_DNS, UVP = find_scaling_step(latents, tminMaxUVP, imgA, list_rescaling_variables)
 
-            if (itDNS%100 == 0):
-                lr = lr_schedule_LES(itDNS)
-                print("Search scaling iterations:  it {0:3d}  loss_DNS {1:3e}  div_DNS {2:3e}  pdiff_DNS {3:3e}  lr {4:3e} ".format(itDNS, loss_DNS, div_DNS, pdiff_DNS, lr))
-                # U_LES = UVP[0, 0, :, :].numpy()
-                # V_LES = UVP[0, 1, :, :].numpy()
-                # P_LES = UVP[0, 2, :, :].numpy()
-                # W_LES = find_vorticity(U_LES, V_LES)
-                # print_fields(U_LES, V_LES, P_LES, W_LES, NLES, filename="plots/plots_LES_fromGAN_scaling.png")
-                # print_fields(U, V, P, W,                 NLES, filename="plots/plots_LES.png")
+        #     if (itDNS%100 == 0):
+        #         lr = lr_schedule_LES(itDNS)
+        #         print("Search scaling iterations:  it {0:3d}  loss_DNS {1:3e}  div_DNS {2:3e}  pdiff_DNS {3:3e}  lr {4:3e} ".format(itDNS, loss_DNS, div_DNS, pdiff_DNS, lr))
+        #         # U_LES = UVP[0, 0, :, :].numpy()
+        #         # V_LES = UVP[0, 1, :, :].numpy()
+        #         # P_LES = UVP[0, 2, :, :].numpy()
+        #         # W_LES = find_vorticity(U_LES, V_LES)
+        #         # print_fields(U_LES, V_LES, P_LES, W_LES, NLES, filename="plots/plots_LES_fromGAN_scaling.png")
+        #         # print_fields(U, V, P, W,                 NLES, filename="plots/plots_LES.png")
 
-            itDNS = itDNS+1
+        #     itDNS = itDNS+1
 
-        lr = lr_schedule(itDNS)
+        # lr = lr_schedule(itDNS)
         # print("Search scaling iterations:  it {0:3d}  loss_DNS {1:3e}  div_DNS {2:3e}  pdiff_DNS {3:3e}  lr {4:3e} ".format(itDNS, loss_DNS, div_DNS, pdiff_DNS, lr))
 
         # find new DNS fields from GAN
@@ -1324,6 +1292,10 @@ while (tstep<totSteps and totTime<finalTime):
 
 
         # #---------------------------- retrain GAN
+        #  create list of retrainable variables
+        # synthe
+        # for variable in synthesis.variables():
+
         # if PROCEDURE=="B1":
 
         #     # Create noise for sample images
@@ -1449,8 +1421,8 @@ while (tstep<totSteps and totTime<finalTime):
         its = it
 
         # check divergence
-        div = rho*A*nc.sum(nc.abs(cr(U_DNS, 1, 0) - U_DNS + cr(V_DNS, 0, 1) - V_DNS))
-        div = div*iNN
+        div = rho*A*nc.sum(nc.abs(cr(U, 1, 0) - U + cr(V, 0, 1) - V))
+        div = div*iNNLES
         div_cpu = convert(div)  
 
         # print values

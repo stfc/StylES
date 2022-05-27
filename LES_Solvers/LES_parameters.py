@@ -5,8 +5,8 @@ from matplotlib.pyplot import xlim
 DEBUG      = False
 PATH       = "./"
 maxIt      = 100000
-maxItDNS   = 100000
-toll       = 1.0e-6   # tollerance for convergence of SIMPLE
+maxItDNS   = 30000
+toll       = 1.0e-5   # tollerance for convergence of SIMPLE
 tollM      = 1.0e-3
 tollP      = 1.0e-3
 tollC      = 1.0e-3

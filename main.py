@@ -59,7 +59,7 @@ def main():
 
     train_images = prepare_for_training(labeled_ds)
     dist_dataset = mirrored_strategy.experimental_distribute_dataset(train_images)
-    train(dist_dataset, LR, train_summary_writer)
+    train(dist_dataset, train_summary_writer)
 
 if __name__ == "__main__":
     main()
