@@ -41,9 +41,10 @@ def load_fields(filename='restart.npz'):
     U = data['U']
     V = data['V']
     P = data['P']
-    W = data['W']
+    C = data['C']
+    B = data['B']
 
-    return U, V, P, W, totTime
+    return U, V, P, C, B, totTime
 
 
 def save_fields(totTime, U, V, P, C, B, W, filename="restart.npz"):

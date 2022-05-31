@@ -189,27 +189,6 @@ class layer_dense(layers.Layer):
         return tf.matmul(x, tf.cast(self.w, DTYPE) * self.runtime_coef)
 
 
-
-
-#-------------Layer weights
-class layer_weights(layers.Layer):
-    def __init__(self, x=None):
-        super(layer_weights, self).__init__()
-
-        w_init = tf.ones_initializer()
-        self.w = tf.Variable(
-            initial_value=w_init(shape=[x.shape[1], x.shape[2], x.shape[3]], dtype=DTYPE),
-            trainable=True,
-            name="weights_filter"
-        )
-
-    def call(self, x):
-        y = x*self.w
-        return y
-
-
-
-
 #-------------Layer Bias
 class layer_bias(layers.Layer):
     def __init__(self, x=None, lrmul=1.0, **kwargs):
@@ -229,21 +208,23 @@ class layer_bias(layers.Layer):
 
 
 
-#-------------Layer Noise
-class layer_noise(layers.Layer):
-    def __init__(self, x, ldx):
-        super(layer_noise, self).__init__()
 
-        w_init = tf.zeros_initializer()
-        self.w = tf.Variable(
-            initial_value=w_init(shape=x.shape[1], dtype=DTYPE),
-            trainable=True,
-            name="noise_weight%d" % ldx
-        )
+def apply_noise(x, ldx, varNoise, noise_in=None, randomize_noise=True):
+    assert len(x.shape) == 4  # NCHW
 
-    def call(self, x, noise):
-        return x + noise * tf.reshape(tf.cast(self.w, DTYPE), [1, -1, 1, 1])
+    if noise_in is None or randomize_noise:
+        noise = tf.random.normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
+    else:
+        noise = tf.cast(noise_in, x.dtype)
 
+    w_init = tf.zeros_initializer()
+    weight = tf.Variable(
+        initial_value=w_init(shape=x.shape[1], dtype=DTYPE),
+        trainable=True,
+        name="Noise_weight%d" % ldx
+    )
+
+    return x + noise * tf.reshape(tf.cast(weight, x.dtype), [1, -1, 1, 1]) * varNoise
 
 
 #-------------Layer wlatent
@@ -273,26 +254,8 @@ class layer_wlatent(layers.Layer):
 
 
 
-#-------------Layer zlatent
-class layer_zlatent(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_zlatent, self).__init__()
 
-        wl_init = tf.ones_initializer()
-        self.wl = tf.Variable(
-            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="zlatent"
-        )
-
-    def call(self, x):
-        x = x*self.wl
-        return x
-
-
-
-
-#-------------Layer rescale
+#-------------Layer wlatent
 class layer_rescale(layers.Layer):
     def __init__(self, **kwargs):
         super(layer_rescale, self).__init__()
@@ -416,59 +379,6 @@ def blur2d(x, f=[1, 2, 1], normalize=True):
         return y, grad
 
     return func(x)
-
-
-#-------------gaussian filter
-def gaussian_filter(UVW_DNS):
-
-    # separate DNS fields
-    rs = int(2**(RES_LOG2 - RES_LOG2_FIL))
-    U_DNS_t = UVW_DNS[0,0,:,:]
-    V_DNS_t = UVW_DNS[0,1,:,:]
-    W_DNS_t = UVW_DNS[0,2,:,:]
-
-    U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
-    V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
-    W_DNS_t = W_DNS_t[tf.newaxis,:,:,tf.newaxis]
-
-    # prepare Gaussian Kernel
-    gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
-    gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
-    gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
-
-    # add padding
-    pleft   = 4*rs
-    pright  = 4*rs
-    ptop    = 4*rs
-    pbottom = 4*rs
-
-    U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-    V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-    W_DNS_t = periodic_padding_flexible(W_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-
-    # convolve
-    fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-    fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-    fW_t = tf.nn.conv2d(W_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-
-    # downscale
-    fU = fU_t[0,::rs,::rs,0]
-    fV = fV_t[0,::rs,::rs,0]
-    fW = fW_t[0,::rs,::rs,0]
-
-    # normalize
-    fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*2 - 1
-    fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*2 - 1
-    fW = (fW - tf.math.reduce_min(fW))/(tf.math.reduce_max(fW) - tf.math.reduce_min(fW))*2 - 1
-
-    fU = fU[tf.newaxis, tf.newaxis, :, :]
-    fV = fV[tf.newaxis, tf.newaxis, :, :]
-    fW = fW[tf.newaxis, tf.newaxis, :, :]
-
-    filtered_img = tf.concat([fU, fV, fW], 1)
-
-    return filtered_img
-
 
 
 #-------------Upscale2D

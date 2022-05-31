@@ -26,9 +26,7 @@ from MSG_StyleGAN_tf2 import *
 from IO_functions import *
 from LES_Solvers.testcases.HIT_2D.HIT_2D import uRef
 
-# local parameters
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
-RANDOMIZE_NOISE = True
 
 
 with mirrored_strategy.scope():
@@ -68,7 +66,7 @@ def train_step(input, inputVariances, images):
         tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
         g_images = synthesis([dlatents, inputVariances], training = True)
-        f_images, _ = filter(g_images[RES_LOG2-2], training = True)
+        f_images = filter(g_images[RES_LOG2-2], training = True)
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -101,8 +99,8 @@ def train_step(input, inputVariances, images):
 
 
 @tf.function
-def distributed_train_step(input, noise, images):
-    losses = mirrored_strategy.run(train_step, args=(input, noise, images))
+def distributed_train_step(input, inputVariances, images):
+    losses = mirrored_strategy.run(train_step, args=(input, inputVariances, images))
     mtr=[]
     for i in range(len(losses)):
         mtr.append(mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, losses[i], axis=None))
@@ -120,21 +118,15 @@ def train(dataset, train_summary_writer):
             checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
 
 
-    # Create noise for sample images, different layers and noise variance
+    # Create noise for sample images
     tf.random.set_seed(1)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
-
-    noise = []
-    for ldx in range(G_LAYERS):
-        reslog = ldx // 2 + 2
-        shape = [BATCH_SIZE, 1, 2**reslog, 2**reslog]
-        rnoise = tf.random.uniform(shape=shape, dtype=DTYPE)
-        noise.append(rnoise)
-
+    inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
     mtr = np.zeros([5], dtype=DTYPE)
 
+
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, noise, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -152,14 +144,7 @@ def train(dataset, train_summary_writer):
         # take next batch
         input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         image_batch = next(iter(dataset))
-        if (RANDOMIZE_NOISE):
-            noise = []
-            for ldx in range(G_LAYERS):
-                reslog = ldx // 2 + 2
-                shape = [BATCH_SIZE, 1, 2**reslog, 2**reslog]
-                rnoise = tf.random.uniform(shape=shape, dtype=DTYPE)
-                noise.append(rnoise)
-        mtr = distributed_train_step(input_batch, noise, image_batch)
+        mtr = distributed_train_step(input_batch, inputVariances, image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
@@ -200,7 +185,7 @@ def train(dataset, train_summary_writer):
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, noise, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, it+1)
 
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):

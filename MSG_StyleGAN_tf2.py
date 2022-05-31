@@ -103,6 +103,8 @@ with mirrored_strategy.scope():
         use_wscale        = True         # Enable equalized learning rate
         use_instance_norm = True         # Enable instance normalization
         use_noise         = True         # Enable noise inputs
+        randomize_noise   = True        # True = randomize noise inputs every time (non-deterministic),
+                                        # False = read noise inputs from variables.
         use_styles        = True         # Enable style inputs                             
         blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
                                         # None = no filtering.
@@ -111,23 +113,30 @@ with mirrored_strategy.scope():
 
         # Inputs
         dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+        noiseVariances = tf.keras.Input(shape=([G_LAYERS]), dtype=DTYPE)
 
-        noise = []
+        # Noise inputs
+        noise_inputs = []
         for ldx in range(G_LAYERS):
             reslog = ldx // 2 + 2
             shape = [1, 2**reslog, 2**reslog]
-            noise_in = tf.keras.Input(shape=shape, dtype=DTYPE)
-            noise.append(noise_in)
+
+            w_init = tf.random_normal_initializer()
+            noise = tf.Variable(
+                initial_value=w_init(shape=shape, dtype=DTYPE),
+                trainable=False,
+                name="input_noise%d" % ldx)
+
+            noise_inputs.append(noise)
 
 
         # Things to do at the end of each layer.
         def layer_epilogue(in_x, ldx):
             if use_noise:
-                lnoise = layer_noise(in_x, ldx) 
-                in_x   = lnoise(in_x, noise[ldx])
+                in_x = apply_noise(in_x, ldx, noiseVariances[0, ldx], noise_inputs[ldx], randomize_noise=randomize_noise)
 
             bias = layer_bias(in_x, name ="Noise_bias%d" % ldx)
-            in_x = bias(in_x, 1)
+            in_x = bias(in_x, noiseVariances[0, ldx])
             in_x = layers.LeakyReLU(name ="Noise_ReLU%d" % ldx)(in_x)
             if use_pixel_norm:
                 in_x = pixel_norm(in_x)
@@ -198,7 +207,7 @@ with mirrored_strategy.scope():
             x = block(res, x)
             images_out.append(torgb(res, x))
 
-        synthesis_model = Model(inputs=[dlatents, noise], outputs=images_out)
+        synthesis_model = Model(inputs=[dlatents, noiseVariances], outputs=images_out)
 
         return synthesis_model
 
@@ -206,26 +215,49 @@ with mirrored_strategy.scope():
 
 
     #-------------------------------------define filter
-    def make_filter_model():
+    def make_filter_model(f_res, t_res):
+
+        # inner parameters
+        use_wscale  = True        # Enable equalized learning rate
+        blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+                                # None = no filtering.
+        fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+        # inner functions
+        def blur(in_x):
+            return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+        def torgb(in_res, in_x):  # res = 2..RES_LOG2
+            in_lod = RES_LOG2 - in_res
+            in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+            bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+            in_x = bias(in_x)
+            return in_x
+
+        # create model
+        f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+
+        f_x = tf.identity(f_in)
+        for res in range(f_res, t_res, -1):
+            f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+            bias = layer_bias(f_x, name="filter_bias_0")
+            f_x = bias(f_x)
+            f_x = layers.LeakyReLU()(f_x)
+
+            f_x = blur(f_x)
+            f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+                    use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+            bias = layer_bias(f_x, name="filter_bias_1")
+            f_x = bias(f_x)
+            f_x = layers.LeakyReLU()(f_x)
+            f_x = torgb(res-1, f_x)
+
+        fout_x = tf.identity(f_x)
 
         # Create model
+        filter_model = Model(inputs=f_in, outputs=fout_x)
 
-        # pass inputs
-        in_x = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-
-        # filter images
-        fil_x = gaussian_filter(in_x)
-
-        # convolve and add bias
-        lweights = layer_weights(fil_x)
-        weighted_x = lweights(fil_x)
-
-        # define model
-        filter_model = Model(inputs=in_x, outputs=[weighted_x, fil_x])
-
-        return filter_model
-
-
+        return filter_model 
 
 
 
@@ -360,7 +392,7 @@ with mirrored_strategy.scope():
     #-------------------------------------create an instance of the generator and discriminator
     mapping       = make_mapping_model()
     synthesis     = make_synthesis_model()
-    filter        = make_filter_model()
+    filter        = make_filter_model(RES_LOG2, RES_LOG2_FIL)
     discriminator = make_discriminator_model()
 
     #mapping.summary()
@@ -399,22 +431,17 @@ with mirrored_strategy.scope():
 list_DNS_trainable_variables = []
 list_LES_trainable_variables = []
 for layer in synthesis.layers:
-    for variable in layer.trainable_variables:
-        if "noise_weight" in variable.name:
-            lname = variable.name
-            lname = lname.replace(":0","")
-            ldx = int(lname.replace("noise_weight",""))
-            reslog = ldx // 2 + 2
+    if "input_noise" in layer.name:
+        lname = layer.name
+        ldx = int(lname.replace("input_noise",""))
+        reslog = ldx // 2 + 2
 
+        for variable in layer.trainable_variables:
             list_DNS_trainable_variables.append(variable)
 
-            if (reslog<RES_LOG2_FIL+1):
+        if (reslog<RES_LOG2_FIL+1):
+            for variable in layer.trainable_variables:
                 list_LES_trainable_variables.append(variable)
-
-
-# print("Noise variables")
-# for variable in list_DNS_trainable_variables:
-#     print(variable.name)
 
 
 #----------------------------------------------extra pieces----------------------------------------------
