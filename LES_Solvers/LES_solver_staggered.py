@@ -360,22 +360,24 @@ for run in range(NRUNS):
                         save_fields(totTime, U, V, P, C, B, W, "fields/fields_run" + str(run) + "_" + str(te[s]) + "te.npz")
                         plot_spectrum(U, V, L,                 "energy/energy_run" + str(run) + "_" + str(te[s]) + "te.txt")
             else:
-        
-                tail = "run{0:d}_it{1:d}".format(run,tstep)
 
-                # save images
-                if (tstep%print_img == 0):
-                    W = find_vorticity(U, V)
-                    print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
+                if (totTime>=statsTime):
+                    tail = "run{0:d}_it{1:d}".format(run,tstep)
 
-                # write checkpoint
-                if (tstep%print_ckp == 0):
-                    W = find_vorticity(U, V)
-                    save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
+                    # save images
+                    if (tstep%print_img == 0):
+                        W = find_vorticity(U, V)
+                        print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
+                        # print_fields_1(W, "plots/vorticity_" + tail + ".png", Wmin=-0.3, Wmax=0.3)
 
-                # print spectrum
-                if (tstep%print_spe == 0):
-                    plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
+                    # write checkpoint
+                    if (tstep%print_ckp == 0):
+                        W = find_vorticity(U, V)
+                        save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
+
+                    # print spectrum
+                    if (tstep%print_spe == 0):
+                        plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
 
 
 # end of the simulation
@@ -388,6 +390,7 @@ if (len(te)==0):
     # save images
     W = find_vorticity(U, V)
     print_fields(U, V, P, W, N, "plots/plots_" + tail + ".png")
+    # print_fields_1(W, "plots/vorticity_" + tail + ".png", Wmin=-0.3, Wmax=0.3)
 
     # write checkpoint
     save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")

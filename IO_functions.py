@@ -312,9 +312,9 @@ def check_divergence_staggered(img, res):
     return div, dUdt, dVdt
 
 
-def generate_and_save_images(mapping, synthesis, input, noiseVariances, iteration):
+def generate_and_save_images(mapping, synthesis, input, iteration):
     dlatents    = mapping(input, training=False)
-    predictions = synthesis([dlatents, noiseVariances], training=False)
+    predictions = synthesis(dlatents, training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)

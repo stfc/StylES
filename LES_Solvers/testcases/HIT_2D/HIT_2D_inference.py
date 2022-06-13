@@ -24,14 +24,14 @@ N         = 256      # number of points   [-]
 finalTime = 2.0
 totSteps  = 1000000
 print_res = 10
-print_img = 1000
-print_ckp = 1000
-print_spe = 1000
-statsTime = 0.0
-NRUNS     = 175   # number of total runs to execute
+print_img = 10
+print_ckp = 10
+print_spe = 10
+statsTime = 0.6
+NRUNS     = 1   # number of total runs to execute
 
-# te_s = []
-# te   = []
+te_s = []
+te   = []
 #te_s = [0.010259436]
 #te = [9]
 # te_s = [0.152751599]
@@ -42,8 +42,9 @@ NRUNS     = 175   # number of total runs to execute
 # te_s = [0.010259436, 0.016196609, 0.022133783, 0.028070956, 0.03400813, 0.039945303, 0.045882476, 0.05181965, 0.057756823, 0.063693997, 0.06963117, 0.075568344, 0.081505517, 0.087442691, 0.093379864, 0.099317037, 0.105254211, 0.111191384, 0.117128558, 0.123065731, 0.129002905, 0.134940078, 0.140877252, 0.146814425, 0.152751599]
 # te   = [9, 14, 19, 25, 30, 35, 40, 45, 51, 56, 61, 66, 72, 77, 82, 87, 92, 98, 103, 108, 113, 118, 124, 129, 134]
 
-te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
-te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
+# te_s      = [0.6, 0.7, 0.8, 0.9, 1.0, 1.1, 1.2, 1.3, 1.4, 1.5, 1.6, 1.7, 1.8, 1.9, 2.0]
+# te        = [545,636,727,818,909,1000,1091,1182,1273,1364,1455,1545,1636,1727,1818] #corresponding eddy turnover time
+
 
 
 pRef      = 1.0e0     # reference pressure (1 atm) [Pa]
@@ -68,7 +69,7 @@ Dc        = nu/dl*A   # diffusion conductance term in x
 def init_fields(seed):
 
     # set variables
-    cp.random.seed(seed)
+    cp.random.seed(seed+1000)
 
     E = cp.zeros([M], dtype=DTYPE)  # enery spectrum
     k = cp.zeros([M], dtype=DTYPE)  # wave number

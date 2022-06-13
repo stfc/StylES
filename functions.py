@@ -201,30 +201,62 @@ class layer_bias(layers.Layer):
             trainable=True,
         )
 
-    def call(self, x, varNoise=1):
+    def call(self, x):
         if len(x.shape) == 2:
-            return x + self.b*self.lrmul * varNoise
-        return x + tf.reshape(self.b*self.lrmul, [1, -1, 1, 1]) * varNoise
+            return x + self.b*self.lrmul
+        return x + tf.reshape(self.b*self.lrmul, [1, -1, 1, 1])
+
+
+#-------------Layer Noise
+class layer_noise(layers.Layer):
+    def __init__(self, x, **kwargs):
+        super(layer_noise, self).__init__(**kwargs)
+
+        w_init = tf.ones_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=x.shape, dtype=DTYPE),
+            trainable=True,
+            **kwargs
+        )
+
+    def call(self, x):
+        return tf.cast(self.w, x.dtype)
 
 
 
-
-def apply_noise(x, ldx, varNoise, noise_in=None, randomize_noise=True):
+def apply_noise(x, ldx, noise_in=None, randomize_noise=True):
     assert len(x.shape) == 4  # NCHW
 
     if noise_in is None or randomize_noise:
-        noise = tf.random.normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], dtype=x.dtype)
+        noise = tf.random.normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], 
+        mean=0.0,
+        stddev=1.0,
+        dtype=x.dtype)
     else:
         noise = tf.cast(noise_in, x.dtype)
 
-    w_init = tf.zeros_initializer()
-    weight = tf.Variable(
-        initial_value=w_init(shape=x.shape[1], dtype=DTYPE),
-        trainable=True,
-        name="Noise_weight%d" % ldx
-    )
+    lnoise = layer_noise(noise_in, name="noise_weights%d" % ldx)
+    nweights = lnoise(x)
 
-    return x + noise * tf.reshape(tf.cast(weight, x.dtype), [1, -1, 1, 1]) * varNoise
+    return x + noise * nweights
+
+
+
+#-------------Layer zlatent
+class layer_zlatent(layers.Layer):
+    def __init__(self, x=None, **kwargs):
+        super(layer_zlatent, self).__init__()
+
+        zl_init = tf.ones_initializer()
+        self.zl = tf.Variable(
+            initial_value=zl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="zlatent"
+        )
+
+    def call(self, x):
+        return x*self.zl
+
 
 
 #-------------Layer wlatent
@@ -232,18 +264,50 @@ class layer_wlatent(layers.Layer):
     def __init__(self, x=None, **kwargs):
         super(layer_wlatent, self).__init__()
 
+        wl_init = tf.ones_initializer()
+
+        self.wl_LES = tf.Variable(
+            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="wlatent_LES"
+        )
+
+        self.wl_DNS = tf.Variable(
+            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="wlatent_DNS"
+        )
+        
+
+    def call(self, x):
+        w_LES = x[:,0,:]*self.wl_LES
+        w_DNS = x[:,0,:]*self.wl_DNS
+        wt_LES = tf.tile(w_LES[:, np.newaxis], [1, RES_LOG2_FIL*2-2         , 1])
+        wt_DNS = tf.tile(w_DNS[:, np.newaxis], [1, RES_LOG2*2-RES_LOG2_FIL*2, 1])
+        wlatents = tf.concat([wt_LES, wt_DNS], 1)
+        return wlatents
+
+
+
+
+
+#-------------Layer wplatent
+class layer_wplatent(layers.Layer):
+    def __init__(self, x=None, **kwargs):
+        super(layer_wplatent, self).__init__()
+
         wl_init_LES = tf.ones_initializer()
         self.wl_LES = tf.Variable(
             initial_value=wl_init_LES(shape=[RES_LOG2_FIL*2-2,LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="wlatent_LES"
+            name="wplatent_LES"
         )
 
         wl_init_DNS = tf.ones_initializer()
         self.wl_DNS = tf.Variable(
             initial_value=wl_init_DNS(shape=[(RES_LOG2 - RES_LOG2_FIL)*2,LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="wlatent_DNS"
+            name="wplatent_DNS"
         )
 
     def call(self, x):
@@ -255,7 +319,7 @@ class layer_wlatent(layers.Layer):
 
 
 
-#-------------Layer wlatent
+#-------------Layer rescale
 class layer_rescale(layers.Layer):
     def __init__(self, **kwargs):
         super(layer_rescale, self).__init__()
@@ -312,6 +376,64 @@ def style_mod(x, dlatent, **kwargs):
     return x * (style[:, 0] + 1) + style[:, 1]   # this is important: we add +1  to avoid to multiply by 0
                                                  # due to the normalization of style to mean 0.
                                                  # Note: style[:,1] = style[:,1,:,:]
+
+
+
+
+#-------------gaussian filter
+def gaussian_filter(UVW_DNS):
+
+    # separate DNS fields
+    rs = int(2**(RES_LOG2 - RES_LOG2_FIL))
+    U_DNS_t = UVW_DNS[0,0,:,:]
+    V_DNS_t = UVW_DNS[0,1,:,:]
+    W_DNS_t = UVW_DNS[0,2,:,:]
+
+    U_DNS_t = U_DNS_t[tf.newaxis,:,:,tf.newaxis]
+    V_DNS_t = V_DNS_t[tf.newaxis,:,:,tf.newaxis]
+    W_DNS_t = W_DNS_t[tf.newaxis,:,:,tf.newaxis]
+
+    # prepare Gaussian Kernel
+    gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
+    gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+    gauss_kernel = tf.cast(gauss_kernel, dtype=U_DNS_t.dtype)
+
+    # add padding
+    pleft   = 4*rs
+    pright  = 4*rs
+    ptop    = 4*rs
+    pbottom = 4*rs
+
+    U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+    V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+    W_DNS_t = periodic_padding_flexible(W_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+
+    # convolve
+    fU_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+    fV_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+    fW_t = tf.nn.conv2d(W_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+
+    # downscale
+    fU = fU_t[0,::rs,::rs,0]
+    fV = fV_t[0,::rs,::rs,0]
+    fW = fW_t[0,::rs,::rs,0]
+
+    # normalize
+    fU = (fU - tf.math.reduce_min(fU))/(tf.math.reduce_max(fU) - tf.math.reduce_min(fU))*2 - 1
+    fV = (fV - tf.math.reduce_min(fV))/(tf.math.reduce_max(fV) - tf.math.reduce_min(fV))*2 - 1
+    fW = (fW - tf.math.reduce_min(fW))/(tf.math.reduce_max(fW) - tf.math.reduce_min(fW))*2 - 1
+
+    fU = fU[tf.newaxis, tf.newaxis, :, :]
+    fV = fV[tf.newaxis, tf.newaxis, :, :]
+    fW = fW[tf.newaxis, tf.newaxis, :, :]
+
+    filtered_img = tf.concat([fU, fV, fW], 1)
+
+    return filtered_img
+
+
+
+
 
 
 #-------------Filter
@@ -598,14 +720,10 @@ def VGG_loss(imgA, imgB, VGG_extractor):
     loss_fea_14 = tf.math.reduce_mean(tf.math.squared_difference(feaA_14, feaB_14))
     loss_fea_18 = tf.math.reduce_mean(tf.math.squared_difference(feaA_18, feaB_18))
 
-    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA, imgB))
-    loss_UV = tf.math.reduce_mean(tf.math.squared_difference(imgA[0,0:2,:,:], imgB[0,0:2,:,:]))
-    loss_fea = loss_fea_3 + loss_fea_6 + loss_fea_10 + loss_fea_14 + loss_fea_18
+    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA, imgB))/tf.math.reduce_mean(imgA**2)
 
     losses = []
     losses.append(loss_pix)
-    losses.append(loss_UV)
-    losses.append(loss_fea)
     losses.append(loss_fea_3)
     losses.append(loss_fea_6)
     losses.append(loss_fea_10)
@@ -613,3 +731,54 @@ def VGG_loss(imgA, imgB, VGG_extractor):
     losses.append(loss_fea_18)
 
     return losses
+
+
+
+
+
+
+def VGG_loss_LES(imgA, imgB, VGG_extractor):
+
+    timgA   = tf.transpose(imgA, [0, 3, 2, 1])
+    feaA_3  = VGG_extractor(timgA)[3]
+    feaA_6  = VGG_extractor(timgA)[6]
+    feaA_10 = VGG_extractor(timgA)[10]
+    feaA_14 = VGG_extractor(timgA)[14]
+    feaA_18 = VGG_extractor(timgA)[18]
+
+    feaA_3, _  = tf.linalg.normalize(feaA_3,  axis=[-2, -1])  # the [-2, -1] is to make sure they are
+    feaA_6, _  = tf.linalg.normalize(feaA_6,  axis=[-2, -1])  # normalized only by 2D matrix
+    feaA_10, _ = tf.linalg.normalize(feaA_10, axis=[-2, -1])
+    feaA_14, _ = tf.linalg.normalize(feaA_14, axis=[-2, -1])
+    feaA_18, _ = tf.linalg.normalize(feaA_18, axis=[-2, -1])
+
+    timgB   = tf.transpose(imgB, [0, 3, 2, 1])
+    feaB_3  = VGG_extractor(timgB)[3]
+    feaB_6  = VGG_extractor(timgB)[6]
+    feaB_10 = VGG_extractor(timgB)[10]
+    feaB_14 = VGG_extractor(timgB)[14]
+    feaB_18 = VGG_extractor(timgB)[18]
+
+    feaB_3, _  = tf.linalg.normalize(feaB_3,  axis=[-2, -1])  # the [-2, -1] is to make sure they are
+    feaB_6, _  = tf.linalg.normalize(feaB_6,  axis=[-2, -1])  # normalized only by 2D matrix
+    feaB_10, _ = tf.linalg.normalize(feaB_10, axis=[-2, -1])
+    feaB_14, _ = tf.linalg.normalize(feaB_14, axis=[-2, -1])
+    feaB_18, _ = tf.linalg.normalize(feaB_18, axis=[-2, -1])
+
+    loss_fea_3  = tf.math.reduce_mean(tf.math.squared_difference(feaA_3,  feaB_3))
+    loss_fea_6  = tf.math.reduce_mean(tf.math.squared_difference(feaA_6,  feaB_6))
+    loss_fea_10 = tf.math.reduce_mean(tf.math.squared_difference(feaA_10, feaB_10))
+    loss_fea_14 = tf.math.reduce_mean(tf.math.squared_difference(feaA_14, feaB_14))
+    loss_fea_18 = tf.math.reduce_mean(tf.math.squared_difference(feaA_18, feaB_18))
+
+    loss_pix = tf.math.reduce_mean(tf.math.squared_difference(imgA, imgB))/tf.math.reduce_mean(imgA**2)
+
+    losses = []
+    losses.append(loss_pix)
+    losses.append(loss_fea_3)
+    losses.append(loss_fea_6)
+    losses.append(loss_fea_10)
+    losses.append(loss_fea_14)
+    losses.append(loss_fea_18)
+
+    return losses    

@@ -112,19 +112,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,0] 
     im = sub.imshow(imageA[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
-    sub.set_title("DNS U")
+    sub.set_title("DNS u")
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,0]
     im = sub.imshow(imageA[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
     sub.axis("off")
-    sub.set_title("DNS V")
+    sub.set_title("DNS v")
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,0]
     im = sub.imshow(imageA[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
     sub.axis("off")
-    sub.set_title("DNS W")
+    sub.set_title("DNS $\omega$")
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,0]
@@ -138,19 +138,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,1] 
     im = sub.imshow(imageB[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
-    sub.set_title("StyleGAN U")
+    sub.set_title("StyleGAN u")
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,1]
     im = sub.imshow(imageB[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
     sub.axis("off")
-    sub.set_title("StyleGAN V")
+    sub.set_title("StyleGAN v")
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,1]
     im = sub.imshow(imageB[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
     sub.axis("off")
-    sub.set_title("StyleGAN W")
+    sub.set_title("StyleGAN $\omega$")
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,1]
@@ -164,19 +164,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,2] 
     im = sub.imshow(imageD[:,:,0], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff U")
+    sub.set_title("diff u")
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,2]
     im = sub.imshow(imageD[:,:,1], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff V")
+    sub.set_title("diff v")
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,2]
     im = sub.imshow(imageD[:,:,2], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff W")
+    sub.set_title("diff $\omega$")
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,2]

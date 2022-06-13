@@ -1,7 +1,7 @@
-system ("rm energy.png")
+#system ("rm Kolmogorov_spectrum.png")
 
-set terminal png size 512,359
-set output "energy.png"
+#set terminal png size 512,359
+#set output "Kolmogorov_spectrum.png"
 
 reset
 
@@ -10,8 +10,8 @@ set logscale y
 
 set format y "10^{%T}"
 
-set xrange [1:300]
-set yrange [1e-6:0.1]
+set xrange [10:2000]
+set yrange [1e-14:1]
 
 #set yrange [1e-4:0.1]
 #set xrange [0.06:0.07]
@@ -22,6 +22,9 @@ set yrange [1e-6:0.1]
 set grid
 
 set style circle radius screen 0.003
+
+plot 'utilities/results/energy_org/energy_spectrum_lat_0_res_256.txt' using 1:2 with lines title '256x256', \
+     'utilities/results/energy_org/energy_spectrum_lat_0_res_32.txt' using 1:2 with lines title '32x32'
 
 # plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_0te.txt'          using 1:2 with circles title '0\t_e L\&D', \
 #      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'          using 1:2 with circles title '9\t_e L\&D', \
@@ -42,10 +45,10 @@ set style circle radius screen 0.003
 #      '../../../../rubbish/06Mar2022/data/N1024_1DNS_seed10/energy/energy_run0_134te.txt' using 1:2 with lines title '1024 134te'  
 
 
-plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt'                                 using 1:2 with circles title '9\t_e L\&D', \
-     '../../../../../shared/data_All/tollm7/Re60_N256_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 256', \
-     '../../../../../shared/data_All/tollm7/Re60_N512_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 512', \
-     '../../../../../shared/data_All/tollm7/Re60_N1024_1DNS/energy/energy_run0_134te.txt' using 1:2 with lines title '9\t_e L\&D 1024'
+# plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_134te.txt'                                 using 1:2 with circles title '9\t_e L\&D', \
+#      '../../../../../shared/data_All/tollm7/Re60_N256_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 256', \
+#      '../../../../../shared/data_All/tollm7/Re60_N512_1DNS/energy/energy_run0_134te.txt'  using 1:2 with lines title '9\t_e L\&D 512', \
+#      '../../../../../shared/data_All/tollm7/Re60_N1024_1DNS/energy/energy_run0_134te.txt' using 1:2 with lines title '9\t_e L\&D 1024'
 
 
 # plot '../../../../../shared/data/tollm4/Re60_N256/energy/energy_run873_9te.txt' using 1:2 with circles title 'ref', \

@@ -103,7 +103,7 @@ with mirrored_strategy.scope():
         use_wscale        = True         # Enable equalized learning rate
         use_instance_norm = True         # Enable instance normalization
         use_noise         = True         # Enable noise inputs
-        randomize_noise   = True        # True = randomize noise inputs every time (non-deterministic),
+        randomize_noise   = RANDOMIZE_NOISE  # True = randomize noise inputs every time (non-deterministic),
                                         # False = read noise inputs from variables.
         use_styles        = True         # Enable style inputs                             
         blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
@@ -113,7 +113,6 @@ with mirrored_strategy.scope():
 
         # Inputs
         dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
-        noiseVariances = tf.keras.Input(shape=([G_LAYERS]), dtype=DTYPE)
 
         # Noise inputs
         noise_inputs = []
@@ -121,7 +120,11 @@ with mirrored_strategy.scope():
             reslog = ldx // 2 + 2
             shape = [1, 2**reslog, 2**reslog]
 
-            w_init = tf.random_normal_initializer()
+            if (reslog<RES_LOG2_FIL):
+                w_init = tf.random_normal_initializer(mean=0.0, stddev=1.0)
+            else:
+                w_init = tf.random_normal_initializer(mean=0.0, stddev=1.0)
+
             noise = tf.Variable(
                 initial_value=w_init(shape=shape, dtype=DTYPE),
                 trainable=False,
@@ -133,11 +136,11 @@ with mirrored_strategy.scope():
         # Things to do at the end of each layer.
         def layer_epilogue(in_x, ldx):
             if use_noise:
-                in_x = apply_noise(in_x, ldx, noiseVariances[0, ldx], noise_inputs[ldx], randomize_noise=randomize_noise)
+                in_x = apply_noise(in_x, ldx, noise_inputs[ldx], randomize_noise=randomize_noise)
 
-            bias = layer_bias(in_x, name ="Noise_bias%d" % ldx)
-            in_x = bias(in_x, noiseVariances[0, ldx])
-            in_x = layers.LeakyReLU(name ="Noise_ReLU%d" % ldx)(in_x)
+            bias = layer_bias(in_x)
+            in_x = bias(in_x)
+            in_x = layers.LeakyReLU()(in_x)
             if use_pixel_norm:
                 in_x = pixel_norm(in_x)
             if use_instance_norm:
@@ -146,7 +149,7 @@ with mirrored_strategy.scope():
                 in_x = style_mod(in_x, 
                                 dlatents[:, ldx],
                                 use_wscale=use_wscale,
-                                name = "style_noise_%d" % ldx)
+                                name = "style_%d" % ldx)
             return in_x
 
 
@@ -207,7 +210,7 @@ with mirrored_strategy.scope():
             x = block(res, x)
             images_out.append(torgb(res, x))
 
-        synthesis_model = Model(inputs=[dlatents, noiseVariances], outputs=images_out)
+        synthesis_model = Model(inputs=dlatents, outputs=images_out)
 
         return synthesis_model
 
@@ -431,9 +434,9 @@ with mirrored_strategy.scope():
 list_DNS_trainable_variables = []
 list_LES_trainable_variables = []
 for layer in synthesis.layers:
-    if "input_noise" in layer.name:
+    if "noise_weights" in layer.name:
         lname = layer.name
-        ldx = int(lname.replace("input_noise",""))
+        ldx = int(lname.replace("noise_weights",""))
         reslog = ldx // 2 + 2
 
         for variable in layer.trainable_variables:
@@ -442,6 +445,19 @@ for layer in synthesis.layers:
         if (reslog<RES_LOG2_FIL+1):
             for variable in layer.trainable_variables:
                 list_LES_trainable_variables.append(variable)
+
+
+
+# for variable in list_DNS_trainable_variables:
+#     print(variable.name)
+
+# for variable in list_LES_trainable_variables:
+#     print(variable.name)
+
+
+
+
+
 
 
 #----------------------------------------------extra pieces----------------------------------------------
@@ -494,3 +510,250 @@ for layer in synthesis.layers:
 #         if 'dlatent_dense' or 'dlatent_bias' in var.name:
 #             var = var * beta + (1-beta) * up_weight[j])
 #             var.set_weights(new_weight)        
+
+
+
+
+#======================================== Use all filters from each layer =====================================
+
+
+    # #-------------------------------------define filter
+    # def make_filter_model(f_res, t_res):
+
+    #     # inner parameters
+    #     use_wscale  = True        # Enable equalized learning rate
+    #     blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+    #                             # None = no filtering.
+    #     fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+    #     # inner functions
+    #     def blur(in_x):
+    #         return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+    #     def torgb(in_res, in_x):  # res = 2..RES_LOG2
+    #         in_lod = RES_LOG2 - in_res
+    #         in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+    #         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+    #         in_x = bias(in_x)
+    #         return in_x
+
+    #     # create model
+    #     f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+
+    #     f_x = tf.identity(f_in)
+    #     fout_x = []
+    #     for res in range(f_res, t_res, -1):
+    #         f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+    #         bias = layer_bias(f_x, name="filter_bias_0")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+
+    #         f_x = blur(f_x)
+    #         f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+    #                 use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+    #         bias = layer_bias(f_x, name="filter_bias_1")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+    #         f_x = torgb(res-1, f_x)
+    #         fout_x.append(tf.identity(f_x))
+
+    #     # Create model
+    #     filter_model = Model(inputs=f_in, outputs=[fout_x[:]])
+
+    #     return filter_model 
+
+
+
+    # #-------------------------------------define layer filters 
+    # def make_filter_n89(f_res, t_res):
+
+    #     # inner parameters
+    #     use_wscale  = True        # Enable equalized learning rate
+    #     blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+    #                             # None = no filtering.
+    #     fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+    #     # inner functions
+    #     def blur(in_x):
+    #         return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+    #     def torgb(in_res, in_x):  # res = 2..RES_LOG2
+    #         in_lod = RES_LOG2 - in_res
+    #         in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+    #         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+    #         in_x = bias(in_x)
+    #         return in_x
+
+    #     # create model
+    #     f_in = tf.keras.Input(shape=([NUM_CHANNELS, 64, 64]), dtype=DTYPE)
+
+    #     f_x = tf.identity(f_in)
+    #     for res in range(f_res, t_res, -1):
+    #         f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+    #         bias = layer_bias(f_x, name="filter_bias_0")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+
+    #         f_x = blur(f_x)
+    #         f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+    #                 use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+    #         bias = layer_bias(f_x, name="filter_bias_1")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+    #         f_x = torgb(res-1, f_x)
+
+    #     fout_x = tf.identity(f_x)
+
+    #     # Create model
+    #     filter_n89 = Model(inputs=f_in, outputs=fout_x)
+
+    #     return filter_n89 
+
+
+
+    # #-------------------------------------define layer filters
+    # def make_filter_n1011(f_res, t_res):
+
+    #     # inner parameters
+    #     use_wscale  = True        # Enable equalized learning rate
+    #     blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+    #                             # None = no filtering.
+    #     fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+    #     # inner functions
+    #     def blur(in_x):
+    #         return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+    #     def torgb(in_res, in_x):  # res = 2..RES_LOG2
+    #         in_lod = RES_LOG2 - in_res
+    #         in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+    #         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+    #         in_x = bias(in_x)
+    #         return in_x
+
+    #     # create model
+    #     f_in = tf.keras.Input(shape=([NUM_CHANNELS, 128, 128]), dtype=DTYPE)
+
+    #     f_x = tf.identity(f_in)
+    #     for res in range(f_res, t_res, -1):
+    #         f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+    #         bias = layer_bias(f_x, name="filter_bias_0")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+
+    #         f_x = blur(f_x)
+    #         f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+    #                 use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+    #         bias = layer_bias(f_x, name="filter_bias_1")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+    #         f_x = torgb(res-1, f_x)
+
+    #     fout_x = tf.identity(f_x)
+
+    #     # Create model
+    #     filter_n1011 = Model(inputs=f_in, outputs=fout_x)
+
+    #     return filter_n1011 
+
+
+
+    # #-------------------------------------define filter
+    # def make_filter_n1213(f_res, t_res):
+
+    #     # inner parameters
+    #     use_wscale  = True        # Enable equalized learning rate
+    #     blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
+    #                             # None = no filtering.
+    #     fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+    #     # inner functions
+    #     def blur(in_x):
+    #         return blur2d(in_x, blur_filter) if blur_filter else in_x
+
+    #     def torgb(in_res, in_x):  # res = 2..RES_LOG2
+    #         in_lod = RES_LOG2 - in_res
+    #         in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+    #         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+    #         in_x = bias(in_x)
+    #         return in_x
+
+    #     # create model
+    #     f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+
+    #     f_x = tf.identity(f_in)
+    #     for res in range(f_res, t_res, -1):
+    #         f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
+    #         bias = layer_bias(f_x, name="filter_bias_0")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+
+    #         f_x = blur(f_x)
+    #         f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
+    #                 use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
+    #         bias = layer_bias(f_x, name="filter_bias_1")
+    #         f_x = bias(f_x)
+    #         f_x = layers.LeakyReLU()(f_x)
+    #         f_x = torgb(res-1, f_x)
+
+    #     fout_x = tf.identity(f_x)
+
+    #     # Create model
+    #     filter_n1213 = Model(inputs=f_in, outputs=fout_x)
+
+    #     return filter_n1213 
+
+
+
+
+
+    # lr_schedule_n19 = tf.keras.optimizers.schedules.ExponentialDecay(
+    #     initial_learning_rate=1.0,
+    #     decay_steps=10000,
+    #     decay_rate=1.0,
+    #     staircase=True)
+
+    # filter_n19_optimizer    = tf.keras.optimizers.Adam(learning_rate=lr_schedule_n19, beta_1=BETA1_FIL, beta_2=BETA2_FIL, epsilon=SMALL)
+
+
+    # lr_schedule_n1011 = tf.keras.optimizers.schedules.ExponentialDecay(
+    #     initial_learning_rate=1.0,
+    #     decay_steps=10000,
+    #     decay_rate=1.0,
+    #     staircase=True)
+
+    # filter_n1011_optimizer    = tf.keras.optimizers.Adam(learning_rate=lr_schedule_n1011, beta_1=BETA1_FIL, beta_2=BETA2_FIL, epsilon=SMALL)
+
+
+    # lr_schedule_n1213 = tf.keras.optimizers.schedules.ExponentialDecay(
+    #     initial_learning_rate=1.0,
+    #     decay_steps=10000,
+    #     decay_rate=1.0,
+    #     staircase=True)
+
+    # filter_n1213_optimizer    = tf.keras.optimizers.Adam(learning_rate=lr_schedule_n1213, beta_1=BETA1_FIL, beta_2=BETA2_FIL, epsilon=SMALL)
+
+
+
+    # filter_n89    = make_filter_n89(RES_LOG2_FIL+1, RES_LOG2_FIL)
+    # filter_n1011  = make_filter_n1011(RES_LOG2_FIL+2, RES_LOG2_FIL+1)
+    # filter_n1213  = make_filter_n1213(RES_LOG2_FIL+3, RES_LOG2_FIL+2)
+
+# list_DNS_noise_trainable_variables = []
+# list_DNS_noise89_trainable_variables = []
+# list_DNS_noise1011_trainable_variables = []
+# list_DNS_noise1213_trainable_variables = []
+
+
+        # if (reslog>RES_LOG2_FIL-1):
+        #     for variable in layer.trainable_variables:
+        #         list_DNS_noise_trainable_variables.append(variable)
+
+        # if (reslog==6):
+        #     list_DNS_noise89_trainable_variables.append(variable)
+
+        # if (reslog==7):
+        #     list_DNS_noise1011_trainable_variables.append(variable)
+
+        # if (reslog==8):
+        #     list_DNS_noise1213_trainable_variables.append(variable)

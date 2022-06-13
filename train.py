@@ -59,13 +59,13 @@ with mirrored_strategy.scope():
 
 #-------------------------------------define training step and loop
 @tf.function
-def train_step(input, inputVariances, images):
+def train_step(input, images):
     with tf.GradientTape() as map_tape, \
         tf.GradientTape() as syn_tape, \
         tf.GradientTape() as fil_tape, \
         tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
-        g_images = synthesis([dlatents, inputVariances], training = True)
+        g_images = synthesis(dlatents, training = True)
         f_images = filter(g_images[RES_LOG2-2], training = True)
 
         real_output = discriminator(images,   training=True)
@@ -99,8 +99,8 @@ def train_step(input, inputVariances, images):
 
 
 @tf.function
-def distributed_train_step(input, inputVariances, images):
-    losses = mirrored_strategy.run(train_step, args=(input, inputVariances, images))
+def distributed_train_step(input, images):
+    losses = mirrored_strategy.run(train_step, args=(input, images))
     mtr=[]
     for i in range(len(losses)):
         mtr.append(mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, losses[i], axis=None))
@@ -121,12 +121,11 @@ def train(dataset, train_summary_writer):
     # Create noise for sample images
     tf.random.set_seed(1)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
-    inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
     mtr = np.zeros([5], dtype=DTYPE)
 
 
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -144,7 +143,7 @@ def train(dataset, train_summary_writer):
         # take next batch
         input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         image_batch = next(iter(dataset))
-        mtr = distributed_train_step(input_batch, inputVariances, image_batch)
+        mtr = distributed_train_step(input_batch, image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
@@ -185,7 +184,7 @@ def train(dataset, train_summary_writer):
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, inputVariances, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
 
             with train_summary_writer.as_default():
                 for res in range(RES_LOG2-1):
