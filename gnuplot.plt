@@ -1,7 +1,7 @@
-#system ("rm Kolmogorov_spectrum.png")
+system ("rm Kolmogorov_vs_time.png")
 
-#set terminal png size 512,359
-#set output "Kolmogorov_spectrum.png"
+set terminal pngcairo dashed
+set output "Kolmogorov_vs_time.png"
 
 reset
 
@@ -11,7 +11,7 @@ set logscale y
 set format y "10^{%T}"
 
 set xrange [10:2000]
-set yrange [1e-14:1]
+set yrange [1e-8:1]
 
 #set yrange [1e-4:0.1]
 #set xrange [0.06:0.07]
@@ -21,10 +21,33 @@ set yrange [1e-14:1]
 
 set grid
 
+set xlabel '{/*1.2 k}'
+set ylabel '{/*1.2 E}'
+show xlabel
+show ylabel
+
 set style circle radius screen 0.003
 
-plot 'utilities/results/energy_org/energy_spectrum_lat_0_res_256.txt' using 1:2 with lines title '256x256', \
-     'utilities/results/energy_org/energy_spectrum_lat_0_res_32.txt' using 1:2 with lines title '32x32'
+
+# set arrow from 25,1e-8 to 25,1e-1 nohead dt 6 lc rgb 'blue'
+# set label 1 at 25,1e-8 "l_0" offset 0.5,-0.7
+
+# plot 'utilities/results/energy_org/energy_spectrum_lat_0_res_256.txt' using 1:2 with lines lc rgb 'black' title 'DNS 256^2', \
+#      'utilities/results/energy/energy_spectrum_lat_0_res_256.txt'     using 1:2 with lines lc rgb 'red'   title 'StylES 256^2', \
+#      'utilities/results/energy_org/energy_spectrum_lat_0_res_32.txt'  using 1:2 with lines lc rgb 'black' dt 3 title 'DNS (Gaussian filtered) 32^2', \
+#      'utilities/results/energy/energy_spectrum_lat_0_res_32.txt'      using 1:2 with lines lc rgb 'red'   dt 3 title 'StylES 32^2', \
+     
+
+plot 'utilities/energy_spectrum_compare_DNS_1.txt' using 1:2 with lines lc rgb 'black'      title 'DNS at 546\t_e', \
+     'utilities/energy_spectrum_compare_1.txt'     using 1:2 with lines lc rgb 'red'        title 'StyLES at 546\t_e', \
+     'utilities/results_compare_profiles_noHRnoise/energy_spectrum_compare_1.txt' using 1:2 with lines lc rgb 'blue'   lw 2 title 'StyLES without HR noise at 546\t_e', \
+     'utilities/energy_spectrum_compare_DNS_2.txt' using 1:2 with lines lc rgb 'black' dt 3 lw 2 title 'DNS at 1818\t_e', \
+     'utilities/energy_spectrum_compare_2.txt'     using 1:2 with lines lc rgb 'red'   dt 3 lw 2 title 'StyLES at 1818\t_e', \
+     'utilities/results_compare_profiles_noHRnoise/energy_spectrum_compare_2.txt' using 1:2 with lines lc rgb 'blue'   dt 3 lw 2 title 'StyLES without HR noise at 1818\t_e'
+
+
+# plot 'utilities/results/energy_org/energy_spectrum_lat_0_res_256.txt' using 1:2 with lines title '256x256', \
+#      'utilities/results/energy_org/energy_spectrum_lat_0_res_32.txt' using 1:2 with lines title '32x32'
 
 # plot 'LES_Solvers/testcases/HIT_2D/ld_spectrum_0te.txt'          using 1:2 with circles title '0\t_e L\&D', \
 #      'LES_Solvers/testcases/HIT_2D/ld_spectrum_9te.txt'          using 1:2 with circles title '9\t_e L\&D', \

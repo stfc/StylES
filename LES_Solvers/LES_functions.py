@@ -78,6 +78,16 @@ def plot_spectrum(U, V, L, filename, close=False):
 
 
 
+def plot_spectrum_noPlots(U, V, L, filename):
+    U_cpu = convert(U)
+    V_cpu = convert(V)
+
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+
+    np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
+
+
+
 def save_vel_violations(fname, uv_max, tstep, close=True):
     #save which plots have velocities U and V larger than 10
     #identifiers given by tail in LES_solver*

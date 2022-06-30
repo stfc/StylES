@@ -38,9 +38,11 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "./results/fields_org/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
-FILE_STYLE = "./results/fields/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
+# FILE_REAL  = "./results/fields_org/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
+# FILE_STYLE = "./results/fields/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
 
+FILE_REAL = "../LES_Solvers/fields/fields_run0_it20034.npz"
+FILE_STYLE = "fields_compare_2.npz"
 
 os.system("rm Plots_DNS_diff.png")
 

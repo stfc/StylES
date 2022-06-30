@@ -38,25 +38,25 @@ WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
 
 # clean up and prepare folders
-os.system("rm -rf results_reconstruction/plots")
-os.system("rm -rf results_reconstruction/fields")
-os.system("rm -rf results_reconstruction/uvw")
-os.system("rm -rf results_reconstruction/energy")
+os.system("rm -rf results_compare_profiles/plots")
+os.system("rm -rf results_compare_profiles/fields")
+os.system("rm -rf results_compare_profiles/uvw")
+os.system("rm -rf results_compare_profiles/energy")
 if (LOAD_FIELD):
-    os.system("rm -rf results_reconstruction/plots_org")
-    os.system("rm -rf results_reconstruction/fields_org")
-    os.system("rm -rf results_reconstruction/uvw_org")
-    os.system("rm -rf results_reconstruction/energy_org")
+    os.system("rm -rf results_compare_profiles/plots_org")
+    os.system("rm -rf results_compare_profiles/fields_org")
+    os.system("rm -rf results_compare_profiles/uvw_org")
+    os.system("rm -rf results_compare_profiles/energy_org")
 os.system("rm -rf logs")
 
-os.system("mkdir -p results_reconstruction/plots")
-os.system("mkdir -p results_reconstruction/fields")
-os.system("mkdir -p results_reconstruction/uvw")
-os.system("mkdir -p results_reconstruction/energy")
-os.system("mkdir -p results_reconstruction/plots_org/")
-os.system("mkdir -p results_reconstruction/fields_org")
-os.system("mkdir -p results_reconstruction/uvw_org")
-os.system("mkdir -p results_reconstruction/energy_org")
+os.system("mkdir -p results_compare_profiles/plots")
+os.system("mkdir -p results_compare_profiles/fields")
+os.system("mkdir -p results_compare_profiles/uvw")
+os.system("mkdir -p results_compare_profiles/energy")
+os.system("mkdir -p results_compare_profiles/plots_org/")
+os.system("mkdir -p results_compare_profiles/fields_org")
+os.system("mkdir -p results_compare_profiles/uvw_org")
+os.system("mkdir -p results_compare_profiles/energy_org")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
@@ -232,19 +232,19 @@ def find_latent_LES(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthes
         # find loss
         # U = UVP_DNS[0,0,:,:]
         # V = UVP_DNS[0,1,:,:]
-        # loss_div = tf.math.reduce_mean(tf.abs(((tr(U, 1, 0)-tr(U, -1, 0)) + (tr(V, 0, 1)-tr(V, 0, -1)))))
+        loss_div = 0.0 #tf.math.reduce_mean(tf.abs(((tr(U, 1, 0)-tr(U, -1, 0)) + (tr(V, 0, 1)-tr(V, 0, -1)))))
         if (USE_VGG):
             loss_fea_DNS = VGG_loss_LES(fUVP_LES, fimg, VGG_extractor_LES) 
             loss_pix_DNS = tf.math.reduce_sum(loss_fea_DNS) #/tf.math.reduce_mean(fimg[0,:,:,:]**2)
             loss_fea_LES = VGG_loss_LES(UVP_LES, fimg, VGG_extractor_LES) 
             loss_pix_LES = tf.math.reduce_sum(loss_fea_LES) #/tf.math.reduce_mean(fimg[0,:,:,:]**2)
-            resDNS       = loss_pix_DNS + loss_pix_LES
+            resDNS       = loss_pix_DNS + loss_pix_LES + loss_div
         else:
             loss_pix_DNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_LES[0,:,:,:], fimg[0,:,:,:]))
             loss_pix_DNS = loss_pix_DNS/tf.math.reduce_mean(fimg[0,:,:,:]**2)
             loss_pix_LES = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES[0,:,:,:], fimg[0,:,:,:]))
             loss_pix_LES = loss_pix_LES/tf.math.reduce_mean(fimg[0,:,:,:]**2)
-            resDNS       = loss_pix_DNS + loss_pix_LES
+            resDNS       = loss_pix_DNS + loss_pix_LES + loss_div
 
         gradients_DNS  = tape_DNS.gradient(resDNS, list_trainable_variables)
         opt.apply_gradients(zip(gradients_DNS, list_trainable_variables))
@@ -292,7 +292,7 @@ cax4 = centerline_axs[1,0]
 cax5 = centerline_axs[1,1]
 cax6 = centerline_axs[1,2]
 
-x = list(range(N))
+x = np.linspace(0, L, N)
 
 tails = ['it6040', 'it6050', 'it20034']
 tstart   = time.time()
@@ -328,7 +328,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         W_DNS = find_vorticity(U_DNS, V_DNS)
 
         if (tv==-1):
-            filename = "results_reconstruction/plots_org/Plots_DNS_org_" + tail +".png"
+            filename = "results_compare_profiles/plots_org/Plots_DNS_org_" + tail +".png"
             print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N_DNS, filename)
 
         velx[tv,0,k] = U_DNS[N2, N2]
@@ -362,8 +362,8 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_DNS_" + str(k) + ".npz"
         save_fields(0, U_DNS, V_DNS, V_DNS, V_DNS, V_DNS, W_DNS, filename)
 
-        # filename = "energy_spectrum_compare_DNS_" + str(k) + ".txt"
-        # plot_spectrum(U_DNS, V_DNS, L, filename)
+        filename = "energy_spectrum_compare_DNS_" + str(k) + ".txt"
+        plot_spectrum_noPlots(U_DNS, V_DNS, L, filename)
 
 
         tU_DNS = tf.convert_to_tensor(U_DNS_t)
@@ -417,10 +417,10 @@ for tv, tollDNS in enumerate(tollDNSValues):
             W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
         if (tv==len(tollDNSValues)-1):
-            filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
+            filename = "results_compare_profiles/plots/Plots_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
             print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, N_DNS, filename)
 
-            filename = "results_reconstruction/plots/Vorticity_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
+            filename = "results_compare_profiles/plots/Vorticity_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
             print_fields_1(W_DNS_t, filename, Wmin = -0.3, Wmax = 0.3)
 
         N2 = int(N/2)
@@ -435,29 +435,37 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_" + str(k) + ".npz"
         save_fields(0, U_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, W_DNS_t, filename)
 
-        # filename = "energy_spectrum_compare_" + str(k) + ".txt"
-        # plot_spectrum(U_DNS_t, V_DNS_t, L, filename)
+        filename = "energy_spectrum_compare_" + str(k) + ".txt"
+        plot_spectrum_noPlots(U_DNS_t, V_DNS_t, L, filename)
 
         if (k==1):
             lineColor = 'k'
-            cax1.plot(x, centerline_velx[tv,0,k,:], color=lineColor, label=r'DNS x-vel at 545 $\tau_E$')
-            cax2.plot(x, centerline_vely[tv,0,k,:], color=lineColor, label=r'DNS y-vel at 545 $\tau_E$')
-            cax3.plot(x, centerline_vort[tv,0,k,:], color=lineColor, label=r'DNS vorticity at 545 $\tau_E$')
+            cax1.plot(x, centerline_velx[tv,0,k,:], color=lineColor, label=r'DNS $u$ at 545 $\tau_E$')
+            cax2.plot(x, centerline_vely[tv,0,k,:], color=lineColor, label=r'DNS $v$ at 545 $\tau_E$')
+            cax3.plot(x, centerline_vort[tv,0,k,:], color=lineColor, label=r'DNS $\omega$ at 545 $\tau_E$')
 
             lineColor = 'r'
-            cax1.plot(x, centerline_velx[tv,1,k,:], color=lineColor, label=r'StylES x-vel at 545 $\tau_E$')
-            cax2.plot(x, centerline_vely[tv,1,k,:], color=lineColor, label=r'StylES y-vel at 545 $\tau_E$')
-            cax3.plot(x, centerline_vort[tv,1,k,:], color=lineColor, label=r'StylES vorticity at 545 $\tau_E$')
+            cax1.plot(x, centerline_velx[tv,1,k,:], color=lineColor, label=r'StylES $u$ at 545 $\tau_E$')
+            cax2.plot(x, centerline_vely[tv,1,k,:], color=lineColor, label=r'StylES $v$ at 545 $\tau_E$')
+            cax3.plot(x, centerline_vort[tv,1,k,:], color=lineColor, label=r'StylES $\omega$ at 545 $\tau_E$')
         elif (k==2):
             lineColor = 'k'
-            cax4.plot(x, centerline_velx[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS x-vel at 1818 $\tau_E$')
-            cax5.plot(x, centerline_vely[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS y-vel at 1818 $\tau_E$')
-            cax6.plot(x, centerline_vort[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS vorticity at 1818 $\tau_E$')
+            cax4.plot(x, centerline_velx[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS $u$ at 1818 $\tau_E$')
+            cax5.plot(x, centerline_vely[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS $v$ at 1818 $\tau_E$')
+            cax6.plot(x, centerline_vort[tv,0,k,:], color=lineColor, linestyle='dotted', label=r'DNS $\omega$ at 1818 $\tau_E$')
 
             lineColor = 'r'
-            cax4.plot(x, centerline_velx[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES x-vel at 1818 $\tau_E$')
-            cax5.plot(x, centerline_vely[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES y-vel at 1818 $\tau_E$')
-            cax6.plot(x, centerline_vort[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES vorticity at 1818 $\tau_E$')
+            cax4.plot(x, centerline_velx[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES $u$ at 1818 $\tau_E$')
+            cax5.plot(x, centerline_vely[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES $v$ at 1818 $\tau_E$')
+            cax6.plot(x, centerline_vort[tv,1,k,:], color=lineColor, linestyle='dotted', label=r'StylES $\omega$ at 1818 $\tau_E$')
+
+cax1.set(xlabel="x")
+cax2.set(xlabel="x")
+cax3.set(xlabel="x")
+
+cax4.set(xlabel="x")
+cax5.set(xlabel="x")
+cax6.set(xlabel="x")
 
 cax1.legend()
 cax2.legend()
@@ -467,7 +475,7 @@ cax4.legend()
 cax5.legend()
 cax6.legend()
 
-plt.savefig("uvw_vs_x.png")
+plt.savefig("uvw_vs_x.png", bbox_inches='tight', pad_inches=0)
 plt.close()
 
 
