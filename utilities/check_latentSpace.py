@@ -24,13 +24,11 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NL             = 1        # number of different latent vectors randomly selected
-TUNE_NOISE     = True
-LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-CALC_VORTICITY = False
+NL             = 10        # number of different latent vectors randomly selected
+TUNE_NOISE     = False
+LOAD_FIELD     = False       # load field from DNS solver (via restart.npz file)
 USE_VGG        = False
-#FILE_REAL      = "../../../data/LES_Solver_10ksteps/fields/fields_run0_it10.npz"
-FILE_REAL      = "../LES_Solvers/fields/fields_run0_it7040.npz"
+FILE_REAL      = "../../../data/HW_timeIntegration/fields/fields_200.npz"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -63,10 +61,17 @@ iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals
 
 N_DNS = 2**RES_LOG2
 N_LES = 2**RES_LOG2_FIL
-C_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
-B_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
-C_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
-B_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
+
+den_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+phi_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+vor_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+zero_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+
+den_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
+phi_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
+vor_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
+zero_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
+
 SIG   = int(N_DNS/N_LES)  # Gaussian (tf and np) filter sigma
 DW    = int(N_DNS/N_LES)  # downscaling factor
 minMaxUVP = np.zeros((RES_LOG2-3,6), dtype="float32")
@@ -199,12 +204,10 @@ for k in range(NL):
         if (FILE_REAL.endswith('.npz')):
             
             # load numpy array
-            U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime = load_fields(FILE_REAL)
-            U_DNS = np.cast[DTYPE](U_DNS)
-            V_DNS = np.cast[DTYPE](V_DNS)
-            P_DNS = np.cast[DTYPE](P_DNS)
-            C_DNS = np.cast[DTYPE](C_DNS)
-            B_DNS = np.cast[DTYPE](B_DNS)
+            den_DNS, phi_DNS, vor_DNS, _, _, totTime = load_fields(FILE_REAL)
+            den_DNS = np.cast[DTYPE](den_DNS)
+            phi_DNS = np.cast[DTYPE](phi_DNS)
+            vor_DNS = np.cast[DTYPE](vor_DNS)
 
         elif (FILE_REAL.endswith('.png')):
 
@@ -225,45 +228,43 @@ for k in range(NL):
             orig = np.asarray(orig, dtype=DTYPE)
             orig = orig/255.0
 
-            U_DNS = orig[:,:,0]
-            V_DNS = orig[:,:,1]
-            P_DNS = orig[:,:,2]
+            den_DNS = orig[:,:,0]
+            phi_DNS = orig[:,:,1]
+            vor_DNS = orig[:,:,2]
 
-        W_DNS = find_vorticity(U_DNS, V_DNS)
-
-        #print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N_DNS, "results/plots_org/Plots_DNS_org.png")
-        print_fields_1(W_DNS, "Plots_DNS_org.png")
-        W_DNS_org = W_DNS
+        #print_fields(den_DNS, phi_DNS, vor_DNS, W_DNS, N_DNS, "results/plots_org/Plots_DNS_org.png")
+        print_fields_1(vor_DNS, "Plots_DNS_org.png")
+        vor_DNS_org = vor_DNS
 
 
         # write fields and energy spectra of DNS
-        DIM_DATA, _ = U_DNS.shape
+        DIM_DATA, _ = den_DNS.shape
         closePlot=False
         for kk in range(4, RES_LOG2+1):
             res = 2**kk
             s = int(res/DIM_DATA)
             rs = int(DIM_DATA/res)
             if (s == 1):
-                U_DNS_t = U_DNS[:,:]
-                V_DNS_t = V_DNS[:,:]
-                P_DNS_t = P_DNS[:,:]
+                den_DNS_t = den_DNS[:,:]
+                phi_DNS_t = phi_DNS[:,:]
+                vor_DNS_t = vor_DNS[:,:]
             else:
-                # U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
-                # V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
-                # P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+                # den_DNS_t = sc.ndimage.gaussiaden_filter(den_DNS, rs, mode='grid-wrap')
+                # phi_DNS_t = sc.ndimage.gaussiaden_filter(phi_DNS, rs, mode='grid-wrap')
+                # vor_DNS_t = sc.ndimage.gaussiaden_filter(vor_DNS, rs, mode='grid-wrap')
 
-                # U_DNS_t = U_DNS_t[::rs, ::rs]
-                # V_DNS_t = V_DNS_t[::rs, ::rs]
-                # P_DNS_t = P_DNS_t[::rs, ::rs]
+                # den_DNS_t = den_DNS_t[::rs, ::rs]
+                # phi_DNS_t = phi_DNS_t[::rs, ::rs]
+                # vor_DNS_t = vor_DNS_t[::rs, ::rs]
 
                 # preprare Gaussian Kernel
                 gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
                 gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
 
                 # convert to tensor
-                U_DNS_t = tf.convert_to_tensor(U_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
-                V_DNS_t = tf.convert_to_tensor(V_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
-                P_DNS_t = tf.convert_to_tensor(P_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+                den_DNS_t = tf.convert_to_tensor(den_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+                phi_DNS_t = tf.convert_to_tensor(phi_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
+                vor_DNS_t = tf.convert_to_tensor(vor_DNS[np.newaxis,:,:,np.newaxis], dtype=DTYPE)
 
                 # add padding
                 pleft   = 4*rs
@@ -271,39 +272,37 @@ for k in range(NL):
                 ptop    = 4*rs
                 pbottom = 4*rs
 
-                U_DNS_t = periodic_padding_flexible(U_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-                V_DNS_t = periodic_padding_flexible(V_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-                P_DNS_t = periodic_padding_flexible(P_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+                den_DNS_t = periodic_padding_flexible(den_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+                phi_DNS_t = periodic_padding_flexible(phi_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
+                vor_DNS_t = periodic_padding_flexible(vor_DNS_t, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
 
                 # convolve
-                U_DNS_t = tf.nn.conv2d(U_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-                V_DNS_t = tf.nn.conv2d(V_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
-                P_DNS_t = tf.nn.conv2d(P_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+                den_DNS_t = tf.nn.conv2d(den_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+                phi_DNS_t = tf.nn.conv2d(phi_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+                vor_DNS_t = tf.nn.conv2d(vor_DNS_t, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
 
                 # downscale
-                U_DNS_t = U_DNS_t[0,::rs,::rs,0].numpy()
-                V_DNS_t = V_DNS_t[0,::rs,::rs,0].numpy()
-                P_DNS_t = P_DNS_t[0,::rs,::rs,0].numpy()
+                den_DNS_t = den_DNS_t[0,::rs,::rs,0].numpy()
+                phi_DNS_t = phi_DNS_t[0,::rs,::rs,0].numpy()
+                vor_DNS_t = vor_DNS_t[0,::rs,::rs,0].numpy()
 
-            W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
-
-            minMaxUVP[kk-4,0] = np.max(U_DNS_t)
-            minMaxUVP[kk-4,1] = np.min(U_DNS_t)
-            minMaxUVP[kk-4,2] = np.max(V_DNS_t)
-            minMaxUVP[kk-4,3] = np.min(V_DNS_t)
-            minMaxUVP[kk-4,4] = np.max(P_DNS_t)
-            minMaxUVP[kk-4,5] = np.min(P_DNS_t)
+            minMaxUVP[kk-4,0] = np.max(den_DNS_t)
+            minMaxUVP[kk-4,1] = np.min(den_DNS_t)
+            minMaxUVP[kk-4,2] = np.max(phi_DNS_t)
+            minMaxUVP[kk-4,3] = np.min(phi_DNS_t)
+            minMaxUVP[kk-4,4] = np.max(vor_DNS_t)
+            minMaxUVP[kk-4,5] = np.min(vor_DNS_t)
 
             filename = "results/plots_org/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
-            print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, res, filename)
+            print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, res, filename)
 
             filename = "results/fields_org/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
-            save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, C_DNS, B_DNS, W_DNS_t, filename)
+            save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, zero_DNS, zero_DNS, zero_DNS, filename)
 
             filename = "results/energy_org/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
             if (kk==RES_LOG2):
                 closePlot=True
-            plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+            plot_spectrum(den_DNS_t, phi_DNS_t, L, filename, close=closePlot)
 
             print("DNS spectrum at resolution " + str(res))
 
@@ -325,32 +324,26 @@ for k in range(NL):
         s = int(res/DIM_DATA)
         rs = int(DIM_DATA/res)
         if (s==1):
-            U_DNS_t = U_DNS[:,:]
-            V_DNS_t = V_DNS[:,:]
-            P_DNS_t = P_DNS[:,:]
+            den_DNS_t = den_DNS[:,:]
+            phi_DNS_t = phi_DNS[:,:]
+            vor_DNS_t = vor_DNS[:,:]
         else:            
-            U_DNS_t = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
-            V_DNS_t = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
-            P_DNS_t = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+            den_DNS_t = sc.ndimage.gaussiaden_filter(den_DNS, rs, mode='grid-wrap')
+            phi_DNS_t = sc.ndimage.gaussiaden_filter(phi_DNS, rs, mode='grid-wrap')
+            vor_DNS_t = sc.ndimage.gaussiaden_filter(vor_DNS, rs, mode='grid-wrap')
 
-            U_DNS_t = U_DNS_t[::rs, ::rs]
-            V_DNS_t = V_DNS_t[::rs, ::rs]
-            P_DNS_t = P_DNS_t[::rs, ::rs]
+            den_DNS_t = den_DNS_t[::rs, ::rs]
+            phi_DNS_t = phi_DNS_t[::rs, ::rs]
+            vor_DNS_t = vor_DNS_t[::rs, ::rs]
 
-        W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)            
+        tden_DNS = tf.convert_to_tensor(den_DNS_t)
+        tphi_DNS = tf.convert_to_tensor(phi_DNS_t)
+        tvor_DNS = tf.convert_to_tensor(vor_DNS_t)
 
-        tU_DNS = tf.convert_to_tensor(U_DNS_t)
-        tV_DNS = tf.convert_to_tensor(V_DNS_t)
-        tP_DNS = tf.convert_to_tensor(P_DNS_t)
-        tW_DNS = tf.convert_to_tensor(W_DNS_t)
-
-        U_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
-        V_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
-        P_DNS = tP_DNS[np.newaxis,np.newaxis,:,:]
-        W_DNS = tW_DNS[np.newaxis,np.newaxis,:,:]
-
-        imgA = tf.concat([U_DNS, V_DNS, W_DNS], 1)
-        #imgA = tf.concat([U_DNS, V_DNS, W_DNS], 1)
+        den_DNS = tden_DNS[np.newaxis,np.newaxis,:,:]
+        phi_DNS = tphi_DNS[np.newaxis,np.newaxis,:,:]
+        vor_DNS = tvor_DNS[np.newaxis,np.newaxis,:,:]
+        imgA = tf.concat([den_DNS, phi_DNS, vor_DNS], 1)
 
 
         # optimize latent space
@@ -377,18 +370,16 @@ for k in range(NL):
                     .format(tend-tstart, itDNS, resDNS.numpy(), loss_pix_DNS, loss_pix_LES, lr))
 
                 # print fields
-                U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
-                V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
-                W_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+                den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+                phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+                vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
 
-                if (CALC_VORTICITY):                
-                    W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
                 filename = "results/plots/Plots_DNS_fromGAN.png"
                 #filename = "results/plots/Plots_DNS_fromGAN" + str(itDNS) + ".png"
 
                 #print_fields_1(W_DNS_t, filename)
-                print_fields(U_DNS_t, V_DNS_t, W_DNS_t, W_DNS_t, N_DNS, filename)
+                print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N_DNS, filename)
 
             itDNS = itDNS+1
 
@@ -408,15 +399,12 @@ for k in range(NL):
         # reprint but only vorticity
         resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES = find_latent_step(latent, tminMaxUVP, imgA, list_DNS_trainable_variables)
 
-        U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
-        V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
-        W_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+        den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+        phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+        vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
 
-        if (CALC_VORTICITY):        
-            W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
-
-        print_fields_1(W_DNS_t,     "results/plots/Plots_DNS_fromGAN.png", legend=False)
-        print_fields_1(W_DNS_org,   "results/plots_org/Plots_DNS_org.png", legend=False)
+        print_fields_1(vor_DNS_t,     "results/plots/Plots_DNS_fromGAN.png", legend=False)
+        print_fields_1(vor_DNS_org,   "results/plots_org/Plots_DNS_org.png", legend=False)
 
         # save checkpoint for wl_synthesis
         wl_checkpoint.save(file_prefix = WL_CHKP_PREFIX)
@@ -438,21 +426,19 @@ for k in range(NL):
     # print spectrum from filter
     UVP_LES = filter(UVP_DNS, training=False)
     res = 2**RES_LOG2_FIL
-    U_t = UVP_LES[0, 0, :, :].numpy()
-    V_t = UVP_LES[0, 1, :, :].numpy()
-    W_t = UVP_LES[0, 2, :, :].numpy()
-    if (CALC_VORTICITY):    
-        W_t = find_vorticity(U_t, V_t)
+    den_t = UVP_LES[0, 0, :, :].numpy()
+    phi_t = UVP_LES[0, 1, :, :].numpy()
+    vor_t = UVP_LES[0, 2, :, :].numpy()
 
     filename = "results/plots/plots_fil_lat_" + str(k) + "_res_" + str(res) + ".png"
-    print_fields(U_t, V_t, W_t, W_t, res, filename)
+    print_fields_3(den_t, phi_t, vor_t, res, filename)
 
     filename = "results/fields/fields_fil_lat_" + str(k) + "_res_" + str(res) + ".npz"
-    save_fields(0, U_t, V_t, W_t, C_LES, B_LES, W_t, filename)
+    save_fields(0, den_t, phi_t, vor_t, zero_LES, zero_LES, zero_LES, filename)
 
     filename = "results/energy/energy_spectrum_fil_lat_" + str(k) + "_res_" + str(res) + ".txt"
     closePlot=True
-    plot_spectrum(U_t, V_t, L, filename, close=closePlot)
+    plot_spectrum(den_t, phi_t, L, filename, close=closePlot)
     
     os.system("mv Energy_spectrum.png results/energy/Energy_spectrum_filtered.png")
 
@@ -465,36 +451,33 @@ for k in range(NL):
         UVP_DNS = predictions[kk-2]
         res = 2**kk
 
-        U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
-        V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
-        W_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+        den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+        phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+        vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
         
-        U_DNS_t = two*(U_DNS_t - np.min(U_DNS_t))/(np.max(U_DNS_t) - np.min(U_DNS_t)) - one
-        V_DNS_t = two*(V_DNS_t - np.min(V_DNS_t))/(np.max(V_DNS_t) - np.min(V_DNS_t)) - one
-        W_DNS_t = two*(W_DNS_t - np.min(W_DNS_t))/(np.max(W_DNS_t) - np.min(W_DNS_t)) - one
+        den_DNS_t = two*(den_DNS_t - np.min(den_DNS_t))/(np.max(den_DNS_t) - np.min(den_DNS_t)) - one
+        phi_DNS_t = two*(phi_DNS_t - np.min(phi_DNS_t))/(np.max(phi_DNS_t) - np.min(phi_DNS_t)) - one
+        vor_DNS_t = two*(vor_DNS_t - np.min(vor_DNS_t))/(np.max(vor_DNS_t) - np.min(vor_DNS_t)) - one
 
-        U_DNS_t = (U_DNS_t+one)*(minMaxUVP[kk-4,0]-minMaxUVP[kk-4,1])/two + minMaxUVP[kk-4,1]
-        V_DNS_t = (V_DNS_t+one)*(minMaxUVP[kk-4,2]-minMaxUVP[kk-4,3])/two + minMaxUVP[kk-4,3]
-        W_DNS_t = (W_DNS_t+one)*(minMaxUVP[kk-4,4]-minMaxUVP[kk-4,5])/two + minMaxUVP[kk-4,5]
-
-        if (CALC_VORTICITY):
-            W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
+        den_DNS_t = (den_DNS_t+one)*(minMaxUVP[kk-4,0]-minMaxUVP[kk-4,1])/two + minMaxUVP[kk-4,1]
+        phi_DNS_t = (phi_DNS_t+one)*(minMaxUVP[kk-4,2]-minMaxUVP[kk-4,3])/two + minMaxUVP[kk-4,3]
+        vor_DNS_t = (vor_DNS_t+one)*(minMaxUVP[kk-4,4]-minMaxUVP[kk-4,5])/two + minMaxUVP[kk-4,5]
 
         filename = "results/plots/plots_lat_" + str(k) + "_res_" + str(res) + ".png"
-        print_fields(U_DNS_t, V_DNS_t, W_DNS_t, W_DNS_t, res, filename)
+        print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, res, filename)
 
         filename = "results/fields/fields_lat_" + str(k) + "_res_" + str(res) + ".npz"
-        save_fields(0, U_DNS_t, V_DNS_t, W_DNS_t, C_DNS, B_DNS, W_DNS_t, filename)
+        save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, zero_DNS, zero_DNS, zero_DNS, filename)
 
         filename = "results/energy/energy_spectrum_lat_" + str(k) + "_res_" + str(res) + ".txt"
         if (kk==RES_LOG2):
             closePlot=True
-        plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+        plot_spectrum(den_DNS_t, phi_DNS_t, L, filename, close=closePlot)
 
         print("From GAN spectrum at resolution " + str(res))
 
 
-    print_fields_1(W_DNS_t, "results/plots/Plots_DNS_fromGAN.png", legend=False)
+    print_fields_1(vor_DNS_t, "results/plots/Plots_DNS_fromGAN.png", legend=False)
     os.system("mv Energy_spectrum.png results/energy/Energy_spectrum_fromGAN.png")
 
     print ("done lantent " + str(k))

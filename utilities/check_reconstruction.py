@@ -27,12 +27,12 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NL             = 1400       # number of different latent vectors randomly selected
+NL             = 101       # number of different latent vectors randomly selected
 TUNE_NOISE     = True
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
-CALC_VORTICITY = True
+CALC_VORTICITY = False
 USE_VGG        = False
-FILE_REAL_PATH = "../LES_Solvers/fields/"
+FILE_REAL_PATH = "../../../data/HW_timeIntegration/fields/"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -229,7 +229,7 @@ def find_latent_step_LES(latent, minMaxUVP, images, list_trainable_variables):
 
 
 
-tollDNSValues = [1.0e-1, 1.0e-2, 1.0e-3]
+tollDNSValues = [1.0e-1, 1.0e-3, 1.0e-5]
 ltoll = len(tollDNSValues)
 totTime = np.zeros((NL), dtype="float32")
 velx = np.zeros((ltoll,2,NL), dtype="float32")
@@ -266,8 +266,8 @@ for tv, tollDNS in enumerate(tollDNSValues):
     for k in range(NL):
         
         # load initial flow
-        tail = "it" + str(int(k*10+6040))
-        FILE_REAL = FILE_REAL_PATH + "fields_run0_" + tail + ".npz"
+        tail = str(int(k+200))
+        FILE_REAL = FILE_REAL_PATH + "fields_" + tail + ".npz"
         
         #-------------------------------------------------------- RECONSTRUCT
         # load numpy array
@@ -275,12 +275,11 @@ for tv, tollDNS in enumerate(tollDNSValues):
         U_DNS = np.cast[DTYPE](U_DNS)
         V_DNS = np.cast[DTYPE](V_DNS)
         P_DNS = np.cast[DTYPE](P_DNS)
-
-        W_DNS = find_vorticity(U_DNS, V_DNS)
+        W_DNS = np.cast[DTYPE](P_DNS)
 
         if (tv==-1):
             filename = "results_reconstruction/plots_org/Plots_DNS_org_" + tail +".png"
-            print_fields(U_DNS, V_DNS, P_DNS, W_DNS, N_DNS, filename)
+            print_fields_3(U_DNS, V_DNS, W_DNS, N_DNS, filename)
 
         velx[tv,0,k] = U_DNS[N2, N2]
         vely[tv,0,k] = V_DNS[N2, N2]
@@ -303,8 +302,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         U_DNS_t = U_DNS[:,:]
         V_DNS_t = V_DNS[:,:]
         P_DNS_t = P_DNS[:,:]
-
-        W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)            
+        W_DNS_t = W_DNS[:,:]
 
         tU_DNS = tf.convert_to_tensor(U_DNS_t)
         tV_DNS = tf.convert_to_tensor(V_DNS_t)
@@ -336,6 +334,13 @@ for tv, tollDNS in enumerate(tollDNSValues):
                 tend = time.time()
                 print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e}  lDNS {4:3e}  lLES {5:3e}  lr {6:3e} " \
                     .format(tend-tstart, k, itDNS, resDNS.numpy(), loss_pix_DNS, loss_pix_LES, lr))
+
+                U_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+                V_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+                W_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+
+                filename = "results_reconstruction/plots/Plots_DNS_fromGAN.png"
+                #print_fields_3(U_DNS_t, V_DNS_t, W_DNS_t, N_DNS, filename)
 
             itDNS = itDNS+1
             itDNStot = itDNStot+1
@@ -387,10 +392,10 @@ for tv, tollDNS in enumerate(tollDNSValues):
 
         if (tv==len(tollDNSValues)-1):
             filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
-            print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, N_DNS, filename)
+            print_fields_3(U_DNS_t, V_DNS_t, W_DNS_t, N_DNS, filename)
 
-            filename = "results_reconstruction/plots/Vorticity_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
-            print_fields_1(W_DNS_t, filename, Wmin = -0.3, Wmax = 0.3)
+            # filename = "results_reconstruction/plots/Vorticity_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
+            # print_fields_1(W_DNS_t, filename, Wmin = -0.3, Wmax = 0.3)
 
         N2 = int(N/2)
         velx[tv,1,k] = U_DNS_t[N2, N2]
@@ -400,15 +405,15 @@ for tv, tollDNS in enumerate(tollDNSValues):
     if (tv==0):
         lineColor = colors[tv]
         stollDNS = "{:.1e}".format(tollDNS)
-        ax1.plot(totTime[:], velx[tv,0,:], color=lineColor, label='DNS x-vel')
-        ax2.plot(totTime[:], vely[tv,0,:], color=lineColor, label='DNS y-vel')
-        ax3.plot(totTime[:], vort[tv,0,:], color=lineColor, label='DNS vorticity')
+        ax1.plot(totTime[:], velx[tv,0,:], color=lineColor, label=r'DNS $n$')
+        ax2.plot(totTime[:], vely[tv,0,:], color=lineColor, label=r'DNS $\phi$')
+        ax3.plot(totTime[:], vort[tv,0,:], color=lineColor, label=r'DNS $\zeta$')
 
     lineColor = colors[tv+1]
     stollDNS = "{:.1e}".format(tollDNS)
-    ax1.plot(totTime[:], velx[tv,1,:], color=lineColor, linestyle='dashed', label='StylES x-vel at toll ' + stollDNS)
-    ax2.plot(totTime[:], vely[tv,1,:], color=lineColor, linestyle='dashed', label='StylES y-vel at toll ' + stollDNS)
-    ax3.plot(totTime[:], vort[tv,1,:], color=lineColor, linestyle='dashed', label='StylES vorticity at toll ' + stollDNS)
+    ax1.plot(totTime[:], velx[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES $n$ at toll ' + stollDNS)
+    ax2.plot(totTime[:], vely[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES $\phi$ at toll ' + stollDNS)
+    ax3.plot(totTime[:], vort[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES $\zeta$ at toll ' + stollDNS)
 
 ax1.legend()
 ax2.legend()
