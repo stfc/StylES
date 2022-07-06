@@ -183,6 +183,109 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
+
+
+
+def print_fields_3(U_, V_, P_, N, filename, \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
+    C_=None, Cmin=None, Cmax=None):
+
+    #---------------------------------- convert to numpy arrays
+    U = convert(U_)
+    V = convert(V_)
+    P = convert(P_)
+
+    N = len(U[0,:])
+
+    #---------------------------------- plot surfaces
+    fig, axs = plt.subplots(2, 3, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
+
+    ax1 = axs[0,0]
+    ax2 = axs[1,0]
+    ax3 = axs[0,1]
+    ax4 = axs[1,1]
+    ax5 = axs[0,2]
+    ax6 = axs[1,2]
+
+    velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    fig.colorbar(velx, ax=ax1)
+    ax1.title.set_text(r'$n$')
+    ax1.set_aspect(1)
+
+    vely = ax3.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    fig.colorbar(vely, ax=ax3)
+    ax3.title.set_text(r'$\phi$')
+    ax3.set_aspect(1)
+
+    pres = ax5.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    fig.colorbar(pres, ax=ax5)
+    ax5.title.set_text(r'$\zeta$')
+    ax5.set_aspect(1)
+
+
+    colors = plt.cm.jet(np.linspace(10,1,21))
+    lineColor = colors[0]
+    if ("4" in filename):
+        lineColor = colors[0]
+    if ("8" in filename):
+        lineColor = colors[1]
+    if ("16" in filename):
+        lineColor = colors[2]
+    if ("32" in filename):
+        lineColor = colors[3]
+    if ("64" in filename):
+        lineColor = colors[4]
+    if ("128" in filename):
+        lineColor = colors[5]
+    if ("256" in filename):
+        lineColor = colors[6]
+    if ("512" in filename):
+        lineColor = colors[7]
+    if ("1024" in filename):
+        lineColor = colors[8]
+    if ("2048" in filename):
+        lineColor = colors[9]
+    if ("4096" in filename):
+        lineColor = colors[10]
+
+
+    #---------------------------------- plot centerlines
+    if (dir==0):    # x-direction
+        x = list(range(N))
+        hdim = N//2
+        yU = U[hdim,:]
+        yV = V[hdim,:]
+        yP = P[hdim,:]
+    elif (dir==1):  # y-direction 
+        x = list(range(N))
+        hdim = N//2
+        yU = U[:,hdim]
+        yV = V[:,hdim]
+        yP = P[:,hdim]
+
+    velx = ax2.plot(x, yU, color=lineColor)
+    ax2.set_ylim([Umin, Umax])
+    ax2.title.set_text(r'$n$')
+
+    vely = ax4.plot(x, yV, color=lineColor)
+    ax4.set_ylim([Vmin, Vmax])
+    ax4.title.set_text(r'$\phi$')
+
+    pres = ax6.plot(x, yP, color=lineColor)
+    ax6.set_ylim([Pmin, Pmax])
+    ax6.title.set_text(r'$\zeta$')
+
+    # save images
+    plt.suptitle(filename)
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
+    plt.close()
+
+
+
+
+
+
 def print_fields_2(U_, V_, filename, Umin=None, Umax=None, Vmin=None, Vmax=None):
 
     U = convert(U_)
