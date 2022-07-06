@@ -92,16 +92,28 @@ def periodic_padding_flexible(tensor, axis, padding=1):
             ind_right = [slice(-p[0],None) if i == ax else slice(None) for i in range(ndim)]
             ind_left  = [slice(0, p[1])    if i == ax else slice(None) for i in range(ndim)]
 
-            right     = tensor[ind_right]
-            left      = tensor[ind_left]
+            if (TESTCASE=='HW_xwalls'):
+                if (ax==2):
+                    right = tensor[ind_right]*0   # non periodic in x-direction
+                    left  = tensor[ind_left]*0
+                else:
+                    right = tensor[ind_right]
+                    left  = tensor[ind_left]
+            else:
+                right = tensor[ind_right]
+                left  = tensor[ind_left]
+
             middle    = tensor
             tensor    = tf.concat([right,middle,left], axis=ax)
 
     return tensor
 
 #-------------linear interpolation
-def lerp(a: TfExpressionEx, b: TfExpressionEx, t: TfExpressionEx) -> TfExpressionEx:
-    with tf.name_scope("Lerp"):
+class layer_lerp(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_lerp, self).__init__()
+
+    def call(self, a, b, t):
         return a + (b - a) * t
     
 
@@ -433,10 +445,7 @@ def gaussian_filter(UVW_DNS):
 
 
 
-
-
-
-#-------------Filter
+#-------------Bluer filter
 def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     assert x.shape.ndims == 4 and all(dim is not None for dim in x.shape[1:])
     assert isinstance(stride, int) and stride >= 1
@@ -488,22 +497,32 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
     return x
 
 
-def blur2d(x, f=[1, 2, 1], normalize=True):
+@tf.custom_gradient
+def func_blur2d(in_x):
+    y = _blur2d(in_x)
+
     @tf.custom_gradient
-    def func(in_x):
-        y = _blur2d(in_x, f, normalize)
+    def grad(dy):
+        dx = _blur2d(dy, flip=True)
+        return dx, lambda ddx: _blur2d(ddx)
 
-        @tf.custom_gradient
-        def grad(dy):
-            dx = _blur2d(dy, f, normalize, flip=True)
-            return dx, lambda ddx: _blur2d(ddx, f, normalize)
-
-        return y, grad
-
-    return func(x)
+    return y, grad
 
 
-#-------------Upscale2D
+class layer_blur2d(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_blur2d, self).__init__()
+
+    def call(self, x):
+        return func_blur2d(x)
+
+
+
+
+
+
+
+#-------------custom functions for upscale and downscale
 def _upscale2d(x, factor=2, gain=1):
     assert x.shape.ndims == 4 and all(dim is not None for dim in x.shape[1:])
     assert isinstance(factor, int) and factor >= 1
@@ -524,19 +543,81 @@ def _upscale2d(x, factor=2, gain=1):
     return x
 
 
-def upscale2d(x, factor=2):
+
+def _downscale2d(x, factor=2, gain=1):
+    assert x.shape.ndims == 4 and all(dim is not None for dim in x.shape[1:])
+    assert isinstance(factor, int) and factor >= 1
+
+    # 2x2, float32, float64 => downscale using _blur2d().
+    if factor == 2 and (DTYPE == "float32"  or DTYPE == "float64"):
+        f = [np.sqrt(gain) / factor] * factor
+        return _blur2d(x, f=f, normalize=False, stride=factor)
+
+    # Apply gain.
+    if gain != 1:
+        x *= gain
+
+    # No-op => early exit.
+    if factor == 1:
+        return x
+
+    # Large factor => downscale using tf.nn.avg_pool().
+    # NOTE: Requires tf_config['graph_options.place_pruned_graph']=True to work.
+    ksize = [1, 1, factor, factor]
+    return tf.nn.avg_pool(x, ksize=ksize, strides=ksize, padding="VALID", data_format="NCHW")
+
+
+
+
+@tf.custom_gradient
+def func_upscale2d(in_x, factor=2):
+    y = _upscale2d(in_x, factor)
+
     @tf.custom_gradient
-    def func(in_x):
-        y = _upscale2d(in_x, factor)
+    def grad(dy, factor=2):
+        dx = _downscale2d(dy, factor, gain=factor ** 2)
+        return dx, lambda ddx: _upscale2d(ddx, factor)
 
-        @tf.custom_gradient
-        def grad(dy):
-            dx = _downscale2d(dy, factor, gain=factor ** 2)
-            return dx, lambda ddx: _upscale2d(ddx, factor)
+    return y, grad
 
-        return y, grad
 
-    return func(x)
+class layer_upscale2d(layers.Layer):
+    def __init__(self, factor=2, **kwargs):
+        super(layer_upscale2d, self).__init__()
+        self.factor = factor
+
+    def call(self, x):
+        return func_upscale2d(x)
+
+
+
+
+
+@tf.custom_gradient
+def func_downscale2d(in_x, factor=2):
+    y = _downscale2d(in_x, factor)
+
+    @tf.custom_gradient
+    def grad(dy, factor=2):
+        dx = _upscale2d(dy, factor, gain=1 / factor ** 2)
+        return dx, lambda ddx: _downscale2d(ddx, factor)
+
+    return y, grad
+
+
+
+class layer_downscale2d(layers.Layer):
+    def __init__(self, factor=2, **kwargs):
+        super(layer_downscale2d, self).__init__()
+        self.factor = factor
+
+    def call(self, x):
+        return func_downscale2d(x)
+
+
+
+
+
 
 
 #-------------Layer Conv2D
@@ -574,7 +655,10 @@ def upscale2d_conv2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
 
     # Not fused => call the individual ops directly.
     if not fused_scale:
-        return conv2d(upscale2d(x), fmaps, kernel, **kwargs)
+        upscale2d = layer_upscale2d()
+        x = upscale2d(x)
+        x = conv2d(x, fmaps, kernel, **kwargs)
+        return x
 
     # Fused => perform both ops simultaneously using tf.nn.conv2d_transpose().
     get_weight = layer_get_Weight([kernel, kernel, x.shape[1], fmaps], **kwargs)
@@ -588,66 +672,8 @@ def upscale2d_conv2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
         x, w, os, strides=[1, 1, 2, 2], padding="SAME", data_format="NCHW")
 
 
-#-------------Minibatch standard deviation.
-def minibatch_stddev_layer(x, group_size=4, num_new_features=1):
-
-    # Minibatch must be divisible by (or smaller than) group_size.
-    group_size = tf.minimum(group_size, tf.shape(x)[0])
-    s          = x.shape  # [NCHW]  Input shape.
-
-    # [GMncHW] Split minibatch into M groups of size G. Split channels into n channel groups c.
-    y  = tf.reshape(x, [group_size, -1, num_new_features, s[1] // num_new_features, s[2], s[3]])
-    y  = tf.cast(y, DTYPE)                            # [GMncHW] Cast to FP32.
-    y -= tf.reduce_mean(y, axis=0, keepdims=True)          # [GMncHW] Subtract mean over group.
-    y  = tf.reduce_mean(tf.square(y), axis=0)              # [MncHW]  Calc variance over group.
-    y  = tf.sqrt(y + 1e-8)                                 # [MncHW]  Calc stddev over group.
-    y  = tf.reduce_mean(y, axis=[2, 3, 4], keepdims=True)  # [Mn111]  Take average over fmaps and pixels.
-    y  = tf.reduce_mean(y, axis=[2])                       # [Mn11] Split channels into c channel groups
-    y  = tf.cast(y, DTYPE)                               # [Mn11]  Cast back to original data type.
-    y  = tf.tile(y, [group_size, 1, s[2], s[3]])           # [NnHW]  Replicate over group and pixels.
-
-    return tf.concat([x, y], axis=1)                       # [NCHW]  Append as new fmap.
-
 
 #-------------conv2d_downscale2d
-def _downscale2d(x, factor=2, gain=1):
-    assert x.shape.ndims == 4 and all(dim is not None for dim in x.shape[1:])
-    assert isinstance(factor, int) and factor >= 1
-
-    # 2x2, float32, float64 => downscale using _blur2d().
-    if factor == 2 and (DTYPE == "float32"  or DTYPE == "float64"):
-        f = [np.sqrt(gain) / factor] * factor
-        return _blur2d(x, f=f, normalize=False, stride=factor)
-
-    # Apply gain.
-    if gain != 1:
-        x *= gain
-
-    # No-op => early exit.
-    if factor == 1:
-        return x
-
-    # Large factor => downscale using tf.nn.avg_pool().
-    # NOTE: Requires tf_config['graph_options.place_pruned_graph']=True to work.
-    ksize = [1, 1, factor, factor]
-    return tf.nn.avg_pool(x, ksize=ksize, strides=ksize, padding="VALID", data_format="NCHW")
-
-
-def downscale2d(x, factor=2):
-    @tf.custom_gradient
-    def func(in_x):
-        y = _downscale2d(in_x, factor)
-
-        @tf.custom_gradient
-        def grad(dy):
-            dx = _upscale2d(dy, factor, gain=1 / factor ** 2)
-            return dx, lambda ddx: _downscale2d(ddx, factor)
-
-        return y, grad
-
-    return func(x)
-
-
 def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     assert kernel >= 1 and kernel % 2 == 1
     assert fused_scale in [True, False, "auto"]
@@ -656,7 +682,10 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
 
     # Not fused => call the individual ops directly.
     if not fused_scale:
-        return downscale2d(conv2d(x, fmaps, kernel, **kwargs))
+        downscale2d = layer_downscale2d()
+        x = conv2d(x, fmaps, kernel, **kwargs)
+        x = downscale2d(x)
+        return x
 
     # Fused => perform both ops simultaneously using tf.nn.conv2d().
     get_weight = layer_get_Weight([kernel, kernel, x.shape[1], fmaps], **kwargs)
@@ -686,6 +715,31 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
 
 
 
+#-------------Minibatch standard deviation.
+def minibatch_stddev_layer(x, group_size=4, num_new_features=1):
+
+    # Minibatch must be divisible by (or smaller than) group_size.
+    group_size = tf.minimum(group_size, tf.shape(x)[0])
+    s          = x.shape  # [NCHW]  Input shape.
+
+    # [GMncHW] Split minibatch into M groups of size G. Split channels into n channel groups c.
+    y  = tf.reshape(x, [group_size, -1, num_new_features, s[1] // num_new_features, s[2], s[3]])
+    y  = tf.cast(y, DTYPE)                            # [GMncHW] Cast to FP32.
+    y -= tf.reduce_mean(y, axis=0, keepdims=True)          # [GMncHW] Subtract mean over group.
+    y  = tf.reduce_mean(tf.square(y), axis=0)              # [MncHW]  Calc variance over group.
+    y  = tf.sqrt(y + 1e-8)                                 # [MncHW]  Calc stddev over group.
+    y  = tf.reduce_mean(y, axis=[2, 3, 4], keepdims=True)  # [Mn111]  Take average over fmaps and pixels.
+    y  = tf.reduce_mean(y, axis=[2])                       # [Mn11] Split channels into c channel groups
+    y  = tf.cast(y, DTYPE)                               # [Mn11]  Cast back to original data type.
+    y  = tf.tile(y, [group_size, 1, s[2], s[3]])           # [NnHW]  Replicate over group and pixels.
+
+    return tf.concat([x, y], axis=1)                       # [NCHW]  Append as new fmap.
+
+
+
+
+
+#-------------VGG loss
 def VGG_loss(imgA, imgB, VGG_extractor):
 
     timgA   = tf.transpose(imgA, [0, 3, 2, 1])

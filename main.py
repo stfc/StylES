@@ -57,6 +57,12 @@ if (not USE_GPU):
 #------------------------------------- main: train the model
 def main():
 
+    if (DEBUG):
+        tf.debugging.experimental.enable_dump_debug_info(
+            "/tmp/tfdbg2_logdir",
+            tensor_debug_mode="FULL_HEALTH",
+            circular_buffer_size=-1)
+
     train_images = prepare_for_training(labeled_ds)
     dist_dataset = mirrored_strategy.experimental_distribute_dataset(train_images)
     train(dist_dataset, train_summary_writer)

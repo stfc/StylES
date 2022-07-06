@@ -44,14 +44,6 @@ with mirrored_strategy.scope():
         dlatent_avg_beta  = 0.995,    # Decay for tracking the moving average of W during training. None = disable.
 
 
-        # Setup variables.
-        v_init = tf.zeros_initializer()
-        dlatent_avg = tf.Variable(
-            initial_value=v_init(shape=[LATENT_SIZE], dtype=DTYPE),
-            trainable=False,
-            name="dlatent_avg",
-        )
-
 
         # Inputs
         latents_in = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
@@ -72,23 +64,9 @@ with mirrored_strategy.scope():
             latents = bias(latents)
             latents = layers.LeakyReLU()(latents)
 
+
+        # create extended w+ latent space
         dlatents = tf.tile(latents[:, np.newaxis], [1, G_LAYERS, 1])
-
-
-        # Update moving average of W.
-        if dlatent_avg_beta is not None:
-            batch_avg = tf.reduce_mean(dlatents[:, 0], axis=0)
-            update_op = tf.compat.v1.assign(dlatent_avg, lerp(batch_avg, dlatent_avg, dlatent_avg_beta))
-            with tf.control_dependencies([update_op]):
-                dlatents = tf.identity(dlatents)
-
-        # if (not TRAIN):
-        #     if truncation_psi is not None and truncation_cutoff is not None:
-        #         layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
-        #         ones = np.ones(layer_idx.shape, dtype=DTYPE)
-        #         coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
-        #         dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
-
 
         mapping_model = Model(inputs=latents_in, outputs=dlatents)
 
@@ -113,6 +91,30 @@ with mirrored_strategy.scope():
 
         # Inputs
         dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+
+
+        # # Update moving average of W.
+        # v_init = tf.zeros_initializer()
+        # dlatent_avg = tf.Variable(
+        #     initial_value=v_init(shape=[LATENT_SIZE], dtype=DTYPE),
+        #     trainable=False,
+        #     name="dlatent_avg",
+        # )
+
+        # if dlatent_avg_beta is not None:
+        #     batch_avg = tf.reduce_mean(dlatents, axis=1)
+        #     lerp = layer_lerp()
+        #     latents = lerp(batch_avg, dlatent_avg, dlatent_avg_beta)
+        #     latents = latents[tf.newaxis, :]
+
+        # if (not TRAIN):
+        #     if truncation_psi is not None and truncation_cutoff is not None:
+        #         layer_idx = np.arange(G_LAYERS)[np.newaxis, :, np.newaxis]
+        #         ones = np.ones(layer_idx.shape, dtype=DTYPE)
+        #         coefs = tf.cast(tf.where(layer_idx < truncation_cutoff, truncation_psi * ones, ones), DTYPE)
+        #         dlatents = dlatent_avg + (dlatents - dlatent_avg) * coefs
+
+
 
         # Noise inputs
         noise_inputs = []
@@ -155,7 +157,12 @@ with mirrored_strategy.scope():
 
         # define blur
         def blur(in_x):
-            return blur2d(in_x, blur_filter) if blur_filter else in_x
+            if blur_filter:
+                blur2d = layer_blur2d()
+                fx = blur2d(in_x)
+            else:
+                fx = in_x
+            return fx
 
 
         # Early layers: we start from a constant input
@@ -228,7 +235,12 @@ with mirrored_strategy.scope():
 
         # inner functions
         def blur(in_x):
-            return blur2d(in_x, blur_filter) if blur_filter else in_x
+            if blur_filter:
+                blur2d = layer_blur2d()
+                fx = blur2d(in_x)
+            else:
+                fx = in_x
+            return fx
 
         def torgb(in_res, in_x):  # res = 2..RES_LOG2
             in_lod = RES_LOG2 - in_res
@@ -278,7 +290,12 @@ with mirrored_strategy.scope():
                                          # False = separate ops, 'auto' = decide automatically.
 
         def blur(in_x):
-            return blur2d(in_x, blur_filter) if blur_filter else in_x
+            if blur_filter:
+                blur2d = layer_blur2d()
+                fx = blur2d(in_x)
+            else:
+                fx = in_x
+            return fx
 
         def conv1x1(x_in, fmaps):
             return conv2d(x_in, fmaps, kernel=1, use_wscale=use_wscale)

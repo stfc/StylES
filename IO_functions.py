@@ -71,7 +71,7 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    P = data['W']
+    P = data['P']
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
     P = np.cast[DTYPE](P)
@@ -111,10 +111,14 @@ def StyleGAN_load_fields(file_path):
             data[1,:,:] = V
             data[2,:,:] = P
         else:
-            U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
-            V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-            P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
-            
+            if (TESTCASE=='HW_xwalls'):
+                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
+                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
+                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
+            else:
+                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
+                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
+                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
             data[0,:,:] = U_DNS_g[::rs,::rs]
             data[1,:,:] = V_DNS_g[::rs,::rs]  
             data[2,:,:] = P_DNS_g[::rs,::rs]  
