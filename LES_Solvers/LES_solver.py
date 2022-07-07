@@ -1,6 +1,6 @@
 #----------------------------------------------------------------------------------------------
 #
-#    Copyright (C): 2021 UKRI-STFC (Hartree Centre)
+#    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
 #    Author: Jony Castagna, Francesca Schiavello
 #

@@ -1,8 +1,8 @@
 #----------------------------------------------------------------------------------------------
 #
-#    Copyright (C): 2021 UKRI-STFC (Hartree Centre)
+#    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna
+#    Author: Jony Castagna, Francesca Schiavello
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
