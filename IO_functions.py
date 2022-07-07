@@ -131,7 +131,7 @@ def StyleGAN_load_fields(file_path):
             data[1,:,:] = V
             data[2,:,:] = P
         else:
-            if (TESTCASE=='HW_xwalls'):
+            if (TESTCASE=='HW'):
                 U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
                 V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
                 P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])

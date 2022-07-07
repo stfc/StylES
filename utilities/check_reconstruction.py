@@ -285,9 +285,14 @@ for tv, tollDNS in enumerate(tollDNSValues):
     for k in range(NL):
         
         # load initial flow
-        tail = str(int(k*10+6040))
-        FILE_REAL = FILE_REAL_PATH + "fields_run0_it" + tail + ".npz"
-        
+        if (TESTCASE=='2D-HIT'):
+            tail = str(int(k*10+6040))
+            FILE_REAL = FILE_REAL_PATH + "fields_run0_it" + tail + ".npz"
+
+        if (TESTCASE=='HW'):
+            tail = str(int(k+200))
+            FILE_REAL = FILE_REAL_PATH + "fields_" + tail + ".npz"
+
         #-------------------------------------------------------- RECONSTRUCT
         # load numpy array
         U_DNS, V_DNS, P_DNS, _, _, totTime[k] = load_fields(FILE_REAL)

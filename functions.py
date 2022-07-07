@@ -102,7 +102,7 @@ def periodic_padding_flexible(tensor, axis, padding=1):
             ind_right = [slice(-p[0],None) if i == ax else slice(None) for i in range(ndim)]
             ind_left  = [slice(0, p[1])    if i == ax else slice(None) for i in range(ndim)]
 
-            if (TESTCASE=='HW_xwalls'):
+            if (TESTCASE=='HW'):
                 if (ax==2):
                     right = tensor[ind_right]*0   # non periodic in x-direction
                     left  = tensor[ind_left]*0
