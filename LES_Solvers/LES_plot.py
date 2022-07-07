@@ -186,9 +186,18 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
-def print_fields_3(U_, V_, P_, N, filename, \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
-    C_=None, Cmin=None, Cmax=None):
+def print_fields_3(U_, V_, P_, N, filename, testcase='2D-HIT', \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None):
+
+    if (testcase=='2D-HIT'):
+        labelR = r'$u$'
+        labelG = r'$v$'
+        labelB = r'$\omega$'
+
+    if (testcase=='HW'):
+        labelR = r'$n$'
+        labelG = r'$\phi$'
+        labelB = r'$\zeta$'
 
     #---------------------------------- convert to numpy arrays
     U = convert(U_)
@@ -210,17 +219,17 @@ def print_fields_3(U_, V_, P_, N, filename, \
 
     velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
     fig.colorbar(velx, ax=ax1)
-    ax1.title.set_text(r'$n$')
+    ax1.title.set_text(labelR)
     ax1.set_aspect(1)
 
     vely = ax3.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
     fig.colorbar(vely, ax=ax3)
-    ax3.title.set_text(r'$\phi$')
+    ax3.title.set_text(labelG)
     ax3.set_aspect(1)
 
-    pres = ax5.pcolormesh(P, cmap='RdBu', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    pres = ax5.pcolormesh(P, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
     fig.colorbar(pres, ax=ax5)
-    ax5.title.set_text(r'$\zeta$')
+    ax5.title.set_text(labelB)
     ax5.set_aspect(1)
 
 
@@ -266,15 +275,15 @@ def print_fields_3(U_, V_, P_, N, filename, \
 
     velx = ax2.plot(x, yU, color=lineColor)
     ax2.set_ylim([Umin, Umax])
-    ax2.title.set_text(r'$n$')
+    ax2.title.set_text(labelR)
 
     vely = ax4.plot(x, yV, color=lineColor)
     ax4.set_ylim([Vmin, Vmax])
-    ax4.title.set_text(r'$\phi$')
+    ax4.title.set_text(labelG)
 
     pres = ax6.plot(x, yP, color=lineColor)
     ax6.set_ylim([Pmin, Pmax])
-    ax6.title.set_text(r'$\zeta$')
+    ax6.title.set_text(labelB)
 
     # save images
     plt.suptitle(filename)
@@ -331,7 +340,7 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
     ax1.set_aspect(1)
     if (legend):
         fig.colorbar(vort, ax=ax1)
-        ax1.title.set_text('vorticity')
+        ax1.title.set_text(r'\omega')
         plt.suptitle(filename)
     else:
             ax1.axis("off")

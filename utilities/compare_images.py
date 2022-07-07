@@ -32,19 +32,28 @@ from skimage.metrics import structural_similarity as ssim
 from testcases.HIT_2D.HIT_2D import L, rho
 
 os.chdir('../')
-from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS
+from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS, TESTCASE
 from IO_functions import StyleGAN_load_fields
 os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-# FILE_REAL  = "./results/fields_org/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
-# FILE_STYLE = "./results/fields/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
-
-FILE_REAL = "../LES_Solvers/fields/fields_run0_it20034.npz"
-FILE_STYLE = "fields_compare_2.npz"
+FILE_REAL  = "./results/fields_org/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
+FILE_STYLE = "./results/fields/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
 
 os.system("rm Plots_DNS_diff.png")
+
+
+if (TESTCASE=='2D-HIT'):
+    labelR = r'$u$'
+    labelG = r'$v$'
+    labelB = r'$\omega$'
+
+if (TESTCASE=='HW'):
+    labelR = r'$n$'
+    labelG = r'$\phi$'
+    labelB = r'$\zeta$'
+
 
 
 def cr(phi, i, j):
@@ -114,19 +123,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,0] 
     im = sub.imshow(imageA[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
-    sub.set_title("DNS u")
+    sub.set_title("DNS "+ labelR)
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,0]
     im = sub.imshow(imageA[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
     sub.axis("off")
-    sub.set_title("DNS v")
+    sub.set_title("DNS "+ labelG)
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,0]
     im = sub.imshow(imageA[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
     sub.axis("off")
-    sub.set_title("DNS $\omega$")
+    sub.set_title("DNS "+ labelB)
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,0]
@@ -140,19 +149,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,1] 
     im = sub.imshow(imageB[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
-    sub.set_title("StyleGAN u")
+    sub.set_title("StyleGAN " + labelR)
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,1]
     im = sub.imshow(imageB[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
     sub.axis("off")
-    sub.set_title("StyleGAN v")
+    sub.set_title("StyleGAN " + labelG)
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,1]
     im = sub.imshow(imageB[:,:,2], cmap="hot", vmin=minW, vmax=maxW)
     sub.axis("off")
-    sub.set_title("StyleGAN $\omega$")
+    sub.set_title("StyleGAN " + labelB)
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,1]
@@ -166,19 +175,19 @@ def compare_images(imageA, imageB, title):
     sub = ax[0,2] 
     im = sub.imshow(imageD[:,:,0], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff u")
+    sub.set_title("diff " + labelR)
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,2]
     im = sub.imshow(imageD[:,:,1], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff v")
+    sub.set_title("diff " + labelG)
     plt.colorbar(im, ax=sub)
 
     sub = ax[2,2]
     im = sub.imshow(imageD[:,:,2], cmap="jet")
     sub.axis("off")
-    sub.set_title("diff $\omega$")
+    sub.set_title("diff " + labelB)
     plt.colorbar(im, ax=sub)
 
     sub = ax[3,2]

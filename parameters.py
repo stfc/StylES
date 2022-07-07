@@ -31,8 +31,8 @@ else:
     MINVALRAN = 0.0
     MAXVALRAN = None
 
-TESTCASE          = 'HW_xwalls' 
-DATASET           = '../../data/HW/fields/'
+TESTCASE          = '2D-HIT' 
+DATASET           = './LES_Solvers/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False

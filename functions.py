@@ -271,10 +271,33 @@ class layer_zlatent(layers.Layer):
 
 
 
-#-------------Layer wlatent
+
+
+
+#-------------Layers wlatent, layer_w_LES_DNS_latent and layer_wplatent
 class layer_wlatent(layers.Layer):
     def __init__(self, x=None, **kwargs):
         super(layer_wlatent, self).__init__()
+
+        wl_init = tf.ones_initializer()
+
+        self.wl = tf.Variable(
+            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="wlatent_LES_DNS"
+        )
+
+
+    def call(self, x):
+        w = x[:,0,:]*self.wl
+        wlatents = tf.tile(w[:, np.newaxis], [1, RES_LOG2*2-2, 1])
+        return wlatents
+
+
+
+class layer_w_LES_DNS_latent(layers.Layer):
+    def __init__(self, x=None, **kwargs):
+        super(layer_w_LES_DNS_latent, self).__init__()
 
         wl_init = tf.ones_initializer()
 
@@ -300,10 +323,6 @@ class layer_wlatent(layers.Layer):
         return wlatents
 
 
-
-
-
-#-------------Layer wplatent
 class layer_wplatent(layers.Layer):
     def __init__(self, x=None, **kwargs):
         super(layer_wplatent, self).__init__()
@@ -327,6 +346,7 @@ class layer_wplatent(layers.Layer):
         x_DNS = x[:,RES_LOG2_FIL*2-2:RES_LOG2*2-2    ,:]*self.wl_DNS
         x = tf.concat([x_LES, x_DNS], 1)
         return x
+
 
 
 

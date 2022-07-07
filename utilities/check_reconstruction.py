@@ -27,12 +27,12 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NL             = 101       # number of different latent vectors randomly selected
+NL             = 1400       # number of different latent vectors randomly selected
 TUNE_NOISE     = True
 LOAD_FIELD     = True       # load field from DNS solver (via restart.npz file)
 CALC_VORTICITY = False
 USE_VGG        = False
-FILE_REAL_PATH = "../../../data/HW_timeIntegration/fields/"
+FILE_REAL_PATH = "../LES_Solvers/fields/"
 WL_IRESTART    = False
 WL_CHKP_DIR    = "./wl_checkpoints"
 WL_CHKP_PREFIX = os.path.join(WL_CHKP_DIR, "ckpt")
@@ -82,15 +82,14 @@ with mirrored_strategy.scope():
         
 
     # Download VGG16 model
-    VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
-    VGG_features_list = [layer.output for layer in VGG_model.layers]
-    VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
+    if (USE_VGG):
+        VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
+        VGG_features_list = [layer.output for layer in VGG_model.layers]
+        VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
 
-
-    # Download VGG16 model
-    VGG_model_LES         = VGG16(input_shape=(N_LES, N_LES, NUM_CHANNELS), include_top=False, weights='imagenet')
-    VGG_features_list_LES = [layer.output for layer in VGG_model_LES.layers]
-    VGG_extractor_LES     = tf.keras.Model(inputs=VGG_model_LES.input, outputs=VGG_features_list_LES)
+        VGG_model_LES         = VGG16(input_shape=(N_LES, N_LES, NUM_CHANNELS), include_top=False, weights='imagenet')
+        VGG_features_list_LES = [layer.output for layer in VGG_model_LES.layers]
+        VGG_extractor_LES     = tf.keras.Model(inputs=VGG_model_LES.input, outputs=VGG_features_list_LES)
 
 
     # loading StyleGAN checkpoint and filter
@@ -101,7 +100,7 @@ with mirrored_strategy.scope():
     if (USE_DLATENTS):
         dlatents         = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
         tminMaxUVP       = tf.keras.Input(shape=[6], dtype="float32")
-        wlatents         = layer_wlatent(dlatents)
+        wlatents         = layer_w_LES_DNS_latent(dlatents)
         ndlatents        = wlatents(dlatents)
         noutputs         = synthesis(ndlatents, training=False)
         rescale          = layer_rescale(name="layer_rescale")
@@ -229,7 +228,7 @@ def find_latent_step_LES(latent, minMaxUVP, images, list_trainable_variables):
 
 
 
-tollDNSValues = [1.0e-1, 1.0e-3, 1.0e-5]
+tollDNSValues = [1.0e-1, 1.0e-2, 1.0e-3]
 ltoll = len(tollDNSValues)
 totTime = np.zeros((NL), dtype="float32")
 velx = np.zeros((ltoll,2,NL), dtype="float32")
@@ -266,16 +265,21 @@ for tv, tollDNS in enumerate(tollDNSValues):
     for k in range(NL):
         
         # load initial flow
-        tail = str(int(k+200))
-        FILE_REAL = FILE_REAL_PATH + "fields_" + tail + ".npz"
+        tail = str(int(k*10+6040))
+        FILE_REAL = FILE_REAL_PATH + "fields_run0_it" + tail + ".npz"
         
         #-------------------------------------------------------- RECONSTRUCT
         # load numpy array
-        U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime[k] = load_fields(FILE_REAL)
+        U_DNS, V_DNS, P_DNS, _, _, totTime[k] = load_fields(FILE_REAL)
         U_DNS = np.cast[DTYPE](U_DNS)
         V_DNS = np.cast[DTYPE](V_DNS)
         P_DNS = np.cast[DTYPE](P_DNS)
-        W_DNS = np.cast[DTYPE](P_DNS)
+
+        if (TESTCASE=='2D-HIT'):
+            W_DNS = find_vorticity(U_DNS, V_DNS)
+        if (TESTCASE=='HW'):
+            W_DNS = np.cast[DTYPE](P_DNS)
+
 
         if (tv==-1):
             filename = "results_reconstruction/plots_org/Plots_DNS_org_" + tail +".png"
