@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HIT_2D' 
-DATASET           = '../../data/HIT_2D/fields/'
+DATASET           = '/archive/jcastagna/Fields/HIT_2D/fields_N256/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False

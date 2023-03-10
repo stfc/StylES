@@ -48,18 +48,18 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 
 # local parameters
-NL          = 3     # number of different latent vectors randomly selected
+NL          = 1     # number of different latent vectors randomly selected
 TUNE_NOISE  = True
-LOAD_FIELD  = False       # load field from DNS solver (via restart.npz file)
-NITEZ       = 1000
+LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
+NITEZ       = 0
 RESTART_WL  = False
 
 if (TESTCASE=='HIT_2D'):
-    FILE_REAL_PATH  = "../../../data/HIT_2D_reconstruction/fields/"
+    FILE_REAL_PATH  = "/archive/jcastagna/Fields/HIT_2D/fields_N256_reconstruction/"
 elif (TESTCASE=='HW'):
-    FILE_REAL_PATH  = "../../../data/HW/HW_reconstruction/fields/"
+    FILE_REAL_PATH  = "/archive/jcastagna/Fields/HW/fields_N256_reconstruction/"
 elif (TESTCASE=='mHW'):
-    FILE_REAL_PATH  = "../../../data/mHW/mHW_N512_reconstruction/fields/"
+    FILE_REAL_PATH  = "/archive/jcastagna/Fields/mHW/mHW_N512_reconstruction/"
 
 CHKP_DIR_WL = "./checkpoints_wl"
 N_DNS       = 2**RES_LOG2
