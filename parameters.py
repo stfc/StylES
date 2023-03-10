@@ -32,17 +32,22 @@ else:
     SMALL = 1.0e-15
 
 DEBUG = False
-tf.random.set_seed(seed=0)
-
+MINVALRAN = -1.0
+MAXVALRAN =  1.0
 if (DEBUG):
-    MINVALRAN = 0.5
-    MAXVALRAN = 0.5
-else:
-    MINVALRAN = 0.0
-    MAXVALRAN = None
+    tf.debugging.experimental.enable_dump_debug_info("./debug_logdir", tensor_debug_mode="FULL_HEALTH", circular_buffer_size=-1)
+    tf.get_logger().setLevel("ALL")           # DEBUG = all messages are logged (default behavior)
+else:                                         # INFO = INFO messages are not printed 
+    tf.get_logger().setLevel("ERROR")
 
-TESTCASE          = '2D-HIT' 
-DATASET           = './LES_Solvers/fields/'
+SEED = 0
+SEED_RESTART = 1
+
+tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
+
+
+TESTCASE          = 'HIT_2D' 
+DATASET           = '../../data/HIT_2D/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -62,7 +67,11 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-RES_LOG2_FIL      = RES_LOG2-3    # fix filter layer
+FIL               = 3  # number of layers below the DNS  
+RES_LOG2_FIL      = RES_LOG2-4    # fix filter layer
+C_LAYERS          = 2  # end of coarse layers 
+M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
+
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
@@ -70,11 +79,13 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-NEXAMPLES         = 1
+NEXAMPLES         = 1 
+NC_NOISE          = 200
+NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
-TOT_ITERATIONS = 200000
+TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
 IMAGES_EVERY   = 1000
 SAVE_EVERY     = 100000
@@ -103,3 +114,31 @@ STAIRCASE_DIS    = True
 BETA1_DIS        = 0.0
 BETA2_DIS        = 0.99
 
+
+# Reconstruction hyper-parameters
+
+# learning rate for DNS optimizer
+lr_DNS_maxIt  = 100000
+lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
+lr_DNS_STAIR  = False
+lr_DNS        = 1.0e-1   # exponential policy initial learning rate
+lr_DNS_RATE   = 1.0       # exponential policy decay rate
+lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
+lr_DNS_EXP_ST = False      # exponential policy staircase
+lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
+lr_DNS_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
+lr_DNS_BETA1  = 0.0
+lr_DNS_BETA2  = 0.99
+
+# learning rate for LES optimizer
+lr_LES_maxIt  = 100000
+lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
+lr_LES_STAIR  = False
+lr_LES        = 1.0e-1    # exponential policy initial learning rate
+lr_LES_RATE   = 1.0       # exponential policy decay rate
+lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
+lr_LES_EXP_ST = False      # exponential policy staircase
+lr_LES_BOUNDS = [100, 200, 300]             # piecewise policy bounds
+lr_LES_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
+lr_LES_BETA1  = 0.0
+lr_LES_BETA2  = 0.99

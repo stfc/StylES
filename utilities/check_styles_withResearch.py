@@ -70,10 +70,7 @@ iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals
 
 N_DNS = 2**RES_LOG2
 N_LES = 2**RES_LOG2_FIL
-C_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
-B_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
-C_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
-B_LES = cp.zeros([N_LES, N_LES], dtype=DTYPE)
+zero_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
 SIG   = int(N_DNS/N_LES)  # Gaussian (tf and np) filter sigma
 DW    = int(N_DNS/N_LES)  # downscaling factor
 minMaxUVP = np.zeros((RES_LOG2-3,6), dtype="float32")
@@ -82,64 +79,63 @@ minMaxUVP[:,2] = 1.0
 minMaxUVP[:,4] = 1.0
 
 
-with mirrored_strategy.scope():
-        
-    # define noise variances
-    inputVar1 = tf.constant(1.0, shape=[BATCH_SIZE, G_LAYERS-2], dtype=DTYPE)
-    inputVar2 = tf.constant(1.0, shape=[BATCH_SIZE, 2], dtype=DTYPE)
-    inputVariances = tf.concat([inputVar1,inputVar2],1)
+    
+# define noise variances
+inputVar1 = tf.constant(1.0, shape=[BATCH_SIZE, G_LAYERS-2], dtype=DTYPE)
+inputVar2 = tf.constant(1.0, shape=[BATCH_SIZE, 2], dtype=DTYPE)
+inputVariances = tf.concat([inputVar1,inputVar2],1)
 
 
-    # Download VGG16 model
-    VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
-    VGG_features_list = [layer.output for layer in VGG_model.layers]
-    VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
+# Download VGG16 model
+VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
+VGG_features_list = [layer.output for layer in VGG_model.layers]
+VGG_extractor     = tf.keras.Model(inputs=VGG_model.input, outputs=VGG_features_list)
 
 
-    # loading StyleGAN checkpoint and filter
-    checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+# loading StyleGAN checkpoint and filter
+checkpoint.restore(managerCheckpoint_wl.latest_checkpoint)
 
 
-    # create variable synthesis model
-    if (USE_DLATENTS):
-        dlatents         = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
-        tminMaxUVP       = tf.keras.Input(shape=[6], dtype="float32")
-        wlatents         = layer_wlatent(dlatents)
-        ndlatents        = wlatents(dlatents)
-        noutputs         = synthesis([ndlatents, inputVariances], training=False)
-        rescale          = layer_rescale(name="layer_rescale")
-        outputs, UVP_DNS = rescale(noutputs, tminMaxUVP)
-        wl_synthesis     = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
-        # wl_synthesis_0   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
-        # wl_synthesis_1   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
-    else:
-        latents          = tf.keras.Input(shape=[LATENT_SIZE])
-        tminMaxUVP       = tf.keras.Input(shape=[6], dtype="float32")
-        wlatents         = layer_wlatent(latents)
-        nlatents         = wlatents(latents)
-        dlatents         = mapping(nlatents)
-        noutputs         = synthesis([dlatents, inputVariances], training=False)
-        rescale          = layer_rescale(name="layer_rescale")
-        outputs, UVP_DNS = rescale(noutputs, tminMaxUVP)
-        wl_synthesis     = tf.keras.Model(inputs=[latents, tminMaxUVP],  outputs=[outputs, UVP_DNS])
-        # wl_synthesis_0   = tf.keras.Model(inputs=[latents, tminMaxUVP],  outputs=[outputs, UVP_DNS])
-        # wl_synthesis_1   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
+# create variable synthesis model
+if (USE_DLATENTS):
+    dlatents         = tf.keras.Input(shape=[G_LAYERS, LATENT_SIZE])
+    tminMaxUVP       = tf.keras.Input(shape=[6], dtype="float32")
+    wlatents         = layer_wlatent(dlatents)
+    ndlatents        = wlatents(dlatents)
+    noutputs         = synthesis([ndlatents, inputVariances], training=False)
+    rescale          = layer_rescale(name="layer_rescale")
+    outputs, UVP_DNS = rescale(noutputs, tminMaxUVP)
+    wl_synthesis     = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
+    # wl_synthesis_0   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
+    # wl_synthesis_1   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
+else:
+    latents          = tf.keras.Input(shape=[LATENT_SIZE])
+    tminMaxUVP       = tf.keras.Input(shape=[6], dtype="float32")
+    wlatents         = layer_wlatent(latents)
+    nlatents         = wlatents(latents)
+    dlatents         = mapping(nlatents)
+    noutputs         = synthesis([dlatents, inputVariances], training=False)
+    rescale          = layer_rescale(name="layer_rescale")
+    outputs, UVP_DNS = rescale(noutputs, tminMaxUVP)
+    wl_synthesis     = tf.keras.Model(inputs=[latents, tminMaxUVP],  outputs=[outputs, UVP_DNS])
+    # wl_synthesis_0   = tf.keras.Model(inputs=[latents, tminMaxUVP],  outputs=[outputs, UVP_DNS])
+    # wl_synthesis_1   = tf.keras.Model(inputs=[dlatents, tminMaxUVP], outputs=[outputs, UVP_DNS])
 
-    # define learnin rate schedule and optimizer
-    if (lrDNS_POLICY=="EXPONENTIAL"):
-        lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
-            initial_learning_rate=lrDNS,
-            decay_steps=lrDNS_STEP,
-            decay_rate=lrDNS_RATE,
-            staircase=lrDNS_EXP_ST)
-    elif (lrDNS_POLICY=="PIECEWISE"):
-        lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lrDNS_BOUNDS, lrDNS_VALUES)
-    opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
+# define learnin rate schedule and optimizer
+if (lrDNS_POLICY=="EXPONENTIAL"):
+    lr_schedule  = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=lrDNS,
+        decay_steps=lrDNS_STEP,
+        decay_rate=lrDNS_RATE,
+        staircase=lrDNS_EXP_ST)
+elif (lrDNS_POLICY=="PIECEWISE"):
+    lr_schedule = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lrDNS_BOUNDS, lrDNS_VALUES)
+opt = tf.keras.optimizers.Adamax(learning_rate=lr_schedule)
 
 
-    # define checkpoint
-    wl_checkpoint_0 = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
-    wl_checkpoint_1 = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
+# define checkpoint
+wl_checkpoint_0 = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
+wl_checkpoint_1 = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
 
 
 
@@ -236,7 +232,7 @@ for k in range(NL):
                 print_fields_1(W_DNS_t, filename)
 
                 filename = "results_checkStyles/fields/fields_lat_" + str(ninter) + "_res_" + str(res) + ".npz"
-                save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, C_DNS, B_DNS, W_DNS_t, filename)
+                save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, zero_DNS, zero_DNS, W_DNS_t, filename)
 
                 filename = "results_checkStyles/energy/energy_spectrum_lat_" + str(ninter) + "_res_" + str(res) + ".txt"
                 if (kk==RES_LOG2):

@@ -78,16 +78,10 @@ os.system("mkdir v_viol")
 for run in range(NRUNS):
     totTime = zero
     if (RESTART):
-        U, V, P, C, B, totTime = load_fields()
+        U, V, P, C, B, totTime = load_fields(DNSrun=True)
     else:
         U, V, P, C, B, totTime = init_fields(run)
 
-    # print fields
-    if (run==0):
-        W = find_vorticity(U, V)
-        print_fields(U, V, P, W, N, "Plots.png")
-        save_fields(totTime, U, V, P, C, B, W, "Fields.npz")
-        plot_spectrum(U, V, L, "Energy_spectrum.txt")
 
 
     # find face velocities first guess as forward difference (i.e. on side east and north)
@@ -113,24 +107,6 @@ for run in range(NRUNS):
     delt = convert(cdelt)
     delt = min(delt, maxDelt)
 
-    # print values
-    tend = time()
-    if (tstep%print_res == 0):
-        wtime = (tend-tstart)
-        print("Wall time [s] {0:6.1f}  steps {1:3d}  time {2:5.2e}  delt {3:5.2e}  resM {4:5.2e}  "\
-            "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
-        .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
-        resC_cpu, res_cpu, its, div_cpu))
-
-
-    # track center point velocities and pressure
-    DNS_cv[tstep,0] = totTime
-    DNS_cv[tstep,1] = U[N//2, N//2]
-    DNS_cv[tstep,2] = V[N//2, N//2]
-    DNS_cv[tstep,3] = P[N//2, N//2]
-
-
-
     # start loop
     while (tstep<totSteps and totTime<finalTime):
 
@@ -146,7 +122,7 @@ for run in range(NRUNS):
         # start outer loop on SIMPLE convergence
         it = 0
         res = large
-        while (res>toll and it<maxIt):
+        while (res>toll and it<maxItDNS):
 
 
             #---------------------------- solve momentum equations
@@ -166,7 +142,7 @@ for run in range(NRUNS):
 
             itM  = 0
             resM = large
-            while (resM>tollM and itM<maxIt):
+            while (resM>tollM and itM<maxItDNS):
 
                 # x-direction
                 sU = Ao*Uo - hf*(cr(P, 1, 0) - cr(P, -1, 0))*A + hf*(cr(B, 1, 0) + cr(B, -1, 0))
@@ -225,7 +201,7 @@ for run in range(NRUNS):
 
             itP  = 0
             resP = large
-            while (resP>tollP and itP<maxIt):
+            while (resP>tollP and itP<maxItDNS):
 
                 dd = So + Aw*cr(pc, -1, 0) + Ae*cr(pc, 1, 0)
                 pc = solver_TDMAcyclic(-As, Ap, -An, dd, N)
@@ -284,7 +260,7 @@ for run in range(NRUNS):
 
                 itC  = 0
                 resC = large
-                while (resC>tollC and itC<maxIt):
+                while (resC>tollC and itC<maxItDNS):
                     dd = Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0)
                     C = solver_TDMAcyclic(-As, Ap, -An, dd, N)
                     C = (Ao*Co + Aw*cr(C, -1, 0) + Ae*cr(C, 1, 0) + As*cr(C, 0, -1) + An*cr(C, 0, 1))*iApC
@@ -307,32 +283,11 @@ for run in range(NRUNS):
 
 
         #---------------------------- print update and save fields
-        if (it==maxIt):
+        if (it==maxItDNS):
             print("Attention: SIMPLE solver not converged!!!")
             exit()
 
         else:
-            # find new delt based on Courant number
-            cdelt = CNum*dl/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
-            delt = convert(cdelt)
-            delt = min(delt, maxDelt)
-            totTime = totTime + delt
-            tstep = tstep+1
-            its = it
-
-            # check divergence
-            div = rho*A*nc.sum(nc.abs(Ue - cr(Ue, -1, 0) + Vn - cr(Vn, 0, -1)))
-            div = div*iNN
-            div_cpu = convert(div)  
-
-            # print values
-            tend = time()
-            if (tstep%print_res == 0):
-                wtime = (tend-tstart)
-                print("Wall time [s] {0:6.1f}  steps {1:3d}  time {2:5.2e}  delt {3:5.2e}  resM {4:5.2e}  "\
-                    "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
-                .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
-                resC_cpu, res_cpu, its, div_cpu))
 
 
             # track center point velocities and pressure
@@ -381,7 +336,32 @@ for run in range(NRUNS):
                     plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
 
 
+            # find new delt based on Courant number
+            cdelt = CNum*dl/(sqrt(nc.max(U)*nc.max(U) + nc.max(V)*nc.max(V))+small)
+            delt = convert(cdelt)
+            delt = min(delt, maxDelt)
+            totTime = totTime + delt
+            tstep = tstep+1
+            its = it
+
+            # check divergence
+            div = rho*A*nc.sum(nc.abs(Ue - cr(Ue, -1, 0) + Vn - cr(Vn, 0, -1)))
+            div = div*iNN
+            div_cpu = convert(div)  
+
+            # print values
+            tend = time()
+            if (tstep%print_res == 0):
+                wtime = (tend-tstart)
+                print("Wall time [s] {0:6.1f}  steps {1:3d}  time {2:5.2e}  delt {3:5.2e}  resM {4:5.2e}  "\
+                    "resP {5:5.2e}  resC {6:5.2e}  res {7:5.2e}  its {8:3d}  div {9:5.2e}"       \
+                .format(wtime, tstep, totTime, delt, resM_cpu, resP_cpu, \
+                resC_cpu, res_cpu, its, div_cpu))
+
+
 # end of the simulation
+
+
 
 
 # plot, save, find spectrum fields

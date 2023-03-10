@@ -98,8 +98,7 @@ minMaxUVP[:,2] = 1.0
 minMaxUVP[:,4] = 1.0
 
 
-with mirrored_strategy.scope():
-        
+      
 
     # Download VGG16 model
     VGG_model         = VGG16(input_shape=(OUTPUT_DIM, OUTPUT_DIM, NUM_CHANNELS), include_top=False, weights='imagenet')
@@ -114,7 +113,8 @@ with mirrored_strategy.scope():
 
 
     # loading StyleGAN checkpoint and filter
-    checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+    managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
+    checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
 
     # create variable synthesis model
@@ -206,7 +206,7 @@ for variable in list_LES_trainable_variables:
 
 # define step for finding latent space
 @tf.function
-def find_latent(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
+def find_latent_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions, UVP_DNS = wl_synthesis([latent, minMaxUVP], training=False)
 
@@ -228,17 +228,13 @@ def find_latent(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.t
     return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES
 
 
-@tf.function
-def find_latent_step(latent, minMaxUVP, images, list_trainable_variables):
-    resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES = mirrored_strategy.run(find_latent, args=(latent, minMaxUVP, images, list_trainable_variables))
-    return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES
 
 
 
 
 # define step for finding latent space
 @tf.function
-def find_latent_LES(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
+def find_latent_LES_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions, UVP_DNS = wl_synthesis([latent, minMaxUVP], training=False)
         UVP_LES     = predictions[RES_LOG2_FIL-2]
@@ -271,11 +267,6 @@ def find_latent_LES(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthes
 
     return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES, fimg
 
-
-@tf.function
-def find_latent_step_LES(latent, minMaxUVP, images, list_trainable_variables):
-    resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES, fimg = mirrored_strategy.run(find_latent_LES, args=(latent, minMaxUVP, images, list_trainable_variables))
-    return resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES, fimg
 
 
 
@@ -319,9 +310,7 @@ tstart   = time.time()
 for tv, tollDNS in enumerate(tollDNSValues):
 
     # reload weights
-    with mirrored_strategy.scope():
-        # loading StyleGAN checkpoint and filter
-        checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+    checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
     # set latent spaces
     tf.random.set_seed(0)
@@ -340,7 +329,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         
         #-------------------------------------------------------- RECONSTRUCT
         # load numpy array
-        U_DNS, V_DNS, P_DNS, C_DNS, B_DNS, totTime[k] = load_fields(FILE_REAL)
+        U_DNS, V_DNS, P_DNS, totTime[k] = load_fields(FILE_REAL)
         U_DNS = np.cast[DTYPE](U_DNS)
         V_DNS = np.cast[DTYPE](V_DNS)
         P_DNS = np.cast[DTYPE](P_DNS)
@@ -403,7 +392,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         itDNS    = 0
         itDNStot = 0
         resDNS   = large
-        while (resDNS>tollDNS and itDNS<maxItDNS):
+        while (resDNS>tollDNS and itDNS<maxItREC):
             if (k==0):
                 resDNS, predictions, UVP_DNS, loss_pix_DNS, loss_pix_LES = find_latent_step(latent, tminMaxUVP, imgA, list_DNS_trainable_variables)
             else:

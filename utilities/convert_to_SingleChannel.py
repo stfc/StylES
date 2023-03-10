@@ -35,10 +35,10 @@ from HIT_2D import N, L
 
 
 sca  = 1
-PATH = "../../../data/N256_test_procedures/fields/"
-DEST = "./single/"
-os.system("rm -rf single")
-os.system("mkdir single")
+PATH = "../../../data/HIT_2D/fields_5imgs/"
+DEST = "./results_convertion_from_npz/"
+os.system("rm -rf " + DEST)
+os.system("mkdir " + DEST)
 closePlot=False
 
 files = os.listdir(PATH)
@@ -51,7 +51,7 @@ for i,file in enumerate(sorted(files)):
 
         # load numpy array
         nimg = np.zeros([N,N,3], dtype=DTYPE)
-        U, V, P, _, _, _ = load_fields(filename)
+        U, V, P, _ = load_fields(filename)
         nimg[:,:,0] = U
         nimg[:,:,1] = V
         nimg[:,:,2] = P
@@ -88,3 +88,5 @@ for i,file in enumerate(sorted(files)):
 
     print("done for ", file)
 
+cmd = "mv Energy_spectrum.png " + DEST
+os.system(cmd)

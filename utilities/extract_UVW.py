@@ -50,6 +50,7 @@ for i,file in enumerate(sorted(files)):
     filename = PATH + file
     filename2 = DEST + file
 
-    U, V, W = load_fields(filename)
+    U, V, P = load_fields(filename)
+    W = find_vorticity(U, V)
     save_fields(U,V,W,filename2)
     

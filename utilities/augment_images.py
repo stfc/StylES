@@ -48,7 +48,7 @@ for file in files:
 
     if (tail == '.npz'):
         img = np.zeros([N,N,3], dtype=DTYPE)
-        U, V, P, B, C, totTime = load_fields(filename)
+        U, V, P, totTime = load_fields(filename)
         img[:,:,0] = U
         img[:,:,1] = V
         img[:,:,2] = P

@@ -60,7 +60,9 @@ if (not USE_GPU):
     except:
         # Invalid device or cannot modify virtual devices once initialized.
         pass
-
+else:
+    listGPUs = tf.config.experimental.list_physical_devices('GPU')
+    print('\n Number of GPUs used: ', len(listGPUs))
 
 
 
@@ -74,8 +76,7 @@ def main():
             circular_buffer_size=-1)
 
     train_images = prepare_for_training(labeled_ds)
-    dist_dataset = mirrored_strategy.experimental_distribute_dataset(train_images)
-    train(dist_dataset, train_summary_writer)
+    train(train_images, train_summary_writer)
 
 if __name__ == "__main__":
     main()

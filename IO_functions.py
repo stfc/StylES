@@ -26,9 +26,6 @@ from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
 
-sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D')
-from HIT_2D import delt
-
 from PIL import Image
 
 
@@ -91,7 +88,12 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-    P = data['P']
+
+    if (TESTCASE=='HIT_2D'):
+        P = tf_find_vorticity(U, V)
+    else:
+        P = data['P']
+
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
     P = np.cast[DTYPE](P)
@@ -165,7 +167,7 @@ else:
 
 
 # prepare training dataset
-def prepare_for_training(ds, cache=True, batch_size=GLOBAL_BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
+def prepare_for_training(ds, cache=True, batch_size=BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
 
     # take batch size
     ds = ds.batch(batch_size)
@@ -235,57 +237,63 @@ def check_divergence(img, res):
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
+
+    delt = 1.0e-4   # this value is from the input file (testcases/HIT_2D)
+    rho  = 1.0e0    # this value is from the input file (testcases/HIT_2D)
+    L    = 0.94049  # this value is from the input file (testcases/HIT_2D)
+    nu   = 1.87e-4  # this value is from the input file (testcases/HIT_2D)
+
     dl = L/res
     A = dl
     Dc = nu/dl*A
 
     # find Rhie-Chow interpolation (PWIM)
-    Ue = hf*(U + nr(U, 1, 0))
-    Vn = hf*(V + nr(V, 1, 0))
+    Ue = 0.5e0*(U + nr(U, 1, 0))
+    Vn = 0.5e0*(V + nr(V, 1, 0))
 
     Fw = A*rho*nr(Ue, -1, 0)
     Fe = A*rho*Ue
     Fs = A*rho*nr(Vn, 0, -1)
     Fn = A*rho*Vn
 
-    Aw = Dc + hf*(np.abs(Fw) + Fw)
-    Ae = Dc + hf*(np.abs(Fe) - Fe)
-    As = Dc + hf*(np.abs(Fs) + Fs)
-    An = Dc + hf*(np.abs(Fn) - Fn)
+    Aw = Dc + 0.5e0*(np.abs(Fw) + Fw)
+    Ae = Dc + 0.5e0*(np.abs(Fe) - Fe)
+    As = Dc + 0.5e0*(np.abs(Fs) + Fs)
+    An = Dc + 0.5e0*(np.abs(Fn) - Fn)
     Ao = rho*A*dl/delt
 
     Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
     iApM = 1.e0/Ap
 
-    deltpX1 = hf*(nr(P, 1, 0) - nr(P, -1, 0))
-    deltpX2 = hf*(nr(P, 2, 0) - P)    
+    deltpX1 = 0.5e0*(nr(P, 1, 0) - nr(P, -1, 0))
+    deltpX2 = 0.5e0*(nr(P, 2, 0) - P)    
     deltpX3 = (P - nr(P,  1, 0))
 
-    deltpY1 = hf*(nr(P, 0, 1) - nr(P, 0, -1))
-    deltpY2 = hf*(nr(P, 0, 2) - P)
+    deltpY1 = 0.5e0*(nr(P, 0, 1) - nr(P, 0, -1))
+    deltpY2 = 0.5e0*(nr(P, 0, 2) - P)
     deltpY3 = (P - nr(P, 0,  1))
 
-    Ue = hf*(nr(U, 1, 0) + U)                 \
-        + hf*deltpX1*iApM*A                   \
-        + hf*deltpX2*nr(iApM, 1, 0)*A         \
-        + hf*deltpX3*(nr(iApM, 1, 0) + iApM)*A
+    Ue = 0.5e0*(nr(U, 1, 0) + U)                 \
+        + 0.5e0*deltpX1*iApM*A                   \
+        + 0.5e0*deltpX2*nr(iApM, 1, 0)*A         \
+        + 0.5e0*deltpX3*(nr(iApM, 1, 0) + iApM)*A
 
-    Vn = hf*(nr(V, 0, 1) + V)                 \
-        + hf*deltpY1*iApM*A                   \
-        + hf*deltpY2*nr(iApM, 0, 1)*A         \
-        + hf*deltpY3*(nr(iApM, 0, 1) + iApM)*A
+    Vn = 0.5e0*(nr(V, 0, 1) + V)                 \
+        + 0.5e0*deltpY1*iApM*A                   \
+        + 0.5e0*deltpY2*nr(iApM, 0, 1)*A         \
+        + 0.5e0*deltpY3*(nr(iApM, 0, 1) + iApM)*A
 
     # check divergence
     div = rho*A*np.sum(np.abs(nr(Ue, -1, 0) - Ue + nr(Vn, 0, -1) - Vn))
     div = div*iNN
 
     # find dU/dt term
-    sU = - hf*(nr(P, 1, 0) - nr(P, -1, 0))*A
+    sU = - 0.5e0*(nr(P, 1, 0) - nr(P, -1, 0))*A
     dUdt = np.sum(np.abs(sU + Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1)))
     dUdt = dUdt*iNN
 
     # find dV/dt term
-    sV = - hf*(nr(P, 0, 1) - nr(P, 0, -1))*A
+    sV = - 0.5e0*(nr(P, 0, 1) - nr(P, 0, -1))*A
     dVdt = np.sum(np.abs(sV + Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1)))
     dVdt = dVdt*iNN
 
@@ -299,6 +307,12 @@ def check_divergence_staggered(img, res):
     V = img[1,:,:]
     P = img[2,:,:]
     iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
+
+    delt = 1.0e-4   # this value is from the input file (testcases/HIT_2D)
+    rho  = 1.0e0    # this value is from the input file (testcases/HIT_2D)
+    L    = 0.94049  # this value is from the input file (testcases/HIT_2D)
+    nu   = 1.87e-4  # this value is from the input file (testcases/HIT_2D)
+
     dl = L/res
     A = dl
     Dc = nu/dl*A
@@ -308,28 +322,28 @@ def check_divergence_staggered(img, res):
     div = div*iNN
 
     # x-direction
-    Fw = A*rho*hf*(U            + nr(U, -1, 0))
-    Fe = A*rho*hf*(nr(U,  1, 0) + U           )
-    Fs = A*rho*hf*(V            + nr(V, -1, 0))
-    Fn = A*rho*hf*(nr(V,  0, 1) + nr(V, -1, 1))
+    Fw = A*rho*0.5e0*(U            + nr(U, -1, 0))
+    Fe = A*rho*0.5e0*(nr(U,  1, 0) + U           )
+    Fs = A*rho*0.5e0*(V            + nr(V, -1, 0))
+    Fn = A*rho*0.5e0*(nr(V,  0, 1) + nr(V, -1, 1))
 
-    Aw = Dc + hf*Fw #hf*(np.abs(Fw) + Fw)
-    Ae = Dc - hf*Fe #hf*(np.abs(Fe) - Fe)
-    As = Dc + hf*Fs #hf*(np.abs(Fs) + Fs)
-    An = Dc - hf*Fn #hf*(np.abs(Fn) - Fn)
+    Aw = Dc + 0.5e0*Fw #0.5e0*(np.abs(Fw) + Fw)
+    Ae = Dc - 0.5e0*Fe #0.5e0*(np.abs(Fe) - Fe)
+    As = Dc + 0.5e0*Fs #0.5e0*(np.abs(Fs) + Fs)
+    An = Dc - 0.5e0*Fn #0.5e0*(np.abs(Fn) - Fn)
     dUdt = np.sum(np.abs(Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1) - (P - nr(P, -1, 0))*A))
     dUdt = dUdt*iNN
 
     # y-direction
-    Fw = A*rho*hf*(U             + nr(U, 0, -1))
-    Fe = A*rho*hf*(nr(U,  1,  0) + nr(U, 1, -1))
-    Fs = A*rho*hf*(nr(V,  0, -1) + V           )
-    Fn = A*rho*hf*(V             + nr(V, 0,  1))
+    Fw = A*rho*0.5e0*(U             + nr(U, 0, -1))
+    Fe = A*rho*0.5e0*(nr(U,  1,  0) + nr(U, 1, -1))
+    Fs = A*rho*0.5e0*(nr(V,  0, -1) + V           )
+    Fn = A*rho*0.5e0*(V             + nr(V, 0,  1))
 
-    Aw = Dc + hf*Fw #hf*(np.abs(Fw) + Fw)
-    Ae = Dc - hf*Fe #hf*(np.abs(Fe) - Fe)
-    As = Dc + hf*Fs #hf*(np.abs(Fs) + Fs)
-    An = Dc - hf*Fn #hf*(np.abs(Fn) - Fn)
+    Aw = Dc + 0.5e0*Fw #0.5e0*(np.abs(Fw) + Fw)
+    Ae = Dc - 0.5e0*Fe #0.5e0*(np.abs(Fe) - Fe)
+    As = Dc + 0.5e0*Fs #0.5e0*(np.abs(Fs) + Fs)
+    An = Dc - 0.5e0*Fn #0.5e0*(np.abs(Fn) - Fn)
     dVdt = np.sum(np.abs(Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1) - (P - nr(P, 0, -1))*A))
     dVdt = dVdt*iNN
 

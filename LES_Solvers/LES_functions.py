@@ -34,17 +34,19 @@ def find_vorticity(U, V):
     return W
 
 
-def load_fields(filename='restart.npz'):
+def load_fields(filename='restart.npz', DNSrun=False):
     data = nc.load(filename)
     ctotTime = data['t']
     totTime = convert(ctotTime)
     U = data['U']
     V = data['V']
     P = data['P']
-    C = data['C']
-    B = data['B']
-
-    return U, V, P, C, B, totTime
+    if (DNSrun):
+        C = data['C']
+        B = data['B']
+        return U, V, P, C, B, totTime
+    else:
+        return U, V, P, totTime
 
 
 def save_fields(totTime, U, V, P, C, B, W, filename="restart.npz"):
@@ -78,14 +80,12 @@ def plot_spectrum(U, V, L, filename, close=False):
 
 
 
-def plot_spectrum_noPlots(U, V, L, filename):
+def plot_spectrum_noPlots(U, V, L):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
     knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
-
-    np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
-
+    return wave_numbers, tke_spectrum
 
 
 def save_vel_violations(fname, uv_max, tstep, close=True):

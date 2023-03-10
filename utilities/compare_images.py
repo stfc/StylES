@@ -48,18 +48,18 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "./results/fields_org/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
-FILE_STYLE = "./results/fields/fields_lat_0_res_" + str(OUTPUT_DIM) + ".npz"
+FILE_REAL  = "./results_reconstruction/fields/fields_tv2_k0.npz"
+FILE_STYLE = "../LES_Solvers/fields/fields_run0_it0.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
 
-if (TESTCASE=='2D-HIT'):
+if (TESTCASE=='HIT_2D'):
     labelR = r'$u$'
     labelG = r'$v$'
     labelB = r'$\omega$'
 
-if (TESTCASE=='HW'):
+if (TESTCASE=='HW' or TESTCASE=='mHW'):
     labelR = r'$n$'
     labelG = r'$\phi$'
     labelB = r'$\zeta$'

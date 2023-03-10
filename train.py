@@ -34,35 +34,39 @@ from parameters import *
 from functions import *
 from MSG_StyleGAN_tf2 import *
 from IO_functions import *
-from LES_Solvers.testcases.HIT_2D.HIT_2D import uRef
 
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
 
 
-with mirrored_strategy.scope():
-    def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_images, images):
+def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_images, images):
 
-        # discriminator loss
-        loss_real_per_sample  = tf.math.softplus(-real_output_per_sample)
+    # discriminator loss
+    loss_real_per_sample  = tf.math.softplus(-real_output_per_sample)
 
-        loss_fake_per_sample  = tf.math.softplus(fake_output_per_sample)
-        r1_penalty_per_sample = gradient_penalty(images)
+    loss_fake_per_sample  = tf.math.softplus(fake_output_per_sample)
+    r1_penalty_per_sample = gradient_penalty(images)
 
-        # generator loss
-        loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
+    # generator loss
+    loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
 
-        # filter loss
-        loss_fil_per_sample = tf.math.squared_difference(f_images, g_images[RES_LOG2_FIL-2])/tf.math.reduce_mean(f_images**2)
+    # filter loss
+    loss_fil_per_sample = []
+    for fil in range(RES_LOG2-RES_LOG2_FIL):
+        loss_fil_per_sample.append(tf.math.squared_difference(f_images[fil], g_images[RES_LOG2 -(fil+1) -2]))
 
-        loss_real   = tf.nn.compute_average_loss(loss_real_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)
-        loss_fake   = tf.nn.compute_average_loss(loss_fake_per_sample,   global_batch_size=GLOBAL_BATCH_SIZE)
-        loss_gen    = tf.nn.compute_average_loss(loss_gen_per_sample,    global_batch_size=GLOBAL_BATCH_SIZE)
-        loss_fil    = tf.nn.compute_average_loss(loss_fil_per_sample,    global_batch_size=GLOBAL_BATCH_SIZE)
-        r1_penalty  = tf.nn.compute_average_loss(r1_penalty_per_sample,  global_batch_size=GLOBAL_BATCH_SIZE)
-        real_output = tf.nn.compute_average_loss(real_output_per_sample, global_batch_size=GLOBAL_BATCH_SIZE)
-        fake_output = tf.nn.compute_average_loss(fake_output_per_sample, global_batch_size=GLOBAL_BATCH_SIZE)
+    loss_real   = tf.math.reduce_mean(loss_real_per_sample)
+    loss_fake   = tf.math.reduce_mean(loss_fake_per_sample)
+    loss_gen    = tf.math.reduce_mean(loss_gen_per_sample)
 
-        return loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output
+    loss_fil = []
+    for fil in range(RES_LOG2-RES_LOG2_FIL):
+        loss_fil.append(tf.math.reduce_mean(loss_fil_per_sample[fil]))
+
+    r1_penalty  = tf.math.reduce_mean(r1_penalty_per_sample)
+    real_output = tf.math.reduce_mean(real_output_per_sample)
+    fake_output = tf.math.reduce_mean(fake_output_per_sample)
+
+    return loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output
 
  
 
@@ -72,11 +76,17 @@ with mirrored_strategy.scope():
 def train_step(input, images):
     with tf.GradientTape() as map_tape, \
         tf.GradientTape() as syn_tape, \
-        tf.GradientTape() as fil_tape, \
+        tf.GradientTape() as fil_tape_128, \
+        tf.GradientTape() as fil_tape_64, \
+        tf.GradientTape() as fil_tape_32, \
+        tf.GradientTape() as fil_tape_16, \
         tf.GradientTape() as disc_tape:
         dlatents = mapping(input, training = True)
         g_images = synthesis(dlatents, training = True)
-        f_images = filter(g_images[RES_LOG2-2], training = True)
+
+        f_images = []
+        for fil in range(RES_LOG2-RES_LOG2_FIL):
+            f_images.append(filter[fil](g_images[RES_LOG2-2], training = True))
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -90,17 +100,29 @@ def train_step(input, images):
     #apply gradients
     gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping.trainable_variables)
     gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis.trainable_variables)
-    gradients_of_filter        = fil_tape.gradient(loss_fil,   filter.trainable_variables)
+
+    gradients_of_filter = []
+    gradients_of_filter.append(fil_tape_128.gradient(loss_fil[0], filter[0].trainable_variables))
+    gradients_of_filter.append(fil_tape_64.gradient(loss_fil[1],  filter[1].trainable_variables))
+    gradients_of_filter.append(fil_tape_32.gradient(loss_fil[2],  filter[2].trainable_variables))
+    gradients_of_filter.append(fil_tape_16.gradient(loss_fil[3],  filter[3].trainable_variables))
+
     gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
     gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis ]
-    gradients_of_filter        = [g if g is not None else tf.zeros_like(g) for g in gradients_of_filter ]
+
+    for fil in range(RES_LOG2-RES_LOG2_FIL):
+        gradients_of_filter[fil] = [g if g is not None else tf.zeros_like(g) for g in gradients_of_filter[fil] ]
+
     gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator ]
 
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
     generator_optimizer.apply_gradients(zip(gradients_of_synthetis,         synthesis.trainable_variables))
-    filter_optimizer.apply_gradients(zip(gradients_of_filter,               filter.trainable_variables))
+
+    for fil in range(RES_LOG2-RES_LOG2_FIL):
+        filter_optimizer.apply_gradients(zip(gradients_of_filter[fil],  filter[fil].trainable_variables))
+
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
     metrics = [loss_disc, loss_gen, loss_fil, r1_penalty, real_output, fake_output]
@@ -108,24 +130,13 @@ def train_step(input, images):
     return metrics
 
 
-@tf.function
-def distributed_train_step(input, images):
-    losses = mirrored_strategy.run(train_step, args=(input, images))
-    mtr=[]
-    for i in range(len(losses)):
-        mtr.append(mirrored_strategy.reduce(tf.distribute.ReduceOp.SUM, losses[i], axis=None))
-
-    return mtr
-
-
-
 
 def train(dataset, train_summary_writer):
 
     # Load latest checkpoint, if restarting
+    managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=None)
     if (IRESTART):
-        with mirrored_strategy.scope():
-            checkpoint.restore(tf.train.latest_checkpoint(CHKP_DIR))
+        checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
 
     # Create noise for sample images
@@ -153,7 +164,7 @@ def train(dataset, train_summary_writer):
         # take next batch
         input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         image_batch = next(iter(dataset))
-        mtr = distributed_train_step(input_batch, image_batch)
+        mtr = train_step(input_batch, image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
@@ -172,7 +183,7 @@ def train(dataset, train_summary_writer):
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
-                mtr[2], \
+                mtr[2][RES_LOG2-RES_LOG2_FIL-1], \
                 mtr[3], \
                 mtr[4], \
                 mtr[5], \
@@ -184,10 +195,12 @@ def train(dataset, train_summary_writer):
             with train_summary_writer.as_default():
                 tf.summary.scalar('a/loss_disc',   mtr[0], step=it)
                 tf.summary.scalar('a/loss_gen',    mtr[1], step=it)
-                tf.summary.scalar('a/loss_filter', mtr[2], step=it)
+                for fil in range(RES_LOG2-RES_LOG2_FIL):
+                    res = 2**(RES_LOG2_FIL+fil)
+                    tf.summary.scalar('a/loss_filter ' +str(res), mtr[2][fil], step=it)
                 tf.summary.scalar('a/r1_penalty',  mtr[3], step=it)
                 tf.summary.scalar('a/score_real',  mtr[4], step=it)
-                tf.summary.scalar('a/score_fake',  mtr[5], step=it)                                
+                tf.summary.scalar('a/score_fake',  mtr[5], step=it)
                 tf.summary.scalar('a/lr_gen',      lr_gen, step=it)
                 tf.summary.scalar('a/lr_dis',      lr_dis, step=it)                
 
@@ -208,7 +221,7 @@ def train(dataset, train_summary_writer):
 
         #save the model
         if (it+1) % SAVE_EVERY == 0:    
-            checkpoint.save(file_prefix = CHKP_PREFIX)
+            managerCheckpoint.save()
 
 
     # end of the training

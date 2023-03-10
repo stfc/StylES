@@ -64,7 +64,7 @@ C_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
 
 
 # loading StyleGAN checkpoint and filter
-checkpoint.restore(tf.train.latest_checkpoint("../" + CHKP_DIR))
+checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
 
 # create variable synthesis model
@@ -77,12 +77,13 @@ wl_synthesis2 = tf.keras.Model(latents, outputs)
 wl_synthesis3 = tf.keras.Model(latents, outputs)
 
 # loading StyleGAN checkpoint and filter
-checkpoint = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
-checkpoint.restore(tf.train.latest_checkpoint("./check_latent_single/wl_checkpoints/"))
+managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
+managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, '../' + CHKP_DIR_WL, max_to_keep=2)
+checkpoint_wl.restore(managerCheckpoint_wl.latest_checkpoint)
 
-
-checkpoint = tf.train.Checkpoint(wl_synthesis2=wl_synthesis)
-checkpoint.restore(tf.train.latest_checkpoint("./check_latent_single2/wl_checkpoints/"))
+checkpoint_wl2 = tf.train.Checkpoint(wl_synthesis2=wl_synthesis)
+managerCheckpoint_wl2 = tf.train.CheckpointManager(checkpoint_wl2, '../' + CHKP_DIR_WL, max_to_keep=2)
+checkpoint_wl2.restore(managerCheckpoint_wl.latest_checkpoint)
 
 
 

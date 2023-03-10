@@ -29,15 +29,6 @@ from typing import Union
 from parameters import *
 
 
-# sys.path.insert(n, item) inserts the item at the nth position in the list 
-# (0 at the beginning, 1 after the first element, etc ...)
-sys.path.insert(0, './LES_Solvers/')
-sys.path.insert(0, './LES_Solvers/testcases/HIT_2D')
-sys.path.insert(0, '../TurboGenPY/')
-
-from LES_constants import hf
-from HIT_2D import L, rho, nu
-
 
 #A type that represents a valid Tensorflow expression
 TfExpression = Union[tf.Tensor, tf.Variable, tf.Operation]
@@ -102,7 +93,7 @@ def periodic_padding_flexible(tensor, axis, padding=1):
             ind_right = [slice(-p[0],None) if i == ax else slice(None) for i in range(ndim)]
             ind_left  = [slice(0, p[1])    if i == ax else slice(None) for i in range(ndim)]
 
-            if (TESTCASE=='HW'):
+            if (TESTCASE=='mHW'):
                 if (ax==2):
                     right = tensor[ind_right]*0   # non periodic in x-direction
                     left  = tensor[ind_left]*0
@@ -229,7 +220,56 @@ class layer_bias(layers.Layer):
         return x + tf.reshape(self.b*self.lrmul, [1, -1, 1, 1])
 
 
-#-------------Layer Noise
+
+#---------------------------------------------------------------------
+class layer_create_noise(layers.Layer):
+    def __init__(self, xshape, ldx, randomize_noise, **kwargs):
+        super(layer_create_noise, self).__init__(**kwargs)
+
+        self.NSIZE = xshape[-2] * xshape[-1]
+        self.N     = NC_NOISE
+        self.N2    = int(self.N/2)
+        self.T     = self.NSIZE-1
+        self.Dt    = self.T/(self.NSIZE-1)
+        self.t     = self.Dt*tf.cast(tf.random.uniform([self.NSIZE], maxval=self.NSIZE, dtype="int32"), DTYPE)
+        self.t     = self.t[tf.newaxis,:]
+        self.t     = tf.tile(self.t, [self.N2, 1])
+        self.k     = tf.range(1,int(self.N2+1), dtype=DTYPE)
+        self.f     = self.k/self.T
+        self.f     = self.f[:,tf.newaxis]
+
+        if (randomize_noise):
+            c_init = tf.ones_initializer()
+            self.c = tf.Variable(
+                initial_value=c_init(shape=[1,self.N2], dtype=DTYPE),
+                trainable=False,
+                **kwargs
+            )
+        else:
+            c_init = tf.ones_initializer()
+            self.c = tf.Variable(
+                initial_value=c_init(shape=[1,self.N2], dtype=DTYPE),
+                trainable=True,
+                **kwargs
+            )
+
+
+    def call(self, x, phi):
+
+        freq = self.f * self.t
+        argsin = tf.math.sin(2*np.pi*freq + phi)
+        noise = tf.matmul(self.c,argsin)
+        noise = (2.0*(noise - tf.math.reduce_min(noise))/(tf.math.reduce_max(noise) - tf.math.reduce_min(noise)) - 1.0)
+        noise = tf.reshape(noise, shape=[x.shape[-2], x.shape[-1]])
+        
+        return noise
+
+
+
+
+
+
+
 class layer_noise(layers.Layer):
     def __init__(self, x, **kwargs):
         super(layer_noise, self).__init__(**kwargs)
@@ -246,152 +286,65 @@ class layer_noise(layers.Layer):
 
 
 
-def apply_noise(x, ldx, noise_in=None, randomize_noise=True):
+def apply_noise(x, ldx, phi_noise_in=None, randomize_noise=True):
     assert len(x.shape) == 4  # NCHW
 
-    if noise_in is None or randomize_noise:
-        noise = tf.random.normal([tf.shape(x)[0], 1, x.shape[2], x.shape[3]], 
-        mean=0.0,
-        stddev=1.0,
-        dtype=x.dtype)
+    if phi_noise_in is None or randomize_noise:
+        phi_noise = tf.random.uniform([tf.shape(x)[0], NC2_NOISE, 1], maxval=2.0*np.pi, dtype=x.dtype)
     else:
-        noise = tf.cast(noise_in, x.dtype)
+        phi_noise = tf.cast(phi_noise_in, x.dtype)
 
-    lnoise = layer_noise(noise_in, name="noise_weights%d" % ldx)
+    # lcnoise = layer_create_noise([x.shape[-2], x.shape[-1]], ldx, randomize_noise, name="layer_noise_constants%d" % ldx)
+    # noise   = lcnoise([x.shape[-2], x.shape[-1]], phi_noise)  # why passing the shape as argument is not working???
+
+    lcnoise = layer_create_noise([x.shape[-2], x.shape[-1]], ldx, randomize_noise, name="layer_noise_constants%d" % ldx)
+    noise   = lcnoise(x, phi_noise)
+
+    lnoise = layer_noise(noise, name="layer_noise_weights%d" % ldx)
     nweights = lnoise(x)
 
     return x + noise * nweights
 
 
 
-#-------------Layer zlatent
-class layer_zlatent(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_zlatent, self).__init__()
+#-------------Layer layer_wlatent_LES
 
-        zl_init = tf.ones_initializer()
-        self.zl = tf.Variable(
-            initial_value=zl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+class layer_wlatent_DNS(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_wlatent_DNS, self).__init__()
+
+        w_init = tf.ones_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="zlatent"
+            name="wlatent_DNS"
         )
 
-    def call(self, x):
-        return x*self.zl
+    def call(self, w):
+        w1 = w[:,0:M_LAYERS,:]
+        w2 = self.w*w[:,M_LAYERS:G_LAYERS,:]
+        w = tf.concat([w1,w2], axis=1)
+        return w
 
+        
+class layer_wlatent_LES(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_wlatent_LES, self).__init__()
 
-
-
-
-
-#-------------Layers wlatent, layer_w_LES_DNS_latent and layer_wplatent
-class layer_wlatent(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_wlatent, self).__init__()
-
-        wl_init = tf.ones_initializer()
-
-        self.wl = tf.Variable(
-            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="wlatent_LES_DNS"
-        )
-
-
-    def call(self, x):
-        w = x[:,0,:]*self.wl
-        wlatents = tf.tile(w[:, np.newaxis], [1, RES_LOG2*2-2, 1])
-        return wlatents
-
-
-
-class layer_w_LES_DNS_latent(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_w_LES_DNS_latent, self).__init__()
-
-        wl_init = tf.ones_initializer()
-
-        self.wl_LES = tf.Variable(
-            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
+        w_init = tf.ones_initializer()
+        self.w = tf.Variable(
+            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
             name="wlatent_LES"
         )
 
-        self.wl_DNS = tf.Variable(
-            initial_value=wl_init(shape=[LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="wlatent_DNS"
-        )
-        
-
-    def call(self, x):
-        w_LES = x[:,0,:]*self.wl_LES
-        w_DNS = x[:,0,:]*self.wl_DNS
-        wt_LES = tf.tile(w_LES[:, np.newaxis], [1, RES_LOG2_FIL*2-2         , 1])
-        wt_DNS = tf.tile(w_DNS[:, np.newaxis], [1, RES_LOG2*2-RES_LOG2_FIL*2, 1])
-        wlatents = tf.concat([wt_LES, wt_DNS], 1)
-        return wlatents
+    def call(self, w):
+        w1 = self.w*w[:,0:M_LAYERS,:]
+        w2 = w[:,M_LAYERS:G_LAYERS,:]
+        w = tf.concat([w1,w2], axis=1)
+        return w
 
 
-class layer_wplatent(layers.Layer):
-    def __init__(self, x=None, **kwargs):
-        super(layer_wplatent, self).__init__()
-
-        wl_init_LES = tf.ones_initializer()
-        self.wl_LES = tf.Variable(
-            initial_value=wl_init_LES(shape=[RES_LOG2_FIL*2-2,LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="wplatent_LES"
-        )
-
-        wl_init_DNS = tf.ones_initializer()
-        self.wl_DNS = tf.Variable(
-            initial_value=wl_init_DNS(shape=[(RES_LOG2 - RES_LOG2_FIL)*2,LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="wplatent_DNS"
-        )
-
-    def call(self, x):
-        x_LES = x[:,               0:RES_LOG2_FIL*2-2,:]*self.wl_LES
-        x_DNS = x[:,RES_LOG2_FIL*2-2:RES_LOG2*2-2    ,:]*self.wl_DNS
-        x = tf.concat([x_LES, x_DNS], 1)
-        return x
-
-
-
-
-
-#-------------Layer rescale
-class layer_rescale(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_rescale, self).__init__()
-
-        wl_init = tf.ones_initializer()
-        self.wl = tf.Variable(
-            initial_value=wl_init(shape=[6], dtype=DTYPE),
-            trainable=True,
-            name="scaling_layer_variable"
-        )
-
-    def call(self, x, minMaxUVP):
-        maxU = self.wl[0]*minMaxUVP[0,0]
-        minU = self.wl[1]*minMaxUVP[0,1]
-        maxV = self.wl[2]*minMaxUVP[0,2]
-        minV = self.wl[3]*minMaxUVP[0,3]
-        maxP = self.wl[4]*minMaxUVP[0,4]
-        minP = self.wl[5]*minMaxUVP[0,5]
-
-        U_DNS = (x[RES_LOG2-2][:,0,:,:]+1.0)*(maxU-minU)/2.0 + minU
-        V_DNS = (x[RES_LOG2-2][:,1,:,:]+1.0)*(maxV-minV)/2.0 + minV
-        P_DNS = (x[RES_LOG2-2][:,2,:,:]+1.0)*(maxP-minP)/2.0 + minP
-
-        U_DNS = U_DNS[:,tf.newaxis,:,:]
-        V_DNS = V_DNS[:,tf.newaxis,:,:]
-        P_DNS = P_DNS[:,tf.newaxis,:,:]
-
-        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
-
-        return x, UVP_DNS
 
 
 
@@ -866,3 +819,9 @@ def VGG_loss_LES(imgA, imgB, VGG_extractor):
     losses.append(loss_fea_18)
 
     return losses    
+
+
+
+def tf_find_vorticity(U, V):
+    W = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
+    return W
