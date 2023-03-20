@@ -171,21 +171,33 @@ def make_synthesis_model():
 
 
     # convert to RGB
-    def torgb(in_res, in_x):  # res = 2..RES_LOG2
+    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2_FIL
         in_lod = RES_LOG2 - in_res
         in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
         in_x = bias(in_x)
         return in_x
 
+    # convert to RGB
+    def torgb_final(in_res, in_x):  # res = RES_LOG2_FIL -> RES_LOG2
+        in_lod = RES_LOG2 - in_res
+        in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
+        in_x = bias(in_x)
+        in_x = blur(in_x)
+        return in_x
 
     # Finally, arrange the computations for the layers
     images_out = []  # list will contain the output images at different resolutions
     images_out.append(torgb(2, x))
-    for res in range(3, RES_LOG2+1):
+    for res in range(3, RES_LOG2):
         x = block(res, x)
         images_out.append(torgb(res, x))
 
+    for res in range(RES_LOG2, RES_LOG2+1):
+        x = block(res, x)
+        images_out.append(torgb_final(res, x))
+        
     synthesis_model = Model(inputs=dlatents, outputs=images_out)
 
     return synthesis_model
@@ -213,13 +225,13 @@ def make_filter_model(f_res, t_res):
 
     def torgb(in_res, in_x):  # res = 2..RES_LOG2
         in_lod = RES_LOG2 - in_res
-        in_x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        in_x = conv2d(in_x, fmaps=1, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(in_x, name ="ToRGB_bias_lod%d" % in_lod)
         in_x = bias(in_x)
         return in_x
 
     # create model
-    f_in = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    f_in = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
 
     f_x = tf.identity(f_in)
     for res in range(f_res, t_res, -1):
@@ -383,9 +395,7 @@ mapping       = make_mapping_model()
 synthesis     = make_synthesis_model()
 discriminator = make_discriminator_model()
 
-filter = []
-for fil in range(RES_LOG2-RES_LOG2_FIL):
-    filter.append(make_filter_model(RES_LOG2, RES_LOG2-(fil+1)))
+filter = make_filter_model(RES_LOG2, RES_LOG2-FIL)
 
 
 #mapping.summary()
@@ -424,8 +434,8 @@ def gradient_penalty(x):
 
 
 # find lists of coarse, medium and fine tunable noises
-ltv_LES       = []
-ltv_DNS       = []
+ltv_LES = []
+ltv_DNS = []
 
 for layer in synthesis.layers:
     if "layer_noise_constants" in layer.name:

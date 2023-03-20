@@ -74,7 +74,7 @@ for i,file in enumerate(sorted(files)):
     if (i==nfiles-1):
         closePlot=True
     
-    plot_spectrum(U, V, L, DEST + "/energy_spectrum_" + str(i) + ".txt", close=closePlot)
+    plot_spectrum(U, V, L, DEST + "/energy_spectrum_" + str(i) + ".png", close=closePlot)
 
     # nimg = vor
     #nimg = W - vor

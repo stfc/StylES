@@ -234,7 +234,7 @@ for k in range(NL):
                 filename = "results_checkStyles/fields/fields_lat_" + str(ninter) + "_res_" + str(res) + ".npz"
                 save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, zero_DNS, zero_DNS, W_DNS_t, filename)
 
-                filename = "results_checkStyles/energy/energy_spectrum_lat_" + str(ninter) + "_res_" + str(res) + ".txt"
+                filename = "results_checkStyles/energy/energy_spectrum_lat_" + str(ninter) + "_res_" + str(res) + ".png"
                 if (kk==RES_LOG2):
                     closePlot=True
                 plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)

@@ -19,9 +19,7 @@
 #
 #-----------------------------------------------------------------------------------------------
 import os
-from statistics import mean
 import sys
-from zipfile import LargeZipFile
 import scipy as sc
 import matplotlib.pyplot as plt
 
@@ -43,15 +41,13 @@ from IO_functions import StyleGAN_load_fields
 from functions    import gaussian_kernel
 os.chdir('./utilities')
 
-from tensorflow.keras.applications.vgg16 import VGG16
 
 
 
-# local parameters
+#------------------------------------------- set local parameters
 TUNE_NOISE    = True
-NITEZ         = 0   # number of attempts to find a closer z. When restart from a GAN field, use NITEZ=0
 RESTART_WL    = False
-RELOAD_FREQ   = 10
+RELOAD_FREQ   = 10000
 CHKP_DIR_WL   = "./checkpoints_wl"
 N_DNS         = 2**RES_LOG2
 N_LES         = 2**(RES_LOG2-FIL)
@@ -59,31 +55,28 @@ N2_DNS        = int(N_DNS/2)
 N2_LES        = int(N_LES/2)
 tollLESValues = [1.0e-2, 1.0e-3, 1.0e-4]
 zero_DNS      = np.zeros([N_DNS, N_DNS], dtype=DTYPE)
+lr_kDNS_It    = 100
 
 if (TESTCASE=='HIT_2D'):
     FILE_PATH  = "../LES_Solvers/fields/"
     NL         = 101     # number of different latent vectors randomly selected
-    if (NITEZ==0):
-        t0_label = 'step 0'
-        tf_label = 'step 10k'
-    else:
-        t0_label = r'545 $\tau_E$'
-        tf_label = r'1818 $\tau_E$'
+    t0_label = 'step 0'
+    tf_label = 'step 10k'
 elif (TESTCASE=='HW'):
-    FILE_PATH  = "../../../data/HW/HW_reconstruction/fields/"
-    NL         = 100     # number of different latent vectors randomly selected
+    FILE_PATH  = "../../../data/Fields/HW/fields_N256_reconstruction/"
+    NL         = 11     # number of different latent vectors randomly selected
     t0_label = r'200 $\omega^{-1}_{ci}$'
     tf_label = r'10000 $\omega^{-1}_{ci}$'
 elif (TESTCASE=='mHW'):
     FILE_PATH  = "../../../data/mHW/mHW_N512_reconstruction/fields/"
-    NL         = 100     # number of different latent vectors randomly selected
+    NL         = 101     # number of different latent vectors randomly selected
     t0_label = r'200 $\omega^{-1}_{ci}$'
     tf_label = r'300 $\omega^{-1}_{ci}$'
 
 
 
 
-# clean up and prepare folders
+#------------------------------------------- initialization
 os.system("rm -rf results_reconstruction/plots")
 os.system("rm -rf results_reconstruction/fields")
 os.system("rm -rf results_reconstruction/uvw")
@@ -108,8 +101,6 @@ train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(SEED_RESTART)
 
 
-
-
 # loading StyleGAN checkpoint
 managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=1)
 checkpoint.restore(managerCheckpoint.latest_checkpoint)
@@ -122,29 +113,40 @@ else:
 time.sleep(3)
 
 
-
-
 # create variable synthesis model
-layer_LES = layer_wlatent_LES()
+layer_k = layer_klatent()
+layer_m = layer_mlatent_LES()
 
-zlatents     = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
-wlatents     = mapping(zlatents)
-wlatents_LES = layer_LES(wlatents)
-outputs      = synthesis(wlatents_LES, training=False)
-wl_synthesis = tf.keras.Model(inputs=zlatents, outputs=outputs)
+zlatents     = tf.keras.Input(shape=([LATENT_SIZE]),           dtype=DTYPE)
+w2           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+zlatents_DNS = layer_k(zlatents)
+w1           = mapping(zlatents_DNS)
+w            = layer_m(w1, w2)
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=[zlatents, w2], outputs=outputs)
 
 
+# define optimizer for kDNS search
+if (lr_DNS_POLICY=="EXPONENTIAL"):
+    lr_schedule_k  = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=lr_DNS,
+        decay_steps=lr_DNS_STEP,
+        decay_rate=lr_DNS_RATE,
+        staircase=lr_DNS_EXP_ST)
+elif (lr_DNS_POLICY=="PIECEWISE"):
+    lr_schedule_k = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lr_DNS_BOUNDS, lr_DNS_VALUES)
+opt_k = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_k)
 
-# define optimizer for LES search
+# define optimizer for mDNS search
 if (lr_LES_POLICY=="EXPONENTIAL"):
-    lr_schedule_LES  = tf.keras.optimizers.schedules.ExponentialDecay(
+    lr_schedule_m  = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=lr_LES,
         decay_steps=lr_LES_STEP,
         decay_rate=lr_LES_RATE,
         staircase=lr_LES_EXP_ST)
 elif (lr_LES_POLICY=="PIECEWISE"):
-    lr_schedule_LES = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lr_LES_BOUNDS, lr_LES_VALUES)
-opt_LES = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_LES)
+    lr_schedule_m = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lr_LES_BOUNDS, lr_LES_VALUES)
+opt_m = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_m)
 
 
 
@@ -153,79 +155,32 @@ checkpoint_wl = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
 managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
 
 
-
-
-# add latent space to trainable variables
+# set trainable variables
 if (not TUNE_NOISE):
     ltv_DNS = []
     ltv_LES = []
 
-for variable in layer_LES.trainable_variables:
+for variable in layer_k.trainable_variables:
     ltv_DNS.append(variable)
     ltv_LES.append(variable)
 
-
-print("\n DNS variables:")
+for variable in layer_m.trainable_variables:
+    ltv_LES.append(variable)
+    
+print("\n ltv_DNS variables:")
 for variable in ltv_DNS:
-    print(variable.name)
+    print(variable.name, variable.shape)
 
-print("\n LES variables:")
+print("\n ltv_LES variables:")
 for variable in ltv_LES:
-    print(variable.name)
+    print(variable.name, variable.shape)
 
 time.sleep(3)
 
 
 
 
-#---------------------------------------------- functions---------------------------------
-@tf.function
-def step_find_latents_LES(latents, fimgA, ltv):
-    with tf.GradientTape() as tape_LES:
-
-        # find predictions
-        predictions = wl_synthesis(latents, training=False)
-        UVP_DNS = predictions[RES_LOG2-2]
-        UVP_LES = predictions[RES_LOG2-FIL-2]
-
-        # normalize
-        U_DNS = UVP_DNS[0, 0, :, :]
-        V_DNS = UVP_DNS[0, 1, :, :]
-        P_DNS = UVP_DNS[0, 2, :, :]
-
-        U_DNS = 2.0*(U_DNS - tf.math.reduce_min(U_DNS))/(tf.math.reduce_max(U_DNS) - tf.math.reduce_min(U_DNS)) - 1.0
-        V_DNS = 2.0*(V_DNS - tf.math.reduce_min(V_DNS))/(tf.math.reduce_max(V_DNS) - tf.math.reduce_min(V_DNS)) - 1.0
-        P_DNS = 2.0*(P_DNS - tf.math.reduce_min(P_DNS))/(tf.math.reduce_max(P_DNS) - tf.math.reduce_min(P_DNS)) - 1.0
-
-        # convert back to 1 tensor
-        U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
-        V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
-        P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
-
-        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
-
-        # filter        
-        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
-
-        # find residuals
-        resDNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, fimgA))
-        resLES = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES, fimgA))
-
-        resREC = resDNS + resLES
-
-        # aply gradients
-        gradients_LES = tape_LES.gradient(resREC, ltv)
-        opt_LES.apply_gradients(zip(gradients_LES, ltv))
-
-        # find filter loss
-        loss_fil    = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
-
-    return resREC, resLES, resDNS, UVP_DNS, loss_fil
-
-
-
-
-#---------------------------------------------- MAIN LOOP---------------------------------
+#------------------------------------------- loop over all tollerances
 ltoll = len(tollLESValues)
 totTime = np.zeros((NL), dtype=DTYPE)
 
@@ -248,14 +203,9 @@ fig.subplots_adjust(hspace=0.25)
 ax1 = axs[0]
 ax2 = axs[1]
 ax3 = axs[2]
-if (NITEZ==0):
-    ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-    ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-    ax3.xaxis.set_major_formatter(FormatStrFormatter('%d'))
-else:
-    ax1.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    ax2.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
-    ax3.xaxis.set_major_formatter(FormatStrFormatter('%.2f'))
+ax1.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+ax2.xaxis.set_major_formatter(FormatStrFormatter('%d'))
+ax3.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 
 colors = ['k','r','b','g','y']
 
@@ -278,6 +228,7 @@ managerCheckpoint_wl.save()
 
 
 # start main loop
+wlatents = mapping(zlatents, training=False)
 tstart = time.time()
 for tv, tollLES in enumerate(tollLESValues):
 
@@ -285,36 +236,77 @@ for tv, tollLES in enumerate(tollLESValues):
         
         # load initial flow
         if (TESTCASE=='HIT_2D'):
-            if (NITEZ==0):
-                tail = str(int(k*100))
-            else:
-                tail = str(int(k*100 + 6100))
-            FILENAME = FILE_PATH + "fields_run0_it" + tail + ".npz"
+            tail = str(int(k*100).zfill(6))
+            totTime[k] = k*100
+            FILE_REAL = FILE_PATH + "fields_run0_it" + tail + ".npz"
 
         if (TESTCASE=='HW'):
-            tail = str(int(k+200))
-            FILENAME = FILE_PATH + "fields_run11_time" + tail + ".npz"
+            tail = str(int(k+200).zfill(6))
+            totTime[k] = k+200
+            FILE_REAL = FILE_PATH + "fields_run11_time" + tail + ".npz"
 
         if (TESTCASE=='mHW'):
-            tail = str(int(k+200))
-            FILENAME = FILE_PATH + "fields_run1000_time" + tail + ".npz"
+            tail = str(int(k+200).zfill(6))
+            totTime[k] = k+200
+            FILE_REAL = FILE_PATH + "fields_run1000_time" + tail + ".npz"
 
 
-        # load numpy array
-        U_DNS, V_DNS, P_DNS, totTime[k] = load_fields(FILENAME)
-        U_DNS = np.cast[DTYPE](U_DNS)
-        V_DNS = np.cast[DTYPE](V_DNS)
-        P_DNS = np.cast[DTYPE](P_DNS)
 
+        # load original field
+        if (FILE_REAL.endswith('.npz')):
+
+            # load numpy array
+            U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_REAL)
+            U_DNS_org = np.cast[DTYPE](U_DNS)
+            V_DNS_org = np.cast[DTYPE](V_DNS)
+            P_DNS_org = np.cast[DTYPE](P_DNS)
+
+        elif (FILE_REAL.endswith('.png')):
+
+            # load image
+            orig = Image.open(FILE_REAL).convert('RGB')
+
+            # convert to black and white, if needed
+            if (NUM_CHANNELS==1):
+                orig = orig.convert("L")
+
+            # remove white spaces
+            #orig = trim(orig)
+
+            # resize images
+            orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
+
+            # convert to numpy array
+            orig = np.asarray(orig, dtype=DTYPE)
+            orig = orig/255.0
+
+            U_DNS_org = orig[:,:,0]
+            V_DNS_org = orig[:,:,1]
+            P_DNS_org = orig[:,:,2]
+
+
+        # find vorticity
         if (TESTCASE=='HIT_2D'):
-            if (NITEZ==0):
-                totTime[k] =  k*100  # only in case we used a restart from StyleGAN!
-            P_DNS = find_vorticity(U_DNS, V_DNS)
+            P_DNS_org = find_vorticity(U_DNS_org, V_DNS_org)
+            cP_DNS_org = find_vorticity(U_DNS_org, V_DNS_org)
+        elif (TESTCASE=='HW' or TESTCASE=='mHW'):
+            # cP_DNS_org = (tr(V_DNS_org, 1, 0) - 2*V_DNS_org + tr(V_DNS_org, -1, 0))/(DELX**2) \
+            #            + (tr(V_DNS_org, 0, 1) - 2*V_DNS_org + tr(V_DNS_org, 0, -1))/(DELY**2)
+            cP_DNS_org = (-tr(V_DNS_org, 2, 0) + 16*tr(V_DNS_org, 1, 0) - 30*V_DNS_org + 16*tr(V_DNS_org,-1, 0) - tr(V_DNS_org,-2, 0))/(12*DELX**2) \
+                       + (-tr(V_DNS_org, 0, 2) + 16*tr(V_DNS_org, 0, 1) - 30*V_DNS_org + 16*tr(V_DNS_org, 0,-1) - tr(V_DNS_org, 0,-2))/(12*DELY**2)
 
         # normalize
-        U_DNS_org = 2.0*(U_DNS - np.min(U_DNS))/(np.max(U_DNS) - np.min(U_DNS)) - 1.0
-        V_DNS_org = 2.0*(V_DNS - np.min(V_DNS))/(np.max(V_DNS) - np.min(V_DNS)) - 1.0
-        P_DNS_org = 2.0*(P_DNS - np.min(P_DNS))/(np.max(P_DNS) - np.min(P_DNS)) - 1.0
+        U_min = np.min(U_DNS_org)
+        U_max = np.max(U_DNS_org)
+        V_min = np.min(V_DNS_org)
+        V_max = np.max(V_DNS_org)
+        P_min = np.min(P_DNS_org)
+        P_max = np.max(P_DNS_org)
+
+        U_DNS_org = 2.0*(U_DNS_org - U_min)/(U_max - U_min) - 1.0
+        V_DNS_org = 2.0*(V_DNS_org - V_min)/(V_max - V_min) - 1.0
+        P_DNS_org = 2.0*(P_DNS_org - P_min)/(P_max - P_min) - 1.0
+
 
         # print plots
         if (tv==-1):
@@ -327,6 +319,7 @@ for tv, tollLES in enumerate(tollLESValues):
         velx_DNS[tv,0,k] = U_DNS_org[N2_DNS, N2_DNS]
         vely_DNS[tv,0,k] = V_DNS_org[N2_DNS, N2_DNS]
         vort_DNS[tv,0,k] = P_DNS_org[N2_DNS, N2_DNS]
+
 
         # save centerline for initial and final values
         if ((tv==len(tollLESValues)-1) and (k==0)):
@@ -345,90 +338,94 @@ for tv, tollLES in enumerate(tollLESValues):
             # find spectrum
             spectra[0,1,:,:] = plot_spectrum_noPlots(U_DNS_org, V_DNS_org, L)
 
-        # preprare target image
-        U_DNS_t = U_DNS_org[:,:]
-        V_DNS_t = V_DNS_org[:,:]
-        P_DNS_t = P_DNS_org[:,:]
 
-        tU_DNS = tf.convert_to_tensor(U_DNS_t)
-        tV_DNS = tf.convert_to_tensor(V_DNS_t)
-        tP_DNS = tf.convert_to_tensor(P_DNS_t)
+        #-------------- preprare targets
+        U_DNS = U_DNS_org[np.newaxis,np.newaxis,:,:]
+        V_DNS = V_DNS_org[np.newaxis,np.newaxis,:,:]
+        P_DNS = P_DNS_org[np.newaxis,np.newaxis,:,:]
 
-        U_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
-        V_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
-        P_DNS = tP_DNS[np.newaxis,np.newaxis,:,:]
+        U_DNS = tf.convert_to_tensor(U_DNS)
+        V_DNS = tf.convert_to_tensor(V_DNS)
+        P_DNS = tf.convert_to_tensor(P_DNS)
 
+        # concatenate
         imgA  = tf.concat([U_DNS, V_DNS, P_DNS], 1)
-        fimgA = filter[FIL-1](imgA)
 
+        # filter
+        fU_DNS = filter(U_DNS)
+        fV_DNS = filter(V_DNS)
+        fP_DNS = filter(P_DNS)                
+
+        fimgA  = tf.concat([fU_DNS, fV_DNS, fP_DNS], 1)
+
+
+
+        # print LES resolution
         if (tv==0 and k==0):
-            print("LES resolution is " + str(fimgA.shape[2]) + "x" + str(fimgA.shape[3]))
+            strDNS = str( imgA.shape[2]) + "x" + str( imgA.shape[3])
+            strLES = str(fimgA.shape[2]) + "x" + str(fimgA.shape[3])
+            print("Reconstructing DNS fields " + strDNS +  " from LES resolution " + strLES)
 
+
+        # restore checkpoint every RELOAD_FREQ
         if (k%RELOAD_FREQ==0):
             checkpoint_wl.restore(managerCheckpoint_wl.latest_checkpoint)
-
-
-        # find a closer z latent space
-        if (k==0 and (not RESTART_WL) and NITEZ>0):
-
-            checkpoint_wl.restore(managerCheckpoint_wl.latest_checkpoint)
-
-            if (tv==0):
-                minDiff = large
-                for i in range(NITEZ):
-
-                    # find new fields
-                    zlatents_new = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-                    wlatents  = mapping(zlatents_new, training=False)
-
-                    # filename = "z_latent.png"
-                    # plt.plot(z.numpy()[0,:])
-                    # plt.savefig(filename)
-                    # plt.close()
-
-                    #exit()
-
-                    predictions = synthesis(wlatents, training=False)
-                    UVP_DNS = predictions[RES_LOG2-2]
-                    fUVP_DNS = filter[FIL-1](UVP_DNS)
-
-                    # find difference with target image
-                    diff = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS[0,0,N2_DNS,:], imgA[0,0,N2_DNS,:]))
-
-                    # swap and plot if found a new minimum
-                    if (diff < minDiff):
-                        minDiff = diff
-                        zlatents = zlatents_new
-
-                        #plt.plot(UVP_DNS[0,0,N2_DNS,:], label=str(i) + " " + str(minDiff.numpy()))
-                        #plt.legend()
-                        #plt.savefig("results_reconstruction/findz.png")
-
-                        filename = "results_reconstruction/findz_fields_diff.png"
-                        #print_fields_3_diff(P_DNS_org, UVP_DNS[0,2,:,:], P_DNS_org-UVP_DNS[0,2,:,:], N_DNS, filename, \
-                        #Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
-
-                        print("Find new z at iteration " + str(i) + " with diff ", minDiff.numpy())
-                    else:
-                        if ((i%100)==0):
-                            print("Looking for closer z... iteration " + str(i) + " of " + str(NITEZ))
-
-                np.savez("results_reconstruction/zlatents.npz", zlatents=zlatents.numpy())
-
-            else:
-                    
-                data = np.load("results_reconstruction/zlatents.npz")
-                zlatents = data["zlatents"]
 
 
         # start research on the latent space
         it = 0
         resREC = large
-        opt_LES.initial_learning_rate = lr_LES      # reload initial learning rate
+        wlatents = mapping(zlatents, training=False)
         while (resREC>tollLES and it<lr_LES_maxIt):                
-            lr = lr_schedule_LES(it)
-            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(zlatents, fimgA, ltv_LES)
 
+            if (k%RELOAD_FREQ==0):
+
+                opt_k.initial_learning_rate = lr_DNS      # reload initial learning rate
+                opt_m.initial_learning_rate = lr_LES      # reload initial learning rate
+
+                # iterate on zlatent 1
+                if (it<lr_kDNS_It):
+                    resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
+                        = step_find_latents_kLES(wl_synthesis, filter, opt_k, zlatents, wlatents, fimgA, ltv_DNS)
+
+                if (it==lr_kDNS_It):
+                    # find z1,w1
+                    k_new = layer_k.trainable_variables[0].numpy()
+                    z1 = k_new*zlatents
+                    layer_k.trainable_variables[0].assign(tf.fill((LATENT_SIZE), 1.0))
+                    w1 = mapping(z1, training=False)
+                    zlatents = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+                    wlatents = mapping(zlatents, training=False)
+
+                # iterate on zlatent 2
+                if (it>=lr_kDNS_It and it<2*lr_kDNS_It):
+                    resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
+                        = step_find_latents_kLES(wl_synthesis, filter, opt_k, zlatents, wlatents, fimgA, ltv_DNS)
+
+                if (it==2*lr_kDNS_It):
+                    # find z2,w2
+                    k_new = layer_k.trainable_variables[0].numpy()
+                    z2 = k_new*zlatents
+                    layer_k.trainable_variables[0].assign(tf.fill((LATENT_SIZE), 1.0))
+                    w2 = mapping(z2, training=False)
+
+                # find new M
+                if (it>=2*lr_kDNS_It):            
+                    resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
+                        = step_find_latents_mLES(wl_synthesis, filter, opt_m, z2, w1, fimgA, ltv_LES)
+                        
+                if (it<2*lr_kDNS_It):
+                    lr = lr_schedule_k(it)
+                else:
+                    lr = lr_schedule_m(it)
+                    
+            else:
+
+                opt_k.initial_learning_rate = lr      # reload initial learning rate
+                opt_m.initial_learning_rate = lr      # reload initial learning rate
+
+                resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
+                    = step_find_latents_mLES(wl_synthesis, filter, opt_m, z2, w1, fimgA, ltv_LES)
 
             # print residuals and fields
             if ((it%100==0 and it!=0) or (it%100==0 and k==0)):
@@ -442,7 +439,6 @@ for tv, tollLES in enumerate(tollLESValues):
                 tend = time.time()
                 print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fill {6:3e}  lr {7:3e} " \
                     .format(tend-tstart, k, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
-
 
                 # write losses to tensorboard
                 with train_summary_writer.as_default():
@@ -463,7 +459,6 @@ for tv, tollLES in enumerate(tollLESValues):
 
 
         # print final residuals
-        lr = lr_schedule_LES(it)
         tend = time.time()
         print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fill {6:3e}  lr {7:3e} " \
             .format(tend-tstart, k, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
@@ -509,21 +504,23 @@ for tv, tollLES in enumerate(tollLESValues):
             # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
             # filename = "results_reconstruction/plots/Plots_DNS_diffs_" + tail + "_" + str(tv) + ".png"
-            # print_fields_3_diff(P_DNS_org, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
-            # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
+            # print_fields_3(P_DNS_org, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
+            # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0, diff=True)
 
             # separate DNS fields from GAN
-            predictions = wl_synthesis(zlatents, training=False)
+            predictions = wl_synthesis([z2, w1], training=False)
             UVP_LES = predictions[RES_LOG2-FIL-2]
 
             U_LES = UVP_LES[0, 0, :, :].numpy()
             V_LES = UVP_LES[0, 1, :, :].numpy()
             P_LES = UVP_LES[0, 2, :, :].numpy()
 
-            filename = "results_reconstruction/plots/Plots_LES_diffs_" + tail + "_" + str(tv) + ".png"
-            print_fields_2(P_LES, P_DNS, N_DNS, filename, Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0)
+            # filename = "results_reconstruction/plots/Plots_LES_diffs_" + tail + "_" + str(tv) + ".png"
+            # print_fields_2(P_LES, P_DNS, filename)
+            # # print_fields_2(P_LES, P_DNS, filename, Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0)
 
-            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + tail + "_" + str(tv) + ".png"
+            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + tail + "_" + str(tv).zfill(5) + ".png"
+            # print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename)
             print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
             Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
 
@@ -565,29 +562,30 @@ for tv, tollLES in enumerate(tollLESValues):
     ax2.legend(frameon=False, prop={'size': 11})
     ax3.legend(frameon=False, prop={'size': 11})
 
-    ax1.set_xlabel(r'steps', fontsize=22)
-    ax2.set_xlabel(r'steps', fontsize=22)
-    ax3.set_xlabel(r'steps', fontsize=22)
+    ax1.set_xlabel(r'steps', fontsize=18)
+    ax2.set_xlabel(r'steps', fontsize=18)
+    ax3.set_xlabel(r'steps', fontsize=18)
     
     if (TESTCASE=='HIT_2D'):
-        ax1.set_ylabel(r'$u$',      fontsize=22)
-        ax2.set_ylabel(r'$v$',      fontsize=22)
-        ax3.set_ylabel(r'$\omega$', fontsize=22)
+        ax1.set_ylabel(r'$u$',      fontsize=18)
+        ax2.set_ylabel(r'$v$',      fontsize=18)
+        ax3.set_ylabel(r'$\omega$', fontsize=18)
     else:
-        ax1.set_ylabel(r'$n$',      fontsize=22)
-        ax2.set_ylabel(r'$\phi$',   fontsize=22)
-        ax3.set_ylabel(r'$\omega$', fontsize=22)
+        ax1.set_ylabel(r'$n$',      fontsize=18)
+        ax2.set_ylabel(r'$\phi$',   fontsize=18)
+        ax3.set_ylabel(r'$\omega$', fontsize=18)
 
     for label in (ax1.get_xticklabels() + ax1.get_yticklabels()):
-        label.set_fontsize(18)
+        label.set_fontsize(12)
     for label in (ax2.get_xticklabels() + ax2.get_yticklabels()):
-        label.set_fontsize(18)
+        label.set_fontsize(12)
     for label in (ax3.get_xticklabels() + ax3.get_yticklabels()):
-        label.set_fontsize(18)
+        label.set_fontsize(12)
     
     fig.tight_layout(pad=5.0)
     
     plt.savefig("results_reconstruction/uvw_vs_time.png", bbox_inches='tight', pad_inches=0.05)
+
 
 
 # save checkpoint for wl_synthesis and zlatents

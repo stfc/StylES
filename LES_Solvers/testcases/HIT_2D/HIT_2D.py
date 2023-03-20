@@ -56,7 +56,7 @@ L         = 0.94049   # system dimension   [m]
 CNum      = 0.5       # Courant number 
 delt      = 1.0e-4    # initial guess for delt: 0.001072 is the eddy turnover time
 maxDelt   = 1.0e-4
-dir       = 1         # cross direction for plotting results
+dir       = 0         # cross direction for plotting results
 
 iNN       = one/(N*N)
 dl        = L/N

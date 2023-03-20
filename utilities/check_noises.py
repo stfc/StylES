@@ -130,7 +130,7 @@ for st in range(1,len(wl_synthesis.trainable_variables)):
             print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, OUTPUT_DIM, filename)
             # Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
 
-            filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".txt"
+            filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".png"
             if (i == NIP-1):
                 closePlot=True
             plot_spectrum(U_DNS_t, V_DNS_t, L, filename, closePlot)

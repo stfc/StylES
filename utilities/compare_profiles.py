@@ -371,7 +371,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_DNS_" + str(k) + ".npz"
         save_fields(0, U_DNS, V_DNS, V_DNS, V_DNS, V_DNS, W_DNS, filename)
 
-        filename = "energy_spectrum_compare_DNS_" + str(k) + ".txt"
+        filename = "energy_spectrum_compare_DNS_" + str(k) + ".png"
         plot_spectrum_noPlots(U_DNS, V_DNS, L, filename)
 
 
@@ -444,7 +444,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_" + str(k) + ".npz"
         save_fields(0, U_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, W_DNS_t, filename)
 
-        filename = "energy_spectrum_compare_" + str(k) + ".txt"
+        filename = "energy_spectrum_compare_" + str(k) + ".png"
         plot_spectrum_noPlots(U_DNS_t, V_DNS_t, L, filename)
 
         if (k==1):
