@@ -56,7 +56,7 @@ def save_fields(totTime, U, V, P, C, B, W, filename="restart.npz"):
 
 
 
-def plot_spectrum(U, V, L, filename, close=False):
+def plot_spectrum(U, V, L, filename, close=True, label=None):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -71,11 +71,18 @@ def plot_spectrum(U, V, L, filename, close=False):
         plt.xlim(xLinLim)
         plt.ylim(yLinLim) 
 
-    plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
-    plt.savefig("Energy_spectrum.png", bbox_inches='tight', pad_inches=0)
+    if (label is not None):
+        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
+        plt.legend()
+    else:    
+        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
+   
+
     if (close):
+        plt.savefig(filename, bbox_inches='tight', pad_inches=0)
         plt.close()
 
+    filename = filename.replace(".png",".txt")
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
 
 

@@ -133,7 +133,7 @@ def StyleGAN_load_fields(file_path):
             data[1,:,:] = V
             data[2,:,:] = P
         else:
-            if (TESTCASE=='HW'):
+            if (TESTCASE=='mHW'):
                 U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
                 V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
                 P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
@@ -366,9 +366,9 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
 
         # setup figure size
         nr = NEXAMPLES
-        nc = 4
+        nc = 3
         dpi = 100  # scale to a 512 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 10), dpi=dpi)
+        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 2.5), dpi=dpi)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]
@@ -387,41 +387,13 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
                 momU[reslog] = dUdt
                 momV[reslog] = dVdt
 
-                # save image after normalization
-                nimg = np.zeros([3, res, res], dtype=DTYPE)
-
-                maxUVW = np.max(img[i,:,:,:])
-                minUVW = np.min(img[i,:,:,:])
-                nimg = (img[i,:,:,:] - minUVW)/(maxUVW - minUVW)
-
-                nimg = np.uint8(nimg*255)
-                nimg = np.transpose(nimg, axes=[2,1,0])
-
                 axs[i*4+0].axis('off')
                 axs[i*4+1].axis('off')
                 axs[i*4+2].axis('off')
-                axs[i*4+3].axis('off')
 
-                # x = list(range(res))
-                # hdim = res//2
-                # yU = nimg[:,hdim,0]
-                # yV = nimg[:,hdim,1]
-                # yW = nimg[:,hdim,2]
-
-                # axs[i*4+0].plot(x, yU, linewidth=0.1, color=colors[0])
-                # axs[i*4+1].plot(x, yV, linewidth=0.1, color=colors[1])
-                # axs[i*4+2].plot(x, yW, linewidth=0.1, color=colors[2])
-                # axs[i*4+3].plot(x, yW, linewidth=0.1, color=colors[3])
-
-                # axs[i*4+0].imshow(nimg[res/2,:,0],cmap='Blues')
-                # axs[i*4+1].imshow(nimg[res/2,:,1],cmap='Reds_r')
-                # axs[i*4+2].imshow(nimg[res/2,:,2],cmap='RdBu')
-                # axs[i*4+3].imshow(nimg,cmap='jet')
-
-                axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
-                axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='hot')
-                axs[i*4+3].imshow(nimg,cmap='jet')
+                axs[i*4+0].pcolormesh(img[i,0,:,:], cmap='Blues',  edgecolors='k', linewidths=0.1, shading='gouraud')
+                axs[i*4+1].pcolormesh(img[i,1,:,:], cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud')
+                axs[i*4+2].pcolormesh(img[i,2,:,:], cmap='hot',    edgecolors='k', linewidths=0.1, shading='gouraud')
 
             else:
 
@@ -431,7 +403,7 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
                 nimg[0,:,:] = (img[i,:,:,:] - minW)/(maxW - minW)
 
                 nimg = np.uint8(nimg*255)
-                nimg = np.transpose(nimg, axes=[2,1,0])
+                nimg = np.transpose(nimg, axes=[1,2,0])
 
                 axs[i].axis('off')
                 axs[i].imshow(nimg,cmap='gray')

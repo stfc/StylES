@@ -50,19 +50,35 @@ if (PROFILE):
     tf.summary.trace_on(graph=True, profiler=True)
 
 # use GPU by default
-if (not USE_GPU):
-    try:
-        # Disable first GPU
-        tf.config.set_visible_devices(physical_devices[1:], 'GPU')
-        logical_devices = tf.config.list_logical_devices('GPU')
-        # Logical device was not created for first GPU
-        assert len(logical_devices) == len(physical_devices) - 1
-    except:
-        # Invalid device or cannot modify virtual devices once initialized.
-        pass
-else:
+# if (not USE_GPU):
+#     try:
+#         # Disable first GPU
+#         tf.config.set_visible_devices(physical_devices[1:], 'GPU')
+#         logical_devices = tf.config.list_logical_devices('GPU')
+#         # Logical device was not created for first GPU
+#         assert len(logical_devices) == len(physical_devices) - 1
+#     except:
+#         # Invalid device or cannot modify virtual devices once initialized.
+#         pass
+# else:
+#     listGPUs = tf.config.experimental.list_physical_devices('GPU')
+#     print('\n Number of GPUs used: ', len(listGPUs))
+
+#Default data format within functions remains GPU
+if (DEVICE_TYPE == 'CPU'):
+    listCPUs = tf.config.list_physical_devices('CPU')
+    print('\n Number of CPUs used: ', len(listCPUs))
+elif (DEVICE_TYPE == 'GPU'):
     listGPUs = tf.config.experimental.list_physical_devices('GPU')
     print('\n Number of GPUs used: ', len(listGPUs))
+elif (DEVICE_TYPE == 'IPU'):
+    from tensorflow.python import ipu
+    cfg = ipu.config.IPUConfig()
+    # With gcore - ask for up to 4 IPUs on /device:IPU:0
+    cfg.auto_select_ipus = 4
+    # Configure the system with the config, creating /device:IPU:0 with 4 IPUs
+    cfg.configure_ipu_system()
+    # print('\n Number of IPUs used: ', len())
 
 
 

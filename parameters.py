@@ -45,7 +45,6 @@ SEED_RESTART = 1
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
-
 TESTCASE          = 'HIT_2D' 
 DATASET           = '/archive/jcastagna/Fields/HIT_2D/fields_N256/'
 CHKP_DIR          = './checkpoints/'
@@ -53,9 +52,19 @@ CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
+DEVICE_TYPE       = 'GPU'
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
+
+if DEVICE_TYPE in ('CPU', 'IPU'):
+    data_format = 'NHWC'
+    TRANSPOSE_FOR_CONV2D = [0,2,3,1]
+    TRANSPOSE_FROM_CONV2D= [0,3,1,2]
+elif DEVICE_TYPE == 'GPU':
+    data_format = 'NCHW'
+    TRANSPOSE_FOR_CONV2D = [0,1,2,3]
+    TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
 OUTPUT_DIM        = 256
@@ -68,7 +77,7 @@ FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resol
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 FIL               = 3  # number of layers below the DNS  
-RES_LOG2_FIL      = RES_LOG2-4    # fix filter layer
+RES_LOG2_FIL      = RES_LOG2-FIL    # fix filter layer
 C_LAYERS          = 2  # end of coarse layers 
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 
@@ -82,12 +91,13 @@ BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 NEXAMPLES         = 1 
 NC_NOISE          = 200
 NC2_NOISE         = int(NC_NOISE/2)
+AMP_NOISE         = 0.1
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 1000
+IMAGES_EVERY   = 10000
 SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
@@ -118,11 +128,11 @@ BETA2_DIS        = 0.99
 # Reconstruction hyper-parameters
 
 # learning rate for DNS optimizer
-lr_DNS_maxIt  = 100000
+lr_DNS_maxIt  = 1000000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-1   # exponential policy initial learning rate
-lr_DNS_RATE   = 1.0       # exponential policy decay rate
+lr_DNS        = 1.0e-2   # exponential policy initial learning rate
+lr_DNS_RATE   = 0.01       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
 lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
@@ -131,14 +141,15 @@ lr_DNS_BETA1  = 0.0
 lr_DNS_BETA2  = 0.99
 
 # learning rate for LES optimizer
-lr_LES_maxIt  = 100000
+lr_LES_maxIt  = 1000000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
-lr_LES        = 1.0e-1    # exponential policy initial learning rate
-lr_LES_RATE   = 1.0       # exponential policy decay rate
+lr_LES        = 1.0e-2    # exponential policy initial learning rate
+lr_LES_RATE   = 0.01       # exponential policy decay rate
 lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
 lr_LES_EXP_ST = False      # exponential policy staircase
 lr_LES_BOUNDS = [100, 200, 300]             # piecewise policy bounds
 lr_LES_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
 lr_LES_BETA1  = 0.0
 lr_LES_BETA2  = 0.99
+

@@ -304,7 +304,7 @@ for run in range(NRUNS):
                         W = find_vorticity(U, V)
                         print_fields(U, V, P, W, N,            "plots/plots_run"   + str(run) + "_" + str(te[s]) + "te.png")
                         save_fields(totTime, U, V, P, C, B, W, "fields/fields_run" + str(run) + "_" + str(te[s]) + "te.npz")
-                        plot_spectrum(U, V, L,                 "energy/energy_run" + str(run) + "_" + str(te[s]) + "te.txt")
+                        plot_spectrum(U, V, L,                 "energy/energy_run" + str(run) + "_" + str(te[s]) + "te.png")
             else:
 
                 if (totTime>=statsTime):
@@ -323,7 +323,7 @@ for run in range(NRUNS):
 
                     # print spectrum
                     if (tstep%print_spe == 0):
-                        plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
+                        plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".png")
 
 
             # find new delt based on Courant number
@@ -366,7 +366,7 @@ if (len(te)==0):
     save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
     # print spectrum
-    plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".txt")
+    plot_spectrum(U, V, L, "energy/energy_spectrum_" + tail + ".png")
 
 # save center values
 filename = "DNS_center_values" + ".txt"
