@@ -9,13 +9,19 @@ from boututils.datafile import DataFile
 from boutdata.collect import collect
 
 
-SAVE_UVW = False
-DTYPE    = 'float32'
-DIR      = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
-STIME    = 0 # starting time to take as first image
-FTIME    = 101 # starting time to take as last image
-ITIME    = 1  # skip between STIME, FTIME, ITIME
-NDNS     = 1
+MODE       = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+PATH_NUMPY = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/plots/DNS/"
+SAVE_UVW   = False
+DTYPE      = 'float32'
+DIR        = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
+STIME      = 0 # starting time to take as first image
+FTIME      = 101 # starting time to take as last image
+ITIME      = 1  # skip between STIME, FTIME, ITIME
+NDNS       = 1
+
+os.system("rm -rf results_bout/plots/*")
+os.system("rm -rf results_bout/fields/*")
+
 
 def convert(x):
     return x
@@ -24,6 +30,8 @@ def convert(x):
 def print_fields(U_, V_, P_, filename, \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
     Wmin=None, Wmax=None, C_=None, Cmin=None, Cmax=None):
+    # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0, \
+    # Wmin=None, Wmax=None, C_=None, Cmin=None, Cmax=None):
 
     #---------------------------------- convert to numpy arrays
     U = convert(U_)
@@ -159,66 +167,81 @@ def save_fields(totTime, U, V, P, filename="restart.npz"):
     np.savez(filename, t=totTime, U=U, V=V, P=P)
 
 
-# # create folders fields and paths
-# path = "results_bout"
-# isExist = os.path.exists(path)
-# if not isExist:
-#     os.makedirs(path)
+if (MODE=='READ_NETCDF'):
 
-# path = "results_bout/fields"
-# isExist = os.path.exists(path)
-# if not isExist:
-#     os.makedirs(path)
-# else:
-#     cmd = "rm results_bout/fields/*"
-#     os.system(cmd)
-    
-# path = "results_bout/plots"
-# isExist = os.path.exists(path)
-# if not isExist:
-#    os.makedirs(path)
-# else:
-#     cmd = "rm results_bout/plots/*"
-#     os.system(cmd)
+    # create folders fields and paths
+    path = "results_bout"
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.makedirs(path)
 
-
-# # run on data
-# for nrun in range(NDNS):
-#     newfolder = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-
-#     os.chdir(newfolder)
-#     print("reading " + newfolder)
-    
-#     n    = collect("n",    xguards=False, info=False)
-#     phi  = collect("phi",  xguards=False, info=False)
-#     vort = collect("vort", xguards=False, info=False)
-
-#     for t in range(STIME,FTIME,ITIME):
-#         Img_n = n[t,:,0,:]
-#         # maxv = np.max(Img_n)
-#         # minv = np.min(Img_n)
-#         # Img_n = (Img_n - minv)/(maxv - minv)
-
-#         Img_phi = phi[t,:,0,:]
-#         # maxv = np.max(Img_phi)
-#         # minv = np.min(Img_phi)
-#         # Img_phi = (Img_phi - minv)/(maxv - minv)
-
-#         Img_vort = vort[t,:,0,:]
-#         # maxv = np.max(Img_vort)
-#         # minv = np.min(Img_vort)
-#         # Img_vort = (Img_vort - minv)/(maxv - minv)
+    path = "results_bout/fields"
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.makedirs(path)
+    else:
+        cmd = "rm results_bout/fields/*"
+        os.system(cmd)
         
-#         # save_fields(t, Img_n, Img_phi, Img_vort, "../../../../../StylES/bout_interfaces/results_bout/fields/fields_run" + str(nrun) + "_time" + str(t).zfill(3) + ".npz")
+    path = "results_bout/plots"
+    isExist = os.path.exists(path)
+    if not isExist:
+        os.makedirs(path)
+    else:
+        cmd = "rm results_bout/plots/*"
+        os.system(cmd)
 
-#         print_fields(Img_n, Img_phi, Img_vort, "../../../../../StylES/bout_interfaces/results_bout/plots/plots_run" + str(nrun) + "_time" + str(t).zfill(3) + ".png")
+    # run on data
+    for nrun in range(NDNS):
+        newfolder = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
 
-#         print("done for file time step", t)
-
-#     os.chdir("../../../../../StylES/bout_interfaces/")
-    
-    
+        os.chdir(newfolder)
+        print("reading " + newfolder)
         
+        n    = collect("n",    xguards=False, info=False)
+        phi  = collect("phi",  xguards=False, info=False)
+        vort = collect("vort", xguards=False, info=False)
+
+        for t in range(STIME,FTIME,ITIME):
+            Img_n = n[t,:,0,:]
+            # maxv = np.max(Img_n)
+            # minv = np.min(Img_n)
+            # Img_n = (Img_n - minv)/(maxv - minv)
+
+            Img_phi = phi[t,:,0,:]
+            # maxv = np.max(Img_phi)
+            # minv = np.min(Img_phi)
+            # Img_phi = (Img_phi - minv)/(maxv - minv)
+
+            Img_vort = vort[t,:,0,:]
+            # maxv = np.max(Img_vort)
+            # minv = np.min(Img_vort)
+            # Img_vort = (Img_vort - minv)/(maxv - minv)
+            
+            # save_fields(t, Img_n, Img_phi, Img_vort, "../../../../../StylES/bout_interfaces/results_bout/fields/fields_run" + str(nrun) + "_time" + str(t).zfill(3) + ".npz")
+
+            print_fields(Img_n, Img_phi, Img_vort, "../../../../../StylES/bout_interfaces/results_bout/plots/plots_run" + str(nrun) + "_time" + str(t).zfill(3) + ".png")
+
+            print("done for file time step", t)
+
+        os.chdir("../../../../../StylES/bout_interfaces/")
+    
+elif (MODE=='READ_NUMPY'):
+
+    files = os.listdir(PATH_NUMPY)
+    nfiles = len(files)
+    for i,file in enumerate(sorted(files)):
+        filename  = PATH_NUMPY + file
+        data      = np.load(filename)
+        Img_n     = np.cast[DTYPE](data['U'])
+        Img_phi   = np.cast[DTYPE](data['V'])
+        Img_vort  = np.cast[DTYPE](data['P'])
+        file_dest = file.replace(".npz",".png")
+        filename = "./results_bout/plots/" + file_dest
+        print_fields(Img_n, Img_phi, Img_vort, filename)
+        print ("done for file " + file_dest)
+
+
 
 # make animation
 anim_file = 'animation.gif'
