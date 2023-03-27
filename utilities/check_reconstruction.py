@@ -236,17 +236,17 @@ for tv, tollLES in enumerate(tollLESValues):
         
         # load initial flow
         if (TESTCASE=='HIT_2D'):
-            tail = str(int(k*100).zfill(6))
+            tail = str(int(k*100))
             totTime[k] = k*100
             FILE_REAL = FILE_PATH + "fields_run0_it" + tail + ".npz"
 
         if (TESTCASE=='HW'):
-            tail = str(int(k+200).zfill(6))
+            tail = str(int(k+200))
             totTime[k] = k+200
             FILE_REAL = FILE_PATH + "fields_run11_time" + tail + ".npz"
 
         if (TESTCASE=='mHW'):
-            tail = str(int(k+200).zfill(6))
+            tail = str(int(k+200))
             totTime[k] = k+200
             FILE_REAL = FILE_PATH + "fields_run1000_time" + tail + ".npz"
 
@@ -310,7 +310,7 @@ for tv, tollLES in enumerate(tollLESValues):
 
         # print plots
         if (tv==-1):
-            filename = "results_reconstruction/plots_org/Plots_DNS_org_" + tail +".png"
+            filename = "results_reconstruction/plots_org/Plots_DNS_org_" + str(k).zfill(4) +".png"
             print_fields_3(U_DNS_org, V_DNS_org, P_DNS_org, N_DNS, filename, \
             Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
@@ -499,11 +499,11 @@ for tv, tollLES in enumerate(tollLESValues):
         if (tv==len(tollLESValues)-1):
 
             # print fields
-            # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + tail + "_" + str(tv) + ".png"
+            # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + str(k).zfill(4) + "_" + str(tv) + ".png"
             # print_fields_3(U_DNS, V_DNS, P_DNS, N_DNS, filename, \
             # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
-            # filename = "results_reconstruction/plots/Plots_DNS_diffs_" + tail + "_" + str(tv) + ".png"
+            # filename = "results_reconstruction/plots/Plots_DNS_diffs_" + str(k).zfill(4) + "_" + str(tv) + ".png"
             # print_fields_3(P_DNS_org, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
             # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0, diff=True)
 
@@ -515,11 +515,11 @@ for tv, tollLES in enumerate(tollLESValues):
             V_LES = UVP_LES[0, 1, :, :].numpy()
             P_LES = UVP_LES[0, 2, :, :].numpy()
 
-            # filename = "results_reconstruction/plots/Plots_LES_diffs_" + tail + "_" + str(tv) + ".png"
+            # filename = "results_reconstruction/plots/Plots_LES_diffs_" + str(k).zfill(4) + "_" + str(tv) + ".png"
             # print_fields_2(P_LES, P_DNS, filename)
             # # print_fields_2(P_LES, P_DNS, filename, Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0)
 
-            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + tail + "_" + str(tv).zfill(5) + ".png"
+            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + str(k).zfill(4) + "_" + str(tv).zfill(5) + ".png"
             # print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename)
             print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
             Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
