@@ -19,7 +19,9 @@ cudnn=8.1.0
 
 which you can easily install via conda.
 
-You also need to download the TurboGenPY from https://github.com/saadgroup/TurboGenPY.git to find the energy spectra and use  Saad's initialization procedure for HIT_2D. Once cloned (at same directory level of Styles) modify the files using the patch file *patch_TurboGenPY.patch*.
+You also need to download the TurboGenPY from https://github.com/saadgroup/TurboGenPY.git to find the energy spectra and use  Saad's initialization procedure for HIT_2D. Once cloned (at same directory level of Styles) modify the files using the patch file *patch_TurboGenPY.patch* as follows
+
+- *patch -p1 -i ../StylES/patch_TurboGenPY.patch* (from TurboGenPY **root** folder).
 
 
 # Testloop
