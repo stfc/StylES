@@ -794,6 +794,76 @@ def tf_find_vorticity(U, V):
 
 
 
+def normalize_sc(U):
+ 
+    U_min = tf.reduce_min(U)
+    U_max = tf.reduce_max(U)
+    U = 2.0*(U - U_min)/(U_max - U_min) - 1.0
+
+    return U
+
+
+def normalize(UVP):
+
+    tU = UVP[0,0,:,:]
+    tV = UVP[0,1,:,:]
+    tP = UVP[0,2,:,:]
+
+    U_min = tf.reduce_min(tU)
+    V_min = tf.reduce_min(tV)
+    P_min = tf.reduce_min(tP)
+
+    U_max = tf.reduce_max(tU)
+    V_max = tf.reduce_max(tV)
+    P_max = tf.reduce_max(tP)
+
+    tU = 2.0*(UVP[0,0,:,:] - U_min)/(U_max - U_min) - 1.0
+    tV = 2.0*(UVP[0,1,:,:] - V_min)/(V_max - V_min) - 1.0
+    tP = 2.0*(UVP[0,2,:,:] - P_min)/(P_max - P_min) - 1.0
+
+    tU = tU[tf.newaxis,tf.newaxis,:,:]
+    tV = tV[tf.newaxis,tf.newaxis,:,:]
+    tP = tP[tf.newaxis,tf.newaxis,:,:]   
+
+    UVP = tf.concat([tU, tV, tP], 1)
+
+    return UVP
+
+
+def rescale(UVP, UVP_minmax):
+    
+    U_min = UVP_minmax[0]
+    U_max = UVP_minmax[1]
+    V_min = UVP_minmax[2]
+    V_max = UVP_minmax[3]
+    P_min = UVP_minmax[4]
+    P_max = UVP_minmax[5]
+        
+    tU = UVP[0,0,:,:]
+    tV = UVP[0,1,:,:]
+    tP = UVP[0,2,:,:]
+    
+    u_min =  tf.reduce_min(tU)
+    v_min =  tf.reduce_min(tV)
+    p_min =  tf.reduce_min(tP)
+
+    tU = (tU - u_min)/(tf.reduce_max(tU) - u_min)
+    tV = (tV - v_min)/(tf.reduce_max(tV) - v_min)
+    tP = (tP - p_min)/(tf.reduce_max(tP) - p_min)
+
+    tU = (U_max - U_min)*tU + U_min
+    tV = (V_max - V_min)*tV + V_min
+    tP = (P_max - P_min)*tP + P_min    
+
+    tU = tU[tf.newaxis,tf.newaxis,:,:]
+    tV = tV[tf.newaxis,tf.newaxis,:,:]
+    tP = tP[tf.newaxis,tf.newaxis,:,:]
+
+    UVP = tf.concat([tU, tV, tP], 1)
+    
+    return UVP
+
+
 
 #-------------Layers search latent space
 class layer_klatent(layers.Layer):
