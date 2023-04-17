@@ -49,7 +49,7 @@ def load_fields(filename='restart.npz', DNSrun=False):
         return U, V, P, totTime
 
 
-def save_fields(totTime, U, V, P, C, B, W, filename="restart.npz"):
+def save_fields(totTime, U, V, P, C=None, B=None, W=None, filename="restart.npz"):
 
     # save restart file
     nc.savez(filename, t=totTime, U=U, V=V, P=P, C=C, B=B, W=W)

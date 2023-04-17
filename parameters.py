@@ -45,8 +45,8 @@ SEED_RESTART = 1
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
-TESTCASE          = 'HIT_2D' 
-DATASET           = '/archive/jcastagna/Fields/HIT_2D/fields_N256/'
+TESTCASE          = 'HW' 
+DATASET           = '/archive/jcastagna/Fields/HW/fields_N512/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -67,7 +67,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 512
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -78,12 +78,12 @@ FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
 FIL               = 3  # number of layers below the DNS  
 RES_LOG2_FIL      = RES_LOG2-FIL    # fix filter layer
-C_LAYERS          = 2  # end of coarse layers 
-M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
-
-NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
+M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
+C_LAYERS          = 2  # end of coarse layers 
+
+NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
@@ -92,7 +92,7 @@ NEXAMPLES         = 1
 NC_NOISE          = 200
 NC2_NOISE         = int(NC_NOISE/2)
 AMP_NOISE         = 0.1
-RANDOMIZE_NOISE   = True
+RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
@@ -128,11 +128,11 @@ BETA2_DIS        = 0.99
 # Reconstruction hyper-parameters
 
 # learning rate for DNS optimizer
-lr_DNS_maxIt  = 1000000
+lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-2   # exponential policy initial learning rate
-lr_DNS_RATE   = 0.01       # exponential policy decay rate
+lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
 lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
@@ -145,7 +145,7 @@ lr_LES_maxIt  = 1000000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
 lr_LES        = 1.0e-2    # exponential policy initial learning rate
-lr_LES_RATE   = 0.01       # exponential policy decay rate
+lr_LES_RATE   = 1.0       # exponential policy decay rate
 lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
 lr_LES_EXP_ST = False      # exponential policy staircase
 lr_LES_BOUNDS = [100, 200, 300]             # piecewise policy bounds

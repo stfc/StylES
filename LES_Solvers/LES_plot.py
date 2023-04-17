@@ -317,10 +317,12 @@ def print_fields_4_diff(U_DNS_, U_LES_, U_, diff_, N, filename, testcase='HIT_2D
     U     = convert(U_)
     diff  = convert(diff_)    
 
-    N = len(U[0,:])
+    N     = len(U[0,:])
+    N_LES = len(U_LES[0,:])
+    r     = int(N/N_LES)
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(1, 4, figsize=(20,10), gridspec_kw={'width_ratios': [1, 1, 1, 1]})
+    fig, axs = plt.subplots(1, 4, figsize=(20,10), gridspec_kw={'width_ratios': [r, 1, r, r]})
     fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0]
