@@ -48,8 +48,8 @@ os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "./results_reconstruction/fields/fields_tv2_k0.npz"
-FILE_STYLE = "../LES_Solvers/fields/fields_run0_it0.npz"
+FILE_REAL  = "./results_latentSpace/fields_org/fields_lat_0_res_256.npz"
+FILE_STYLE = "./results_latentSpace/fields/fields_lat_0_res_256.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
@@ -78,7 +78,7 @@ def compare_images(imageA, imageB, title):
     if (NUM_CHANNELS==1):
         s = ssim(imageA, imageB, multichannel=False)
     else:
-        s = ssim(imageA, imageB, multichannel=True)
+        s = ssim(imageA, imageB, multichannel=True, channel_axis=2, data_range=2)
 
 
     # check divergence for DNS image
@@ -127,7 +127,7 @@ def compare_images(imageA, imageB, title):
     maxW  = max(maxWA, maxWB)
 
     # setup figures
-    fig, ax = plt.subplots(4, 3, figsize=(15,15))
+    fig, ax = plt.subplots(3, 3, figsize=(15,15))
 
     # show DNS image
     sub = ax[0,0] 
@@ -148,11 +148,11 @@ def compare_images(imageA, imageB, title):
     sub.set_title("DNS "+ labelB)
     plt.colorbar(im, ax=sub)
 
-    sub = ax[3,0]
-    im = sub.imshow(imageA, cmap="plasma")
-    sub.axis("off")
-    sub.set_title("DNS")
-    plt.colorbar(im, ax=sub)
+    # sub = ax[3,0]
+    # im = sub.imshow(imageA, cmap="plasma")
+    # sub.axis("off")
+    # sub.set_title("DNS")
+    # plt.colorbar(im, ax=sub)
 
 
     # show the StyleGAN image
@@ -174,11 +174,11 @@ def compare_images(imageA, imageB, title):
     sub.set_title("StyleGAN " + labelB)
     plt.colorbar(im, ax=sub)
 
-    sub = ax[3,1]
-    im = sub.imshow(imageB, cmap="plasma")
-    sub.axis("off")
-    sub.set_title("StyleGAN")
-    plt.colorbar(im, ax=sub)
+    # sub = ax[3,1]
+    # im = sub.imshow(imageB, cmap="plasma")
+    # sub.axis("off")
+    # sub.set_title("StyleGAN")
+    # plt.colorbar(im, ax=sub)
 
 
     # show the differences
@@ -200,11 +200,11 @@ def compare_images(imageA, imageB, title):
     sub.set_title("diff " + labelB)
     plt.colorbar(im, ax=sub)
 
-    sub = ax[3,2]
-    im = sub.imshow((imageD-np.min(imageD))/(np.max(imageD)-np.min(imageD)), cmap="jet")
-    sub.axis("off")
-    sub.set_title("diff")
-    plt.colorbar(im, ax=sub)
+    # sub = ax[3,2]
+    # im = sub.imshow((imageD-np.min(imageD))/(np.max(imageD)-np.min(imageD)), cmap="jet")
+    # sub.axis("off")
+    # sub.set_title("diff")
+    # plt.colorbar(im, ax=sub)
 
 
     plt.suptitle("Statistical differences MSE: %.4e, SSIM: %.4e" % (m, s))
@@ -284,5 +284,5 @@ else:
 
 
 # compare the images
-compare_images(orig, style, "Plots_DNS_diff.png")
+compare_images(orig, style, "results_latentSpace/Plots_DNS_diff.png")
 

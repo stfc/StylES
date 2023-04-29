@@ -41,13 +41,13 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 1
+SEED_RESTART = 5
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
 
 TESTCASE          = 'HIT_2D' 
-DATASET           = '/archive/jcastagna/Fields/HIT_2D/fields_N256/'
+DATASET           = './LES_Solvers/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -80,6 +80,7 @@ SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 NEXAMPLES         = 1 
+AMP_NOISE         = 1.0
 NC_NOISE          = 200
 NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = True
@@ -122,7 +123,7 @@ lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-1   # exponential policy initial learning rate
-lr_DNS_RATE   = 1.0       # exponential policy decay rate
+lr_DNS_RATE   = 0.01       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
 lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds

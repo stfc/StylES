@@ -259,7 +259,7 @@ class layer_create_noise(layers.Layer):
         freq = self.f * self.t
         argsin = tf.math.sin(2*np.pi*freq + phi)
         noise = tf.matmul(self.c,argsin)
-        noise = (2.0*(noise - tf.math.reduce_min(noise))/(tf.math.reduce_max(noise) - tf.math.reduce_min(noise)) - 1.0)
+        noise = AMP_NOISE*(2.0*(noise - tf.math.reduce_min(noise))/(tf.math.reduce_max(noise) - tf.math.reduce_min(noise)) - 1.0)
         noise = tf.reshape(noise, shape=[x.shape[-2], x.shape[-1]])
         
         return noise
@@ -308,44 +308,41 @@ def apply_noise(x, ldx, phi_noise_in=None, randomize_noise=True):
 
 
 #-------------Layer layer_wlatent_LES
-
-class layer_wlatent_DNS(layers.Layer):
+class layer_wlatent_mDNS(layers.Layer):
     def __init__(self, **kwargs):
-        super(layer_wlatent_DNS, self).__init__()
+        super(layer_wlatent_mDNS, self).__init__()
 
-        w_init = tf.ones_initializer()
-        self.w = tf.Variable(
-            initial_value=w_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
+        self.m = tf.Variable(
+            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="wlatent_DNS"
-        )
+            name="latent_mDNS"
+        )        
 
-    def call(self, w):
-        w1 = w[:,0:M_LAYERS,:]
-        w2 = self.w*w[:,M_LAYERS:G_LAYERS,:]
-        w = tf.concat([w1,w2], axis=1)
+    def call(self, w0, w1):
+        w = self.m*w0 + (1.0-self.m)*w1
         return w
 
         
-class layer_wlatent_LES(layers.Layer):
+class layer_wlatent_mLES(layers.Layer):
     def __init__(self, **kwargs):
-        super(layer_wlatent_LES, self).__init__()
+        super(layer_wlatent_mLES, self).__init__()
 
         w_init = tf.ones_initializer()
-        self.w = tf.Variable(
+        self.m = tf.Variable(
             initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
-            name="wlatent_LES"
-        )
+            name="latent_mLES"
+        )        
 
-    def call(self, w):
-        w1 = self.w*w[:,0:M_LAYERS,:]
-        w2 = w[:,M_LAYERS:G_LAYERS,:]
-        w = tf.concat([w1,w2], axis=1)
+    def call(self, w0, w1):
+        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
+        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        wa = wa[:,0:M_LAYERS,:]
+        w  = tf.concat([wa,wb], axis=1)
         return w
-
-
-
+ 
 
 
 

@@ -52,10 +52,9 @@ NL          = 1     # number of different latent vectors randomly selected
 TUNE_NOISE  = True
 LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
 NITEZ       = 0
-RESTART_WL  = False
 
 if (TESTCASE=='HIT_2D'):
-    FILE_REAL_PATH  = "/archive/jcastagna/Fields/HIT_2D/fields_N256_reconstruction/"
+    FILE_REAL_PATH  = "../LES_Solvers/fields/"
 elif (TESTCASE=='HW'):
     FILE_REAL_PATH  = "/archive/jcastagna/Fields/HW/fields_N256_reconstruction/"
 elif (TESTCASE=='mHW'):
@@ -66,7 +65,7 @@ N_DNS       = 2**RES_LOG2
 N_LES       = 2**RES_LOG2_FIL
 N2_DNS      = int(N_DNS/2)
 N2_LES      = int(N_LES/2)
-tollDNS     = 1.0e-4
+tollDNS     = 1.0e-5
 
 zero_DNS = np.zeros([N_DNS, N_DNS], dtype=DTYPE)
 zero_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
@@ -116,15 +115,14 @@ time.sleep(3)
 
 
 # create variable synthesis model
-layer_LES = layer_wlatent_LES()
-layer_DNS = layer_wlatent_DNS()
+layer_DNS = layer_wlatent_mDNS()
 
-zlatents     = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
-wlatents     = mapping(zlatents)
-wlatents_LES = layer_LES(wlatents)
-wlatents_DNS = layer_DNS(wlatents_LES)
-outputs      = synthesis(wlatents_DNS, training=False)
-wl_synthesis = tf.keras.Model(inputs=zlatents, outputs=outputs)
+z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+w0           = mapping(z0)
+w            = layer_DNS(w0, w1)
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
 
 
 
@@ -152,12 +150,8 @@ managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, ma
 if (not TUNE_NOISE):
     ltv_DNS    = []
 
-for variable in layer_LES.trainable_variables:
+for variable in layer_DNS.trainable_variables:
     ltv_DNS.append(variable)
-
-# for variable in layer_DNS.trainable_variables:
-#     ltv_DNS.append(variable)
-
 
 print("\n DNS variables:")
 for variable in ltv_DNS:
@@ -172,11 +166,11 @@ time.sleep(3)
 
 #---------------------------------------------- LES tf.functions---------------------------------
 @tf.function
-def step_find_latents_DNS(latents, imgA, fimgA, ltv):
+def step_find_latents_DNS(z0, w1, imgA, fimgA, ltv):
     with tf.GradientTape() as tape_DNS:
 
         # find predictions
-        predictions = wl_synthesis(latents, training=False)
+        predictions = wl_synthesis([z0, w1], training=False)
         UVP_DNS = predictions[RES_LOG2-2]
         UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -204,7 +198,7 @@ def step_find_latents_DNS(latents, imgA, fimgA, ltv):
         resLES = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, fimgA)) + \
                  tf.math.reduce_mean(tf.math.squared_difference(UVP_LES, fimgA))
 
-        resREC = resDNS + resLES
+        resREC = resDNS + 0.0*resLES
 
         # aply gradients
         gradients_DNS = tape_DNS.gradient(resREC, ltv)
@@ -218,16 +212,10 @@ def step_find_latents_DNS(latents, imgA, fimgA, ltv):
 
 
 # set z
-if (RESTART_WL):
-    # loading wl_synthesis checkpoint and zlatents
-    if managerCheckpoint_wl.latest_checkpoint:
-        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
-    else:
-        print("Initializing wl_synthesis from scratch.")
-    data = np.load("results_reconstruction/zlatents.npz")
-    zlatents = data["zlatents"]
-else:
-    zlatents = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
+w0 = mapping(z0, training=False)
+w1 = mapping(z1, training=False)
 
 
 # print different fields (to check quality and find 2 different seeds)
@@ -239,7 +227,7 @@ for k in range(NL):
 
         # load initial flow
         if (TESTCASE=='HIT_2D'):
-            tail = str(int(k*100+6100))
+            tail = str(int(k*100+10000))
             FILE_REAL = FILE_REAL_PATH + "fields_run0_it" + tail + ".npz"
 
         if (TESTCASE=='HW'):
@@ -300,7 +288,7 @@ for k in range(NL):
 
         
         # find a closer z latent space
-        if (not RESTART_WL):
+        if (NITEZ>0):
             minDiff = large
             for i in range(NITEZ):
 
@@ -346,9 +334,9 @@ for k in range(NL):
         resREC = large
         tstart = time.time()
         while (resREC>tollDNS and it<lr_DNS_maxIt):
-            lr = lr_schedule_DNS(it)
-            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_DNS(zlatents, imgA, fimgA, ltv_DNS)
 
+            lr = lr_schedule_DNS(it)
+            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_DNS(z0, w1, imgA, fimgA, ltv_DNS)
 
             # print residuals and fields
             if (it%100==0):
@@ -396,23 +384,18 @@ for k in range(NL):
 
         # find DNS and LES fields from random input
         if (k>=0):
-            zlatents    = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=k)
-            wlatents    = mapping(zlatents, training=False)
-        predictions = synthesis(wlatents, training=False)
+            z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+            z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
+            w0 = mapping(z0, training=False)
+            w1 = mapping(z1, training=False)
+        predictions = wl_synthesis([z0, w1], training=False)
         UVP_DNS     = predictions[RES_LOG2-2]      
 
 
 
 
-    # save checkpoint for wl_synthesis and zlatents
-    managerCheckpoint_wl.save()
-    np.savez("results_latentSpace/zlatents.npz", zlatents=zlatents.numpy())
-
-
-
-
     # print spectrum from filter
-    predictions = wl_synthesis(zlatents, training=False)
+    predictions = wl_synthesis([z0, w1], training=False)
     UVP_DNS = predictions[RES_LOG2-2]
 
     UVP_LES = filter[FIL-1](UVP_DNS, training=False)

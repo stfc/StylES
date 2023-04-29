@@ -5,10 +5,8 @@
 __pycache__
 *.pyc
 .env
-.vscode
 
 #Result unless specified and usual test outputs from bjobs
-*nergy*.png
 *nergy_spectrum*.txt
 test.out
 test.err
