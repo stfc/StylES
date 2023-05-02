@@ -32,9 +32,15 @@ from LES_functions  import *
 from LES_plot       import *
 from LES_lAlg       import *
 
-from testcases.HIT_2D.HIT_2D import *
-
-
+runcase = sys.argv[1]
+if (runcase=="" or runcase=="HIT_2D"):
+    print("Inputs from file HIT_2D")
+    from testcases.HIT_2D.HIT_2D import *
+elif (runcase=="HIT_2D_reconstruction"):
+    print("Inputs from file HIT_2D_reconstruction")
+    from testcases.HIT_2D.HIT_2D_reconstruction import *
+    
+    
 
 # start timing
 tstart = time()

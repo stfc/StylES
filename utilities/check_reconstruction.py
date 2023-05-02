@@ -34,6 +34,7 @@ from LES_parameters import *
 from LES_plot import *
 from HIT_2D import L
 from math import floor, log10
+from matplotlib.ticker import FuncFormatter
 
 os.chdir('../')
 from MSG_StyleGAN_tf2 import *
@@ -46,7 +47,9 @@ os.chdir('./utilities')
 
 #------------------------------------------- set local parameters
 TUNE_NOISE    = True
-RESTART_WL    = True
+NITEZ         = 0   # number of attempts to find a closer z. When restart from a GAN field, use NITEZ=0
+RESTART_WL    = False
+RELOAD_FREQ   = 100000
 CHKP_DIR_WL   = "./checkpoints_wl"
 N_DNS         = 2**RES_LOG2
 N_LES         = 2**(RES_LOG2-FIL)
@@ -108,19 +111,18 @@ if managerCheckpoint.latest_checkpoint:
 else:
     print("Initializing StyleGAN from scratch.")
 
+time.sleep(3)
 
 
 # create variable synthesis model
-layer_mDNS = layer_latent_mDNS()
-layer_mLES = layer_latent_mLES()
+layer_LES = layer_wlatent_mLES()
 
-z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
-w_in         = mapping(z_in)
-w_DNS        = layer_mDNS(w_in)
-w_LES        = layer_mLES(w_DNS)
-outputs      = synthesis(w_LES, training=False)
-wl_synthesis = tf.keras.Model(inputs=z_in, outputs=outputs)
-
+z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+w0           = mapping(z0)
+w            = layer_LES(w0, w1)
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
 
 # define optimizer for mLES search
 if (lr_LES_POLICY=="EXPONENTIAL"):
@@ -134,24 +136,42 @@ elif (lr_LES_POLICY=="PIECEWISE"):
 opt_mLES = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_mLES)
 
 
-
 # define checkpoints wl_synthesis and filter
-checkpoint_wl = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
+checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
 managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
 
 
-# set trainable variables
+
+# add latent space to trainable variables
 if (not TUNE_NOISE):
     ltv_LES = []
 
-ltv_mLES = ltv_LES
-for variable in layer_mLES.trainable_variables:
-    ltv_mLES.append(variable)
+for variable in layer_LES.trainable_variables:
+    ltv_LES.append(variable)
 
-print("\n ltv_mLES variables:")
-for variable in ltv_mLES:
-    print(variable.name, variable.shape)
+print("\n LES variables:")
+for variable in ltv_LES:
+    print(variable.name)
 
+time.sleep(3)
+
+
+
+
+#---------------------------------------------- functions---------------------------------
+def kilos(x, pos):
+    'The two args are the value and tick position'
+    return '%1dk' % (x*1e-3)
+
+
+@tf.function
+def step_find_latents_LES(z0, w1, fimgA, ltv):
+    with tf.GradientTape() as tape_LES:
+
+        # find predictions
+        predictions = wl_synthesis([z0, w1], training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+        UVP_LES = predictions[RES_LOG2-FIL-2]
 
 
 
@@ -184,35 +204,7 @@ ax3.xaxis.set_major_formatter(FormatStrFormatter('%d'))
 
 colors = ['k','r','b','g','y']
 
-
-# set z
-if (RESTART_WL):
-    # loading wl_synthesis checkpoint and z0
-    if managerCheckpoint_wl.latest_checkpoint:
-        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
-    else:
-        print("Initializing wl_synthesis from scratch.")
-    data      = np.load("results_latentSpace/z0.npz")
-    z0        = data["z0"]
-    mDNS      = data["mDNS"]
-    noise_DNS = data["noise_DNS"]
-
-    # convert to TensorFlow tensors            
-    z0        = tf.convert_to_tensor(z0)
-    mDNS      = tf.convert_to_tensor(mDNS)
-    noise_DNS = tf.convert_to_tensor(noise_DNS)
-
-    # assign mDNS
-    layer_mDNS.trainable_variables[0].assign(mDNS)
-
-    # assign variable noise
-    it=0
-    for layer in synthesis.layers:
-        if "layer_noise_constants" in layer.name:
-            layer.trainable_variables[0].assign(noise_DNS[it])
-            it=it+1
-else:
-    z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+formatter_kilos = FuncFormatter(kilos)
 
 
 # start main loop
@@ -312,60 +304,71 @@ for tv, tollLES in enumerate(tollLESValues):
             # find spectrum
             spectra[0,1,:,:] = plot_spectrum_noPlots(U_DNS_org, V_DNS_org, L)
 
+        # preprare target image
+        U_DNS_t = U_DNS_org[:,:]
+        V_DNS_t = V_DNS_org[:,:]
+        P_DNS_t = P_DNS_org[:,:]
 
-        # normalize
-        U_min = np.min(U_DNS_org)
-        U_max = np.max(U_DNS_org)
-        V_min = np.min(V_DNS_org)
-        V_max = np.max(V_DNS_org)
-        P_min = np.min(P_DNS_org)
-        P_max = np.max(P_DNS_org)
+        tU_DNS = tf.convert_to_tensor(U_DNS_t)
+        tV_DNS = tf.convert_to_tensor(V_DNS_t)
+        tP_DNS = tf.convert_to_tensor(P_DNS_t)
 
-        UVP_minmax = np.asarray([U_min, U_max, V_min, V_max, P_min, P_max])
-        UVP_minmax = tf.convert_to_tensor(UVP_minmax)        
+        U_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
+        V_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
+        P_DNS = tP_DNS[np.newaxis,np.newaxis,:,:]
 
-        U_DNS = 2.0*(U_DNS_org - U_min)/(U_max - U_min) - 1.0
-        V_DNS = 2.0*(V_DNS_org - V_min)/(V_max - V_min) - 1.0
-        P_DNS = 2.0*(P_DNS_org - P_min)/(P_max - P_min) - 1.0
-
-        
-        #-------------- preprare targets
-        U_DNS = U_DNS[np.newaxis,np.newaxis,:,:]
-        V_DNS = V_DNS[np.newaxis,np.newaxis,:,:]
-        P_DNS = P_DNS[np.newaxis,np.newaxis,:,:]
-
-        U_DNS = tf.convert_to_tensor(U_DNS)
-        V_DNS = tf.convert_to_tensor(V_DNS)
-        P_DNS = tf.convert_to_tensor(P_DNS)
-
-        # concatenate
         imgA  = tf.concat([U_DNS, V_DNS, P_DNS], 1)
+        fimgA = filter[FIL-1](imgA)
 
-        # filter
-        fU_DNS = filter(U_DNS)
-        fV_DNS = filter(V_DNS)
-        fP_DNS = filter(P_DNS)                
-
-        fimgA  = tf.concat([fU_DNS, fV_DNS, fP_DNS], 1)
-
-
-        #-------------- print LES resolution
         if (tv==0 and k==0):
-            strDNS = str( imgA.shape[2]) + "x" + str( imgA.shape[3])
-            strLES = str(fimgA.shape[2]) + "x" + str(fimgA.shape[3])
-            print("Reconstructing DNS fields " + strDNS +  " from LES resolution " + strLES)
+            print("LES resolution is " + str(fimgA.shape[2]) + "x" + str(fimgA.shape[3]))
 
+        if (k==0):
+            # loading wl_synthesis checkpoint and zlatents
+            if managerCheckpoint_wl.latest_checkpoint:
+                print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
+            else:
+                print("Initializing wl_synthesis from scratch.")
+
+            data      = np.load("results_latentSpace/z0.npz")
+            z0        = data["z0"]
+            w1        = data["w1"]
+            mLES      = data["mLES"]
+            noise_DNS = data["noise_DNS"]
+
+            # convert to TensorFlow tensors            
+            z0        = tf.convert_to_tensor(z0)
+            w1        = tf.convert_to_tensor(w1)
+            mLES      = tf.convert_to_tensor(mLES)
+            noise_DNS = tf.convert_to_tensor(noise_DNS)
+
+            # assign kDNS
+            layer_LES.trainable_variables[0].assign(mLES)
+
+            # assign variable noise
+            it=0
+            for layer in synthesis.layers:
+                if "layer_noise_constants" in layer.name:
+                    layer.trainable_variables[0].assign(noise_DNS[it])
+                    it=it+1
 
         #-------------- start research on the latent space
         it = 0
-        resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
-                = step_find_residuals(wl_synthesis, filter, z0, fimgA)
-        rescaled = False
-        while (resREC.numpy()>tollLES and it<lr_LES_maxIt):                
+        resREC = large
+        opt_LES.initial_learning_rate = lr_LES      # reload initial learning rate
+        while (resREC>tollLES and it<lr_LES_maxIt):                
 
-            resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS \
-                = step_find_latents_mLES(wl_synthesis, filter, opt_mLES, z0, fimgA, ltv_mLES)
-
+            lr = lr_schedule_LES(it)
+            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(z0, w1, fimgA, ltv_LES)
+            
+            # # correct alpha
+            # mLES = layer_LES.trainable_variables[0]
+            # wn = w0*mLES
+            # alpha = (wn[0,:,:] - w1[0,:,:])/(w0[0,:,:]-w1[0,:,:])
+            # alpha = tf.clip_by_value(alpha, clip_value_min=0.0, clip_value_max=1.0)
+            # w0 = alpha*w0 + (1.0-alpha)*w1
+            # layer_LES.trainable_variables[0].assign(tf.fill((M_LAYERS, LATENT_SIZE), 1.0))
+            
             # print residuals and fields
             if (it%100==0):
 
@@ -461,7 +464,7 @@ for tv, tollLES in enumerate(tollLESValues):
             # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0, diff=True)
 
             # separate DNS fields from GAN
-            predictions = wl_synthesis(z0, training=False)
+            predictions = wl_synthesis([z0, w1], training=False)
             UVP_LES = predictions[RES_LOG2-FIL-2]
 
             # rescale
@@ -471,12 +474,13 @@ for tv, tollLES in enumerate(tollLESValues):
             V_LES = UVP_LES[0, 1, :, :].numpy()
             P_LES = UVP_LES[0, 2, :, :].numpy()
 
-            # filename = "results_reconstruction/plots/Plots_LES_diffs_" + str(k).zfill(4) + "_" + str(tv) + ".png"
-            # print_fields_2(P_LES, P_DNS, filename)
-            # # print_fields_2(P_LES, P_DNS, filename, Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0)
+            # mvars = layer_LES.trainable_variables[0].numpy()
+            # print("Final min and max k: ", np.min(mvars), np.max(mvars))
 
-            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + str(k).zfill(4) + "_" + str(tv).zfill(5) + ".png"
-            # print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename)
+            # filename = "results_reconstruction/plots/Plots_LES_diffs_" + tail + "_" + str(tv) + ".png"
+            # print_fields_2(P_LES, P_DNS, N_DNS, filename, Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0)
+
+            filename = "results_reconstruction/plots/Plots_DNS_diffs_" + str(k).zfill(5) + "_tv" + str(tv) + ".png"
             print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
                 # Umin=P_min, Umax=P_max, Vmin=P_min, Vmax=P_max, Pmin=P_min, Pmax=P_max)
                 Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=P_min, Pmax=P_max)
@@ -504,50 +508,51 @@ for tv, tollLES in enumerate(tollLESValues):
     vely_norm = np.sum(np.sqrt((vely_DNS[tv,0,:] - vely_DNS[tv,1,:])**2))
     vort_norm = np.sum(np.sqrt((vort_DNS[tv,0,:] - vort_DNS[tv,1,:])**2))
 
-    ax1.plot(totTime[:], velx_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES, $\epsilon_{REC}$=' + stollLES + ',   $\| \| \cdot \| \|_2$ = {:.2e}'.format(velx_norm))
-    ax2.plot(totTime[:], vely_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES, $\epsilon_{REC}$=' + stollLES + ',   $\| \| \cdot \| \|_2$ = {:.2e}'.format(vely_norm))
-    ax3.plot(totTime[:], vort_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'StylES, $\epsilon_{REC}$=' + stollLES + ',   $\| \| \cdot \| \|_2$ = {:.2e}'.format(vort_norm))
-
+    ax1.plot(totTime[:], velx_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'$\epsilon_{REC}$=' + stollLES + ',  $L_2$ = {:.2f}'.format(velx_norm))
+    ax2.plot(totTime[:], vely_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'$\epsilon_{REC}$=' + stollLES + ',  $L_2$ = {:.2f}'.format(vely_norm))
+    ax3.plot(totTime[:], vort_DNS[tv,1,:], color=lineColor, linestyle='dashed', label=r'$\epsilon_{REC}$=' + stollLES + ',  $L_2$ = {:.2f}'.format(vort_norm))
 
     # save centerline values on file
     np.savez("results_reconstruction/uvw_vs_time.npz", totTime=totTime, \
         U_DNS=velx_DNS, V_DNS=vely_DNS, W_DNS=vort_DNS, \
         U_LES=velx_LES, V_LES=vely_LES, W_LES=vort_LES)
 
+    ax1.legend(frameon=False, prop={'size': 14})
+    ax2.legend(frameon=False, prop={'size': 14})
+    ax3.legend(frameon=False, prop={'size': 14})
 
-    ax1.legend(frameon=False, prop={'size': 11})
-    ax2.legend(frameon=False, prop={'size': 11})
-    ax3.legend(frameon=False, prop={'size': 11})
-
-    ax1.set_xlabel(r'steps', fontsize=18)
-    ax2.set_xlabel(r'steps', fontsize=18)
-    ax3.set_xlabel(r'steps', fontsize=18)
+    ax1.set_xlabel(r'steps', fontsize=20)
+    ax2.set_xlabel(r'steps', fontsize=20)
+    ax3.set_xlabel(r'steps', fontsize=20)
     
     if (TESTCASE=='HIT_2D'):
-        ax1.set_ylabel(r'$u$',      fontsize=18)
-        ax2.set_ylabel(r'$v$',      fontsize=18)
-        ax3.set_ylabel(r'$\omega$', fontsize=18)
+        ax1.set_ylabel(r'$u$',      fontsize=20)
+        ax2.set_ylabel(r'$v$',      fontsize=20)
+        ax3.set_ylabel(r'$\omega$', fontsize=20)
     else:
-        ax1.set_ylabel(r'$n$',      fontsize=18)
-        ax2.set_ylabel(r'$\phi$',   fontsize=18)
-        ax3.set_ylabel(r'$\omega$', fontsize=18)
+        ax1.set_ylabel(r'$n$',      fontsize=20)
+        ax2.set_ylabel(r'$\phi$',   fontsize=20)
+        ax3.set_ylabel(r'$\omega$', fontsize=20)
+
+    ax1.xaxis.set_major_formatter(formatter_kilos)
+    ax2.xaxis.set_major_formatter(formatter_kilos)
+    ax3.xaxis.set_major_formatter(formatter_kilos)
 
     for label in (ax1.get_xticklabels() + ax1.get_yticklabels()):
-        label.set_fontsize(12)
+        label.set_fontsize(16)
     for label in (ax2.get_xticklabels() + ax2.get_yticklabels()):
-        label.set_fontsize(12)
+        label.set_fontsize(16)
     for label in (ax3.get_xticklabels() + ax3.get_yticklabels()):
-        label.set_fontsize(12)
+        label.set_fontsize(16)
     
     fig.tight_layout(pad=5.0)
-    
+                                   
     plt.savefig("results_reconstruction/uvw_vs_time.png", bbox_inches='tight', pad_inches=0.05)
 
+plt.close()
 
 
 #------------------- plot centerline profiles
-plt.close()
-
 x = np.linspace(0, L, N_DNS)
 c_fig, c_axs = plt.subplots(2, 3, figsize=(20,10))
 c_fig.subplots_adjust(hspace=0.25)
@@ -582,21 +587,35 @@ cax4.plot(x, c_velx[1,1,:], color=lineColor, linestyle='dotted', label=r'StylES 
 cax5.plot(x, c_vely[1,1,:], color=lineColor, linestyle='dotted', label=r'StylES $v$ at ' + tf_label)
 cax6.plot(x, c_vort[1,1,:], color=lineColor, linestyle='dotted', label=r'StylES $\omega$ at ' + tf_label)
 
-cax1.set_xlabel("x", fontsize=14)
-cax2.set_xlabel("x", fontsize=14)
-cax3.set_xlabel("x", fontsize=14)
+cax1.set_xlabel("x", fontsize=20)
+cax2.set_xlabel("x", fontsize=20)
+cax3.set_xlabel("x", fontsize=20)
 
-cax4.set_xlabel("x", fontsize=14)
-cax5.set_xlabel("x", fontsize=14)
-cax6.set_xlabel("x", fontsize=14)
+cax4.set_xlabel("x", fontsize=20)
+cax5.set_xlabel("x", fontsize=20)
+cax6.set_xlabel("x", fontsize=20)
 
-cax1.legend()
-cax2.legend()
-cax3.legend()
+for label in (cax1.get_xticklabels() + cax1.get_yticklabels()):
+    label.set_fontsize(16)
+for label in (cax2.get_xticklabels() + cax2.get_yticklabels()):
+    label.set_fontsize(16)
+for label in (cax3.get_xticklabels() + cax3.get_yticklabels()):
+    label.set_fontsize(16)
 
-cax4.legend()
-cax5.legend()
-cax6.legend()
+for label in (cax4.get_xticklabels() + cax4.get_yticklabels()):
+    label.set_fontsize(16)
+for label in (cax5.get_xticklabels() + cax5.get_yticklabels()):
+    label.set_fontsize(16)
+for label in (cax6.get_xticklabels() + cax6.get_yticklabels()):
+    label.set_fontsize(16)
+        
+cax1.legend(frameon=False, prop={'size': 14})
+cax2.legend(frameon=False, prop={'size': 14})
+cax3.legend(frameon=False, prop={'size': 14})
+
+cax4.legend(frameon=False, prop={'size': 14})
+cax5.legend(frameon=False, prop={'size': 14})
+cax6.legend(frameon=False, prop={'size': 14})
 
 plt.savefig("results_reconstruction/uvw_vs_x.png", bbox_inches='tight', pad_inches=0.05)
 plt.close()
@@ -604,13 +623,15 @@ plt.close()
 np.savez("results_reconstruction/uvw_vs_x.npz", totTime=totTime, U=c_velx, V=c_vely, W=c_vort)
 
 
-#------------------- plot energy spectra
-plt.close()
 
+
+#------------------- plot energy spectra
 plt.plot(spectra[0,0,0,:], spectra[0,0,1,:], color='k',                     linewidth=0.5, label=r'DNS at ' + t0_label)
 plt.plot(spectra[0,1,0,:], spectra[0,1,1,:], color='r',                     linewidth=0.5, label=r'DNS at ' + tf_label)
 plt.plot(spectra[1,0,0,:], spectra[1,0,1,:], color='k', linestyle='dotted', linewidth=0.5, label=r'StylES at ' + t0_label)
 plt.plot(spectra[1,1,0,:], spectra[1,1,1,:], color='r', linestyle='dotted', linewidth=0.5, label=r'StylES at ' + tf_label)
+
+plt.legend(frameon=False, prop={'size': 14})
 
 plt.xscale("log")
 plt.yscale("log")
@@ -618,7 +639,6 @@ plt.xlim(xLogLim)
 plt.ylim(yLogLim)
 plt.xlabel("k")
 plt.ylabel("E")
-plt.legend()
 
 plt.savefig("results_reconstruction/Energy_spectrum.png", pad_inches=0.5)
 

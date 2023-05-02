@@ -5,7 +5,16 @@
 __pycache__
 *.pyc
 .env
-.vscode
+
+#Result unless specified and usual test outputs from bjobs
+*nergy_spectrum*.txt
+test.out
+test.err
+output.txt
+DNS_center_values.txt
+Plots.png
+Uvw.png
+*.npz
 
 #folders
 images
