@@ -18,16 +18,16 @@ import spectra
 
 TEST_CASE = "HIT_2D"
 PASSIVE   = False
-RESTART   = False
+RESTART   = True
 SAVE_UVW  = False
 N         = 256      # number of points   [-]
 finalTime = 2.0
-totSteps  = 1000000
+totSteps  = 10000
 print_res = 10
-print_img = 10
-print_ckp = 10
-print_spe = 10
-statsTime = 0.6
+print_img = 1000
+print_ckp = 100
+print_spe = 1000
+statsTime = 0.0
 NRUNS     = 1   # number of total runs to execute
 
 te_s = []

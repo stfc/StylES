@@ -36,12 +36,51 @@ from MSG_StyleGAN_tf2 import *
 os.chdir('./utilities')
 
 
+# parameters
+TUNE        = False
+TUNE_NOISE  = False
+tollLES     = 1.e-4
+N_DNS       = 2**RES_LOG2
+N_LES       = 2**RES_LOG2_FIL
+zero_DNS    = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+CHKP_DIR_WL = "./checkpoints_wl"
+RESTART_WL  = False
 
 
+# define optimizer for LES search
+if (lr_LES_POLICY=="EXPONENTIAL"):
+    lr_schedule_LES  = tf.keras.optimizers.schedules.ExponentialDecay(
+        initial_learning_rate=lr_LES,
+        decay_steps=lr_LES_STEP,
+        decay_rate=lr_LES_RATE,
+        staircase=lr_LES_EXP_ST)
+elif (lr_LES_POLICY=="PIECEWISE"):
+    lr_schedule_LES = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lr_LES_BOUNDS, lr_LES_VALUES)
+opt_LES = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_LES)
 
-N_DNS = 2**RES_LOG2
-N_LES = 2**RES_LOG2_FIL
-zero_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
+
+# functions
+@tf.function
+def step_find_latents_LES(z0, w1, ltv):
+    with tf.GradientTape() as tape_LES:
+
+        # find predictions
+        predictions = wl_synthesis([z0, w1], training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+        UVP_LES = predictions[RES_LOG2-FIL-2]
+
+        # filter        
+        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
+
+        # find residuals
+        resREC = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
+
+        # aply gradients
+        gradients_LES = tape_LES.gradient(resREC, ltv)
+        opt_LES.apply_gradients(zip(gradients_LES, ltv))
+
+    return resREC, UVP_DNS
+
 
 # loading StyleGAN checkpoint and filter
 managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
@@ -53,50 +92,143 @@ else:
 time.sleep(3)
 
 
+# create variable synthesis model
+layer_LES = layer_wlatent_mLES()
 
-tf.random.set_seed(SEED_RESTART)
-zlatents = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-dlatents = mapping(zlatents, training=False)
+z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+w0           = mapping(z0)
+w            = layer_LES(w0, w1)
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
 
 
-# verify
-# data = np.load("../LES_Solvers/restart.npz")
-# latent = data['newl']
-# dlatents = tf.tile(latent[np.newaxis, :], [1, RES_LOG2*2-2, 1])
+# define checkpoints wl_synthesis and filter
+checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
+managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
 
-# print(latent)
 
-# inference
-predictions = synthesis(dlatents, training=False)
+# add latent space to trainable variables
+if (not TUNE_NOISE):
+    ltv_LES = []
 
+for variable in layer_LES.trainable_variables:
+    ltv_LES.append(variable)
+
+print("\n LES variables:")
+for variable in ltv_LES:
+    print(variable.name)
+
+time.sleep(3)
+
+# restart from defined values
+if (RESTART_WL):
+
+    # loading wl_synthesis checkpoint and zlatents
+    if managerCheckpoint_wl.latest_checkpoint:
+        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
+    else:
+        print("Initializing wl_synthesis from scratch.")
+
+    data      = np.load("results_latentSpace/z0.npz")
+    z0        = data["z0"]
+    w1        = data["w1"]
+    mLES      = data["mLES"]
+    noise_DNS = data["noise_DNS"]
+
+    # convert to TensorFlow tensors            
+    z0        = tf.convert_to_tensor(z0)
+    w1        = tf.convert_to_tensor(w1)
+    mLES      = tf.convert_to_tensor(mLES)
+    noise_DNS = tf.convert_to_tensor(noise_DNS)
+
+    # assign kDNS
+    layer_LES.trainable_variables[0].assign(mLES)
+
+    # assign variable noise
+    it=0
+    for layer in synthesis.layers:
+        if "layer_noise_constants" in layer.name:
+            layer.trainable_variables[0].assign(noise_DNS[it])
+            it=it+1
+
+else:             
+
+    # set z
+    z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+    z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
+    w0 = mapping(z0, training=False)
+    w1 = mapping(z1, training=False)
+
+
+predictions = wl_synthesis([z0, w1], training=False)
+UVP_DNS = predictions[RES_LOG2-2]
+
+
+if (TUNE):
+    # start search
+    it     = 0
+    resREC = large
+    tstart = time.time()
+    while (resREC>tollLES and it<lr_LES_maxIt):                
+
+        lr = lr_schedule_LES(it)
+        resREC, UVP_DNS = step_find_latents_LES(z0, w1, ltv_LES)
+
+        # print residuals
+        if (it%100==0):
+            tend = time.time()
+            print("LES iterations:  time {0:3e}   it {1:6d}  residuals {2:3e}   lr {3:3e} " \
+                .format(tend-tstart, it, resREC.numpy(), lr))
+                
+            U_DNS = UVP_DNS[0, 0, :, :].numpy()
+            V_DNS = UVP_DNS[0, 1, :, :].numpy()
+            P_DNS = UVP_DNS[0, 2, :, :].numpy()            
+
+            filename = "../LES_Solvers/plots_restart.png"
+            # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + str(it) + ".png"
+            print_fields_3(U_DNS, V_DNS, P_DNS, N_DNS, filename)
+                                    
+        it = it+1
+
+
+# save NN configuration
+if (not RESTART_WL):
+    managerCheckpoint_wl.save()
+
+    # find z0
+    z0 = z0.numpy()
+    w1 = w1.numpy()
+
+    # find kDNS
+    mLES = layer_LES.trainable_variables[0].numpy()
+
+    # find noise_DNS
+    it=0
+    noise_DNS=[]
+    for layer in synthesis.layers:
+        if "layer_noise_constants" in layer.name:
+            noise_DNS.append(layer.trainable_variables[0].numpy())
+                    
+    np.savez("results_latentSpace/z0.npz", z0=z0, w1=w1, mLES=mLES, noise_DNS=noise_DNS)
 
 
 # write fields and energy spectra for each layer
-UVP_DNS = predictions[RES_LOG2-2]
-
 U_DNS = UVP_DNS[0, 0, :, :].numpy()
 V_DNS = UVP_DNS[0, 1, :, :].numpy()
 P_DNS = UVP_DNS[0, 2, :, :].numpy()
-if (TESTCASE=='HIT_2D'):
-    P_DNS = find_vorticity(U_DNS, V_DNS)
 
-U_DNS = 2.0*(U_DNS - tf.math.reduce_min(U_DNS))/(tf.math.reduce_max(U_DNS) - tf.math.reduce_min(U_DNS)) - 1.0
-V_DNS = 2.0*(V_DNS - tf.math.reduce_min(V_DNS))/(tf.math.reduce_max(V_DNS) - tf.math.reduce_min(V_DNS)) - 1.0
-P_DNS = 2.0*(P_DNS - tf.math.reduce_min(P_DNS))/(tf.math.reduce_max(P_DNS) - tf.math.reduce_min(P_DNS)) - 1.0
 
 if (TESTCASE=='HIT_2D'):
     filename = "../LES_Solvers/plots_restart.png"
-    print_fields_3(U_DNS, V_DNS, P_DNS, OUTPUT_DIM, filename, TESTCASE, \
-        Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
+    print_fields_3(U_DNS, V_DNS, P_DNS, OUTPUT_DIM, filename, TESTCASE)
 
     filename = "../LES_Solvers/restart"
-    save_fields(0, U_DNS, V_DNS, zero_DNS, zero_DNS, zero_DNS, P_DNS, filename)
+    save_fields(0.6, U_DNS, V_DNS, zero_DNS, zero_DNS, zero_DNS, P_DNS, filename)  # Note: t=0.6 is the corrisponding time to t=545 tau_e
 
     filename = "../LES_Solvers/energy_spectrum_restart.png"
     closePlot=True
     plot_spectrum(U_DNS, V_DNS, L, filename, close=closePlot)
-
 else:
     print("No restart created!")
 
-exit(0)
