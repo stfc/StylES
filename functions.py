@@ -309,45 +309,6 @@ def apply_noise(x, ldx, phi_noise_in=None, randomize_noise=True):
 
 
 
-#-------------Layer layer_wlatent_LES
-class layer_wlatent_mDNS(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_wlatent_mDNS, self).__init__()
-
-        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
-        self.m = tf.Variable(
-            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="latent_mDNS"
-        )        
-
-    def call(self, w0, w1):
-        w = self.m*w0 + (1.0-self.m)*w1
-        return w
-
-        
-class layer_wlatent_mLES(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_wlatent_mLES, self).__init__()
-
-        w_init = tf.ones_initializer()
-        self.m = tf.Variable(
-            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="latent_mLES"
-        )        
-
-    def call(self, w0, w1):
-        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
-        wa = wa[:,0:M_LAYERS,:]
-        w  = tf.concat([wa,wb], axis=1)
-        return w
- 
-
-
-
 #-------------Instance normalization
 def instance_norm(x, epsilon=1e-8):
     assert len(x.shape) == 4  # NCHW
@@ -901,36 +862,35 @@ def rescale(UVP, UVP_minmax):
 
 
 #---------------------------------------------- Layers search latent space
-
-class layer_latent_mDNS(layers.Layer):
+class layer_wlatent_mDNS(layers.Layer):
     def __init__(self, **kwargs):
-        super(layer_latent_mDNS, self).__init__()
+        super(layer_wlatent_mDNS, self).__init__()
 
-        m_init = tf.ones_initializer()
+        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
         self.m = tf.Variable(
-            initial_value=m_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
             name="latent_mDNS"
-        )
+        )        
 
-    def call(self, w0):
-        w = self.m*w0
+    def call(self, w0, w1):
+        w = self.m*w0 + (1.0-self.m)*w1
         return w
 
-
-class layer_latent_mLES(layers.Layer):
+  
+class layer_wlatent_mLES(layers.Layer):
     def __init__(self, **kwargs):
-        super(layer_latent_mLES, self).__init__()
+        super(layer_wlatent_mLES, self).__init__()
 
-        w_init = tf.ones_initializer()
+        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
         self.m = tf.Variable(
             initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
             name="latent_mLES"
         )        
 
-    def call(self, w0):
-        wa = self.m*w0[:,0:M_LAYERS,:]
+    def call(self, w0, w1):
+        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
         wb = wa[:,M_LAYERS-1:M_LAYERS,:]
         wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
         wa = wa[:,0:M_LAYERS,:]
@@ -939,11 +899,11 @@ class layer_latent_mLES(layers.Layer):
 
 
 @tf.function
-def step_find_latents_mDNS(wl_synthesis, filter, opt, z0, ltv):
+def step_find_latents_DNS(wl_synthesis, filter, opt, w0, w1, imgA, fimgA, ltv):
     with tf.GradientTape() as tape_LES:
         
         # find predictions
-        predictions = wl_synthesis(z0, training=False)
+        predictions = wl_synthesis([w0, w1], training=False)
         UVP_DNS = predictions[RES_LOG2-2]
         UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -963,25 +923,29 @@ def step_find_latents_mDNS(wl_synthesis, filter, opt, z0, ltv):
         fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
         # find residuals
-        resLES = tf.math.reduce_mean(tf.math.squared_difference( UVP_LES, fUVP_DNS))
+        resDNS = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS, imgA))
+        resLES = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, fimgA)) + \
+                 tf.math.reduce_mean(tf.math.squared_difference(UVP_LES, fimgA))
+
+        resREC = resDNS + 0.0*resLES
 
         # apply gradients
-        gradients_LES = tape_LES.gradient(resLES, ltv)
+        gradients_LES = tape_LES.gradient(resREC, ltv)
         opt.apply_gradients(zip(gradients_LES, ltv))
 
         # find filter loss
         loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
 
         
-    return resLES, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS
+    return resREC, resLES, resDNS, UVP_DNS, loss_fil
 
 
 @tf.function
-def step_find_latents_mLES(wl_synthesis, filter, opt, z0, fimgA, ltv):
+def step_find_latents_LES(wl_synthesis, filter, opt, w0, w1, fimgA, ltv):
     with tf.GradientTape() as tape_LES:
         
         # find predictions
-        predictions = wl_synthesis(z0, training=False)
+        predictions = wl_synthesis([w0, w1], training=False)
         UVP_DNS = predictions[RES_LOG2-2]
         UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -1013,9 +977,7 @@ def step_find_latents_mLES(wl_synthesis, filter, opt, z0, fimgA, ltv):
         loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
 
         
-    return resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS
-
-
+    return resREC, resLES, resDNS, UVP_DNS, loss_fil
 
 
 @tf.function

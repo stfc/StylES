@@ -59,28 +59,6 @@ elif (lr_LES_POLICY=="PIECEWISE"):
 opt_LES = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_LES)
 
 
-# functions
-@tf.function
-def step_find_latents_LES(z0, w1, ltv):
-    with tf.GradientTape() as tape_LES:
-
-        # find predictions
-        predictions = wl_synthesis([z0, w1], training=False)
-        UVP_DNS = predictions[RES_LOG2-2]
-        UVP_LES = predictions[RES_LOG2-FIL-2]
-
-        # filter        
-        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
-
-        # find residuals
-        resREC = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
-
-        # aply gradients
-        gradients_LES = tape_LES.gradient(resREC, ltv)
-        opt_LES.apply_gradients(zip(gradients_LES, ltv))
-
-    return resREC, UVP_DNS
-
 
 # loading StyleGAN checkpoint and filter
 managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
@@ -95,12 +73,11 @@ time.sleep(3)
 # create variable synthesis model
 layer_LES = layer_wlatent_mLES()
 
-z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w0           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
 w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping(z0)
 w            = layer_LES(w0, w1)
 outputs      = synthesis(w, training=False)
-wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
+wl_synthesis = tf.keras.Model(inputs=[w0, w1], outputs=outputs)
 
 
 # define checkpoints wl_synthesis and filter
@@ -138,6 +115,7 @@ if (RESTART_WL):
 
     # convert to TensorFlow tensors            
     z0        = tf.convert_to_tensor(z0)
+    w0        = mapping(z0, training=False)
     w1        = tf.convert_to_tensor(w1)
     mLES      = tf.convert_to_tensor(mLES)
     noise_DNS = tf.convert_to_tensor(noise_DNS)
@@ -161,7 +139,7 @@ else:
     w1 = mapping(z1, training=False)
 
 
-predictions = wl_synthesis([z0, w1], training=False)
+predictions = wl_synthesis([w0, w1], training=False)
 UVP_DNS = predictions[RES_LOG2-2]
 
 
@@ -173,7 +151,7 @@ if (TUNE):
     while (resREC>tollLES and it<lr_LES_maxIt):                
 
         lr = lr_schedule_LES(it)
-        resREC, UVP_DNS = step_find_latents_LES(z0, w1, ltv_LES)
+        resREC, UVP_DNS = step_find_latents_LES(w0, w1, ltv_LES)
 
         # print residuals
         if (it%100==0):

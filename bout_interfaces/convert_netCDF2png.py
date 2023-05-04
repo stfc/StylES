@@ -17,16 +17,17 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/plots/DNS/"
+MODE        = 'MAKE_ANIMATION'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
+PATH_ANIMAT = "../../../../PhaseI_HNCDI/codes/StylES/utilities/results_reconstruction/plots/*.png"
 FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0 # starting time to take as first image
-FTIME       = 101 # starting time to take as last image
+FTIME       = 3*512 # starting time to take as last image
 ITIME       = 1  # skip between STIME, FTIME, ITIME
-SKIP        = 1  # skip between time steps when reading NUMPY arrays
+SKIP        = 100  # skip between time steps when reading NUMPY arrays
 min_U       = None
 max_U       = None
 min_V       = None
@@ -52,6 +53,9 @@ if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
     os.system("rm -rf results_bout/plots/*")
     os.system("rm -rf results_bout/fields/*")
     os.system("rm -rf results_bout/energy/*")
+    os.system("mkdir -p results_bout/plots/")
+    os.system("mkdir -p results_bout/fields/")
+    os.system("mkdir -p results_bout/energy/")
 
 
 #----------------------------- functions
@@ -317,13 +321,13 @@ if (MODE=='READ_NETCDF'):
         Energy[t] = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
         
         closePlot=False
-        if (t%50==0):
+        if (t%1==0):
             if (t==FTIME-1):
                 closePlot=True
             filename = "../../../../../StylES/bout_interfaces/results_bout/energy/Spectrum_" + str(t).zfill(4) + ".png"
             plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
         
-        # print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
+        print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
         # print("average", t, np.mean(Img_n), np.mean(Img_phi), np.mean(Img_vort))
         print("done for file time step", t)
 
@@ -365,32 +369,59 @@ elif (MODE=='READ_NUMPY'):
     #------------ run on data
     files = os.listdir(PATH_NUMPY)
     nfiles = len(files)
+    closePlot=False
     for i,file in enumerate(sorted(files)):
         if (i%SKIP==0):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
             Img_n     = np.cast[DTYPE](data['U'])
-            Img_phi     = np.cast[DTYPE](data['V'])
-            Img_vort     = np.cast[DTYPE](data['P'])
+            Img_phi   = np.cast[DTYPE](data['V'])
+            Img_vort  = np.cast[DTYPE](data['P'])
+            
+            # if (i>0 and i<301):
+            #     Img_phi = Img_phi*0
+            # if (i>400 and i<601):
+            #     Img_n = Img_n*0
+
+            file_dest = file.replace("fields","plots")
             file_dest = file.replace(".npz",".png")
             filename  = "./results_bout/plots/" + file_dest
-            print_fields(Img_n, Img_phi, Img_vort, filename, diff=False, Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+            print_fields(Img_n, Img_phi, Img_vort, filename, diff=False, \
+                Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+
+            gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \
+                + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
+
+            time[i] = i
+            Energy[i] = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+            
+            if (i%1==0 and i!=nfiles-1):
+                filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
+                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
+
+            if (i==nfiles-1):
+                closePlot=True
+                filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
+                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
+
             print ("done for file " + file_dest)
 
 
 
 # plot energy
-if (MODE=='READ_NETCDF'):
+if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
+    filename="./results_bout/energy/energy_vs_time"
+    np.savez(filename, time=time, Energy=Energy)
     plt.plot(time, Energy)
     plt.savefig('./results_bout/energy/energy_vs_time.png')
     plt.close()
 
 
 
-#----------------------------- make animation
+# #----------------------------- make animation
 anim_file = 'animation.gif'
 with imageio.get_writer(anim_file, mode='I') as writer:
-    filenames = glob.glob('results_bout/plots/*.png')
+    filenames = glob.glob(PATH_ANIMAT)
     filenames = sorted(filenames)
     for filename in filenames:
         print(filename)

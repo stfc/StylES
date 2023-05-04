@@ -190,14 +190,24 @@ def print_fields_3(U_, V_, P_, N, filename, testcase='HIT_2D', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False):
 
     if (testcase=='HIT_2D'):
-        labelR = r'$u$'
-        labelG = r'$v$'
-        labelB = r'$\omega$'
+        if (diff):
+            labelR = r'$A$'
+            labelG = r'$B$'
+            labelB = r'$diff$'
+        else:
+            labelR = r'$u$'
+            labelG = r'$v$'
+            labelB = r'$\omega$'
 
     if (testcase=='HW' or testcase=='mHW'):
-        labelR = r'$n$'
-        labelG = r'$\phi$'
-        labelB = r'$\zeta$'
+        if (diff):
+            labelR = r'$A$'
+            labelG = r'$B$'
+            labelB = r'$diff$'
+        else:
+            labelR = r'$n$'
+            labelG = r'$\phi$'
+            labelB = r'$\zeta$'
 
     #---------------------------------- convert to numpy arrays
     U = convert(U_)
