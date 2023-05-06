@@ -129,11 +129,11 @@ BETA2_DIS        = 0.99
 # Reconstruction hyper-parameters
 
 # learning rate for DNS optimizer
-lr_DNS_maxIt  = 100000
+lr_DNS_maxIt  = 1000000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-4   # exponential policy initial learning rate
-lr_DNS_RATE   = 0.01       # exponential policy decay rate
+lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
 lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
@@ -142,7 +142,7 @@ lr_DNS_BETA1  = 0.0
 lr_DNS_BETA2  = 0.99
 
 # learning rate for LES optimizer
-lr_LES_maxIt  = 100000
+lr_LES_maxIt  = 1000000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
 lr_LES        = 1.0e-4    # exponential policy initial learning rate

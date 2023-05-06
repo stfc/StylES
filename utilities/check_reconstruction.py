@@ -55,7 +55,12 @@ N_DNS         = 2**RES_LOG2
 N_LES         = 2**(RES_LOG2-FIL)
 N2_DNS        = int(N_DNS/2)
 N2_LES        = int(N_LES/2)
+<<<<<<< HEAD
 tollLESValues = [1.0e-2, 1.0e-3, 1.0e-4]
+=======
+tollLESValues = [1.0e-1, 1.0e-2, 1.0e-3]
+zero_DNS      = np.zeros([N_DNS, N_DNS], dtype=DTYPE)
+>>>>>>> main
 
 if (TESTCASE=='HIT_2D'):
     FILE_PATH = "../LES_Solvers/fields/"
@@ -164,6 +169,36 @@ def kilos(x, pos):
     return '%1dk' % (x*1e-3)
 
 
+<<<<<<< HEAD
+=======
+@tf.function
+def step_find_latents_LES(w0, w1, fimgA, ltv):
+    with tf.GradientTape() as tape_LES:
+
+        # find predictions
+        predictions = wl_synthesis([w0, w1], training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+        UVP_LES = predictions[RES_LOG2-FIL-2]
+
+        # normalize
+        U_DNS = UVP_DNS[0, 0, :, :]
+        V_DNS = UVP_DNS[0, 1, :, :]
+        P_DNS = UVP_DNS[0, 2, :, :]
+
+        U_DNS = 2.0*(U_DNS - tf.math.reduce_min(U_DNS))/(tf.math.reduce_max(U_DNS) - tf.math.reduce_min(U_DNS)) - 1.0
+        V_DNS = 2.0*(V_DNS - tf.math.reduce_min(V_DNS))/(tf.math.reduce_max(V_DNS) - tf.math.reduce_min(V_DNS)) - 1.0
+        P_DNS = 2.0*(P_DNS - tf.math.reduce_min(P_DNS))/(tf.math.reduce_max(P_DNS) - tf.math.reduce_min(P_DNS)) - 1.0
+
+        # convert back to 1 tensor
+        U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+        V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+        P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+
+        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
+
+        # filter        
+        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
+>>>>>>> main
 
 #------------------------------------------- loop over all tollerances
 ltoll = len(tollLESValues)
@@ -255,6 +290,11 @@ for tv, tollLES in enumerate(tollLESValues):
 
         # find vorticity
         if (TESTCASE=='HIT_2D'):
+<<<<<<< HEAD
+=======
+            if (NITEZ==0):
+                totTime[k] = k*100  # only in case we used a restart from StyleGAN!
+>>>>>>> main
             P_DNS = find_vorticity(U_DNS, V_DNS)
             cP_DNS = find_vorticity(U_DNS, V_DNS)
         elif (TESTCASE=='HW' or TESTCASE=='mHW'):
@@ -373,7 +413,11 @@ for tv, tollLES in enumerate(tollLESValues):
         while (resREC>tollLES and it<lr_LES_maxIt):                
 
             lr = lr_schedule_LES(it)
+<<<<<<< HEAD
             resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(wl_synthesis, filter, opt_LES, w0, w1, fimgA, ltv_LES)
+=======
+            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(w0, w1, fimgA, ltv_LES)
+>>>>>>> main
             
             mLES = layer_LES.trainable_variables[0]
             if (tf.reduce_min(mLES)<0 or tf.reduce_max(mLES)>1):
@@ -391,6 +435,10 @@ for tv, tollLES in enumerate(tollLESValues):
             else:
                 mLESo = tf.identity(mLES)
 
+<<<<<<< HEAD
+=======
+               
+>>>>>>> main
            
             # print residuals and fields
             if ((it%100==0 and it!=0) or (it%100==0 and k==0)):
