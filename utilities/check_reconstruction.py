@@ -58,7 +58,7 @@ N_DNS         = 2**RES_LOG2
 N_LES         = 2**(RES_LOG2-FIL)
 N2_DNS        = int(N_DNS/2)
 N2_LES        = int(N_LES/2)
-tollLESValues = [1.0e-2, 1.0e-3, 1.0e-4]
+tollLESValues = [1.0e-1, 1.0e-2, 1.0e-3]
 zero_DNS      = np.zeros([N_DNS, N_DNS], dtype=DTYPE)
 
 if (TESTCASE=='HIT_2D'):
@@ -126,12 +126,11 @@ time.sleep(3)
 # create variable synthesis model
 layer_LES = layer_wlatent_mLES()
 
-z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w0           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
 w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping(z0)
 w            = layer_LES(w0, w1)
 outputs      = synthesis(w, training=False)
-wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
+wl_synthesis = tf.keras.Model(inputs=[w0, w1], outputs=outputs)
 
 
 # define optimizer for LES search
@@ -175,11 +174,11 @@ def kilos(x, pos):
 
 
 @tf.function
-def step_find_latents_LES(z0, w1, fimgA, ltv):
+def step_find_latents_LES(w0, w1, fimgA, ltv):
     with tf.GradientTape() as tape_LES:
 
         # find predictions
-        predictions = wl_synthesis([z0, w1], training=False)
+        predictions = wl_synthesis([w0, w1], training=False)
         UVP_DNS = predictions[RES_LOG2-2]
         UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -288,7 +287,7 @@ for tv, tollLES in enumerate(tollLESValues):
 
         if (TESTCASE=='HIT_2D'):
             if (NITEZ==0):
-                totTime[k] =  k*100  # only in case we used a restart from StyleGAN!
+                totTime[k] = k*100  # only in case we used a restart from StyleGAN!
             P_DNS = find_vorticity(U_DNS, V_DNS)
 
         # normalize
@@ -359,6 +358,7 @@ for tv, tollLES in enumerate(tollLESValues):
 
             # convert to TensorFlow tensors            
             z0        = tf.convert_to_tensor(z0)
+            w0        = mapping(z0, training=False) 
             w1        = tf.convert_to_tensor(w1)
             mLES      = tf.convert_to_tensor(mLES)
             noise_DNS = tf.convert_to_tensor(noise_DNS)
@@ -373,6 +373,9 @@ for tv, tollLES in enumerate(tollLESValues):
                     layer.trainable_variables[0].assign(noise_DNS[it])
                     it=it+1
 
+        # save old w
+        wto = tf.identity(w0)
+
         # start research on the latent space
         it = 0
         resREC = large
@@ -380,16 +383,26 @@ for tv, tollLES in enumerate(tollLESValues):
         while (resREC>tollLES and it<lr_LES_maxIt):                
 
             lr = lr_schedule_LES(it)
-            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(z0, w1, fimgA, ltv_LES)
+            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_LES(w0, w1, fimgA, ltv_LES)
             
-            # # correct alpha
-            # mLES = layer_LES.trainable_variables[0]
-            # wn = w0*mLES
-            # alpha = (wn[0,:,:] - w1[0,:,:])/(w0[0,:,:]-w1[0,:,:])
-            # alpha = tf.clip_by_value(alpha, clip_value_min=0.0, clip_value_max=1.0)
-            # w0 = alpha*w0 + (1.0-alpha)*w1
-            # layer_LES.trainable_variables[0].assign(tf.fill((M_LAYERS, LATENT_SIZE), 1.0))
-            
+            mLES = layer_LES.trainable_variables[0]
+            if (tf.reduce_min(mLES)<0 or tf.reduce_max(mLES)>1):
+                print("Find new w1...")
+                wa = mLESo*w0[:,0:M_LAYERS,:] + (1.0-mLESo)*w1[:,0:M_LAYERS,:]
+                wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+                wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+                wa = wa[:,0:M_LAYERS,:]
+                wt = tf.concat([wa,wb], axis=1)
+                w1 = 2*wt - wto
+                w0 = tf.identity(wto)
+                mLESn = tf.fill((M_LAYERS, LATENT_SIZE), 0.5)
+                mLESn = tf.cast(mLESn, dtype=DTYPE)
+                layer_LES.trainable_variables[0].assign(mLESn)
+            else:
+                mLESo = tf.identity(mLES)
+
+               
+           
             # print residuals and fields
             if ((it%100==0 and it!=0) or (it%100==0 and k==0)):
 
@@ -429,10 +442,20 @@ for tv, tollLES in enumerate(tollLESValues):
             .format(tend-tstart, k, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
 
+        # save old w
+        mLES = layer_LES.trainable_variables[0]
+        wa = mLES*w0[:,0:M_LAYERS,:] + (1.0-mLES)*w1[:,0:M_LAYERS,:]
+        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        wa = wa[:,0:M_LAYERS,:]
+        wto = tf.concat([wa,wb], axis=1)
+
+
         # separate DNS fields from GAN
         U_DNS = UVP_DNS[0, 0, :, :].numpy()
         V_DNS = UVP_DNS[0, 1, :, :].numpy()
         P_DNS = UVP_DNS[0, 2, :, :].numpy()
+
 
         # save fields
         if ((k==0) or k==(NL-1)):
@@ -473,7 +496,7 @@ for tv, tollLES in enumerate(tollLESValues):
             # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
 
             # separate DNS fields from GAN
-            predictions = wl_synthesis([z0, w1], training=False)
+            predictions = wl_synthesis([w0, w1], training=False)
             UVP_LES = predictions[RES_LOG2-FIL-2]
 
             U_LES = UVP_LES[0, 0, :, :].numpy()
@@ -488,7 +511,7 @@ for tv, tollLES in enumerate(tollLESValues):
 
             filename = "results_reconstruction/plots/Plots_DNS_diffs_" + str(k).zfill(5) + "_tv" + str(tv) + ".png"
             print_fields_4_diff(P_DNS_org, P_LES, P_DNS, tf.math.abs(P_DNS_org-P_DNS), N_DNS, filename, \
-            Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
+                                Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=0.0, Pmax=1.0)
 
 
     # plot values

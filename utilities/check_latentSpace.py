@@ -49,9 +49,9 @@ from tensorflow.keras.applications.vgg16 import VGG16
 
 # local parameters
 NL          = 1     # number of different latent vectors randomly selected
-TUNE_NOISE  = True
+TUNE_NOISE  = False
 LOAD_FIELD  = True       # load field from DNS solver (via restart.npz file)
-NITEZ       = 0
+RESTART_WL  = True
 
 if (TESTCASE=='HIT_2D'):
     FILE_REAL_PATH  = "../LES_Solvers/fields/"
@@ -115,14 +115,13 @@ time.sleep(3)
 
 
 # create variable synthesis model
-layer_DNS = layer_wlatent_mDNS()
+layer_LES = layer_wlatent_mLES()
 
-z0           = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+w0           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
 w1           = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping(z0)
-w            = layer_DNS(w0, w1)
+w            = layer_LES(w0, w1)
 outputs      = synthesis(w, training=False)
-wl_synthesis = tf.keras.Model(inputs=[z0, w1], outputs=outputs)
+wl_synthesis = tf.keras.Model(inputs=[w0, w1], outputs=outputs)
 
 
 
@@ -150,7 +149,7 @@ managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, ma
 if (not TUNE_NOISE):
     ltv_DNS    = []
 
-for variable in layer_DNS.trainable_variables:
+for variable in layer_LES.trainable_variables:
     ltv_DNS.append(variable)
 
 print("\n DNS variables:")
@@ -166,11 +165,11 @@ time.sleep(3)
 
 #---------------------------------------------- LES tf.functions---------------------------------
 @tf.function
-def step_find_latents_DNS(z0, w1, imgA, fimgA, ltv):
+def step_find_latents_DNS(w0, w1, imgA, fimgA, ltv):
     with tf.GradientTape() as tape_DNS:
 
         # find predictions
-        predictions = wl_synthesis([z0, w1], training=False)
+        predictions = wl_synthesis([w0, w1], training=False)
         UVP_DNS = predictions[RES_LOG2-2]
         UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -212,10 +211,43 @@ def step_find_latents_DNS(z0, w1, imgA, fimgA, ltv):
 
 
 # set z
-z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
-w0 = mapping(z0, training=False)
-w1 = mapping(z1, training=False)
+if (RESTART_WL):
+    # loading wl_synthesis checkpoint and zlatents
+    if managerCheckpoint_wl.latest_checkpoint:
+        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
+    else:
+        print("Initializing wl_synthesis from scratch.")
+
+    data      = np.load("results_latentSpace/z0.npz")
+    z0        = data["z0"]
+    w1        = data["w1"]
+    mLES      = data["mLES"]
+    noise_DNS = data["noise_DNS"]
+
+    # convert to TensorFlow tensors            
+    z0        = tf.convert_to_tensor(z0)
+    w0        = mapping(z0, training=False) 
+    w1        = tf.convert_to_tensor(w1)
+    mLES      = tf.convert_to_tensor(mLES)
+    noise_DNS = tf.convert_to_tensor(noise_DNS)
+
+    # assign kDNS
+    layer_LES.trainable_variables[0].assign(mLES)
+
+    # assign variable noise
+    it=0
+    for layer in synthesis.layers:
+        if "layer_noise_constants" in layer.name:
+            layer.trainable_variables[0].assign(noise_DNS[it])
+            it=it+1
+else:    
+    z0 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+    z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
+    w0 = mapping(z0, training=False)
+    w1 = mapping(z1, training=False)
+
+# save old w
+wto = tf.identity(w0)
 
 
 # print different fields (to check quality and find 2 different seeds)
@@ -286,49 +318,7 @@ for k in range(NL):
         imgA  = tf.concat([U_DNS, V_DNS, P_DNS], 1)
         fimgA = filter[FIL-1](imgA)
 
-        
-        # find a closer z latent space
-        if (NITEZ>0):
-            minDiff = large
-            for i in range(NITEZ):
-
-                # find new fields
-                zlatents_new = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-                wlatents  = mapping(zlatents_new, training=False)
-
-                # filename = "z_latent.png"
-                # plt.plot(z.numpy()[0,:])
-                # plt.savefig(filename)
-                # plt.close()
-
-                #exit()
-
-                predictions = synthesis(wlatents, training=False)
-                UVP_DNS = predictions[RES_LOG2-2]
-                fUVP_DNS = filter[FIL-1](UVP_DNS)
-
-                # find difference with target image
-                diff = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS[0,0,N2_DNS,:], imgA[0,0,N2_DNS,:]))
-
-                # swap and plot if found a new minimum
-                if (diff < minDiff):
-                    minDiff = diff
-                    zlatents = zlatents_new
-
-                    plt.plot(UVP_DNS[0,0,N2_DNS,:], label=str(i) + " " + str(minDiff.numpy()))
-                    plt.legend()
-                    plt.savefig("results_latentSpace/findz.png")
-
-                    filename = "results_latentSpace/findz_fields_diff.png"
-                    print_fields_3_diff(P_DNS_org, UVP_DNS[0,2,:,:], P_DNS_org-UVP_DNS[0,2,:,:], N_DNS, filename, \
-                    Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
-
-                    print("Find new z at iteration " + str(i) + " with diff ", minDiff.numpy())
-                else:
-                    if ((i%100)==0):
-                        print("Looking for closer z... iteration " + str(i) + " of " + str(NITEZ))
-
-
+       
         # start research on the latent space
         it = 0
         resREC = large
@@ -336,7 +326,23 @@ for k in range(NL):
         while (resREC>tollDNS and it<lr_DNS_maxIt):
 
             lr = lr_schedule_DNS(it)
-            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_DNS(z0, w1, imgA, fimgA, ltv_DNS)
+            resREC, resLES, resDNS, UVP_DNS, loss_fil = step_find_latents_DNS(w0, w1, imgA, fimgA, ltv_DNS)
+
+            mLES = layer_LES.trainable_variables[0]
+            if (tf.reduce_min(mLES)<0 or tf.reduce_max(mLES)>1):
+                print("Find new w1...")
+                wa = mLESo*w0[:,0:M_LAYERS,:] + (1.0-mLESo)*w1[:,0:M_LAYERS,:]
+                wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+                wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+                wa = wa[:,0:M_LAYERS,:]
+                wt = tf.concat([wa,wb], axis=1)
+                w1 = 2*wt - wto
+                w0 = tf.identity(wto)
+                mLESn = tf.fill((M_LAYERS, LATENT_SIZE), 0.5)
+                mLESn = tf.cast(mLESn, dtype=DTYPE)
+                layer_LES.trainable_variables[0].assign(mLESn)
+            else:
+                mLESo = tf.identity(mLES)
 
             # print residuals and fields
             if (it%100==0):
@@ -357,7 +363,7 @@ for k in range(NL):
                     tf.summary.scalar('loss_fil',     loss_fil,     step=it)                    
                     tf.summary.scalar('lr',           lr,           step=it)
 
-                if (it%100==0):
+                if (it%1000==0):
 
                     # filename = "z_latent.png"
                     # plt.plot(z.numpy()[0,:])
@@ -388,14 +394,14 @@ for k in range(NL):
             z1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART+1)
             w0 = mapping(z0, training=False)
             w1 = mapping(z1, training=False)
-        predictions = wl_synthesis([z0, w1], training=False)
+        predictions = wl_synthesis([w0, w1], training=False)
         UVP_DNS     = predictions[RES_LOG2-2]      
 
 
 
 
     # print spectrum from filter
-    predictions = wl_synthesis([z0, w1], training=False)
+    predictions = wl_synthesis([w0, w1], training=False)
     UVP_DNS = predictions[RES_LOG2-2]
 
     UVP_LES = filter[FIL-1](UVP_DNS, training=False)
