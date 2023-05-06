@@ -328,7 +328,7 @@ class layer_wlatent_mLES(layers.Layer):
     def __init__(self, **kwargs):
         super(layer_wlatent_mLES, self).__init__()
 
-        w_init = tf.ones_initializer()
+        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
         self.m = tf.Variable(
             initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
