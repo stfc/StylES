@@ -171,7 +171,7 @@ def make_synthesis_model():
 
 
     # convert to RGB
-    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2_FIL
+    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
         in_lod = RES_LOG2 - in_res
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
@@ -180,7 +180,7 @@ def make_synthesis_model():
         return x
 
     # convert to RGB final
-    def torgb_final(in_res, in_x):  # res = RES_LOG2_FIL -> RES_LOG2
+    def torgb_final(in_res, in_x):  # res = RES_LOG2-FIL -> RES_LOG2
         in_lod = RES_LOG2 - in_res
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
@@ -404,7 +404,7 @@ filter = make_filter_model(RES_LOG2, RES_LOG2-FIL)
 #mapping.summary()
 #synthesis.summary()
 #discriminator.summary()
-#for fil in range(RES_LOG2-RES_LOG2_FIL):
+#for fil in range(RES_LOG2-RES_LOG2-FIL):
     #filter[fil].summary()
 
 
@@ -739,9 +739,9 @@ for layer in synthesis.layers:
 
 
 
-    # filter_n89    = make_filter_n89(RES_LOG2_FIL+1, RES_LOG2_FIL)
-    # filter_n1011  = make_filter_n1011(RES_LOG2_FIL+2, RES_LOG2_FIL+1)
-    # filter_n1213  = make_filter_n1213(RES_LOG2_FIL+3, RES_LOG2_FIL+2)
+    # filter_n89    = make_filter_n89(RES_LOG2-FIL+1, RES_LOG2-FIL)
+    # filter_n1011  = make_filter_n1011(RES_LOG2-FIL+2, RES_LOG2-FIL+1)
+    # filter_n1213  = make_filter_n1213(RES_LOG2-FIL+3, RES_LOG2-FIL+2)
 
 # list_DNS_noise_trainable_variables = []
 # list_DNS_noise89_trainable_variables = []
@@ -749,7 +749,7 @@ for layer in synthesis.layers:
 # list_DNS_noise1213_trainable_variables = []
 
 
-        # if (reslog>RES_LOG2_FIL-1):
+        # if (reslog>RES_LOG2-FIL-1):
         #     for variable in layer.trainable_variables:
         #         list_DNS_noise_trainable_variables.append(variable)
 

@@ -349,7 +349,7 @@ while (resREC>tollLES and it<lr_LES_maxIt):
 
             filename = "results_reconstruction/plots/Plots_DNS_fromGAN.png"
             # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + str(it) + ".png"
-            print_fields_3(U_DNS, V_DNS, P_DNS, N_DNS, filename, \
+            print_fields_3(U_DNS, V_DNS, P_DNS, N=N_DNS, filename=filename, \
                     Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
     it = it+1
@@ -638,9 +638,9 @@ while (tstep<totSteps and totTime<finalTime):
             newP = UVP[0, 2, :, :].numpy()
 
         elif (FILTER=="StyleGAN_layer"):
-            newU = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()
-            newV = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()
-            newP = predictions[RES_LOG2_FIL-2][0, 2, :, :].numpy()
+            newU = predictions[RES_LOG2-FIL-2][0, 0, :, :].numpy()
+            newV = predictions[RES_LOG2-FIL-2][0, 1, :, :].numpy()
+            newP = predictions[RES_LOG2-FIL-2][0, 2, :, :].numpy()
 
         elif (FILTER=="Gaussian_tf"):
 

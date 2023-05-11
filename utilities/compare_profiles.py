@@ -84,7 +84,7 @@ tf.random.set_seed(0)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
-N_LES = 2**RES_LOG2_FIL
+N_LES = 2**RES_LOG2-FIL
 C_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 B_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 C_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
@@ -237,7 +237,7 @@ def find_latent_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthe
 def find_latent_LES_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions, UVP_DNS = wl_synthesis([latent, minMaxUVP], training=False)
-        UVP_LES     = predictions[RES_LOG2_FIL-2]
+        UVP_LES     = predictions[RES_LOG2-FIL-2]
 
         fimg = filter(imgA)
         fUVP_LES = filter(UVP_DNS)

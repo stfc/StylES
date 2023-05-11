@@ -69,7 +69,7 @@ tf.random.set_seed(0)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
-N_LES = 2**RES_LOG2_FIL
+N_LES = 2**RES_LOG2-FIL
 zero_DNS = cp.zeros([N_DNS,N_DNS], dtype=DTYPE)
 SIG   = int(N_DNS/N_LES)  # Gaussian (tf and np) filter sigma
 DW    = int(N_DNS/N_LES)  # downscaling factor
@@ -228,13 +228,13 @@ for k in range(NL):
 
                 W_DNS_t = find_vorticity(U_DNS_t, V_DNS_t)
 
-                filename = "results_checkStyles/plots/plots_lat_" + str(ninter) + "_res_" + str(res) + ".png"
+                filename = "results_checkStyles/plots/plots_lat" + str(ninter) + "_res" + str(res) + ".png"
                 print_fields_1(W_DNS_t, filename)
 
-                filename = "results_checkStyles/fields/fields_lat_" + str(ninter) + "_res_" + str(res) + ".npz"
+                filename = "results_checkStyles/fields/fields_lat" + str(ninter) + "_res" + str(res) + ".npz"
                 save_fields(0, U_DNS_t, V_DNS_t, P_DNS_t, zero_DNS, zero_DNS, W_DNS_t, filename)
 
-                filename = "results_checkStyles/energy/energy_spectrum_lat_" + str(ninter) + "_res_" + str(res) + ".png"
+                filename = "results_checkStyles/energy/energy_spectrum_lat" + str(ninter) + "_res" + str(res) + ".png"
                 if (kk==RES_LOG2):
                     closePlot=True
                 plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)

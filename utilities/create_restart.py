@@ -37,14 +37,20 @@ os.chdir('./utilities')
 
 
 # parameters
-TUNE        = False
+TUNE        = True
 TUNE_NOISE  = False
-tollLES     = 1.e-4
+tollLES     = 1.e-3
 N_DNS       = 2**RES_LOG2
-N_LES       = 2**RES_LOG2_FIL
+N_LES       = 2**RES_LOG2-FIL
 zero_DNS    = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 CHKP_DIR_WL = "./checkpoints_wl"
 RESTART_WL  = False
+
+if (TESTCASE=='HW' or TESTCASE=='mHW'):
+    L = 50.176
+
+DELX  = L/N_DNS
+DELY  = L/N_DNS
 
 
 # define optimizer for LES search
@@ -141,35 +147,65 @@ else:
 
 predictions = wl_synthesis([w0, w1], training=False)
 UVP_DNS = predictions[RES_LOG2-2]
+UVP_LES = predictions[RES_LOG2-FIL-2]
 
 
 if (TUNE):
+    # save old w
+    wto = tf.identity(w0)
+
     # start search
+    resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = \
+        step_find_latents_LES_restart_A(wl_synthesis, filter, opt_LES, w0, w1, ltv_LES)
     it     = 0
-    resREC = large
     tstart = time.time()
     while (resREC>tollLES and it<lr_LES_maxIt):                
 
         lr = lr_schedule_LES(it)
-        resREC, UVP_DNS = step_find_latents_LES(w0, w1, ltv_LES)
+        resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = \
+            step_find_latents_LES_restart_B(wl_synthesis, filter, opt_LES, w0, w1, ltv_LES)
+        
+        mLES = layer_LES.trainable_variables[0]
+        if (tf.reduce_min(mLES)<0 or tf.reduce_max(mLES)>1):
+            print("Find new w1...")
+            wa = mLESo*w0[:,0:M_LAYERS,:] + (1.0-mLESo)*w1[:,0:M_LAYERS,:]
+            wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+            wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+            wa = wa[:,0:M_LAYERS,:]
+            wt = tf.concat([wa,wb], axis=1)
+            w1 = 2*wt - wto
+            w0 = tf.identity(wto)
+            mLESn = tf.fill((M_LAYERS, LATENT_SIZE), 0.5)
+            mLESn = tf.cast(mLESn, dtype=DTYPE)
+            layer_LES.trainable_variables[0].assign(mLESn)
+        else:
+            mLESo = tf.identity(mLES)
 
         # print residuals
         if (it%100==0):
             tend = time.time()
-            print("LES iterations:  time {0:3e}   it {1:6d}  residuals {2:3e}   lr {3:3e} " \
-                .format(tend-tstart, it, resREC.numpy(), lr))
+            print("LES iterations:  time {0:3e}   it {1:6d}  residuals {2:3e}   lr {3:3e} ".format(tend-tstart, it, resREC.numpy(), lr))
                 
-            U_DNS = UVP_DNS[0, 0, :, :].numpy()
-            V_DNS = UVP_DNS[0, 1, :, :].numpy()
-            P_DNS = UVP_DNS[0, 2, :, :].numpy()            
+            U_DNS = fUVP_DNS[0, 0, :, :].numpy()
+            V_DNS = fUVP_DNS[0, 1, :, :].numpy()
+            P_DNS = fUVP_DNS[0, 2, :, :].numpy()            
 
-            filename = "../LES_Solvers/plots_restart.png"
-            # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + str(it) + ".png"
-            print_fields_3(U_DNS, V_DNS, P_DNS, N_DNS, filename)
+            if (TESTCASE=='HIT_2D'):
+                filename = "results_reconstruction/plots/plots_restart.png"
+                # filename = "results_reconstruction/plots/plots_restart_" + str(it) + ".png"
+            elif(TESTCASE=='HW' or TESTCASE=='mHW'):
+                os.system("mkdir -p ../bout_interfaces/restart_fromGAN/")
+                filename = "../bout_interfaces/restart_fromGAN.png"
+                # filename = "../bout_interfaces/restart_fromGAN_" + str(it) + ".png"
+            print_fields_3(U_DNS, V_DNS, P_DNS, N=N_DNS, filename=filename)
                                     
         it = it+1
 
+    tend = time.time()
+    lr = lr_schedule_LES(it)
+    print("LES iterations:  time {0:3e}   it {1:6d}  residuals {2:3e}   lr {3:3e} ".format(tend-tstart, it, resREC.numpy(), lr))
 
+            
 # save NN configuration
 if (not RESTART_WL):
     managerCheckpoint_wl.save()
@@ -187,8 +223,13 @@ if (not RESTART_WL):
     for layer in synthesis.layers:
         if "layer_noise_constants" in layer.name:
             noise_DNS.append(layer.trainable_variables[0].numpy())
-                    
-    np.savez("results_latentSpace/z0.npz", z0=z0, w1=w1, mLES=mLES, noise_DNS=noise_DNS)
+
+    if (TESTCASE=='HIT_2D'):
+        np.savez("results_latentSpace/z0.npz", z0=z0, w1=w1, mLES=mLES, noise_DNS=noise_DNS)
+    elif(TESTCASE=='HW' or TESTCASE=='mHW'):
+        os.system("mkdir -p ../bout_interfaces/restart_fromGAN/")
+        np.savez("../bout_interfaces/restart_fromGAN/z0.npz", z0=z0, w1=w1, mLES=mLES, noise_DNS=noise_DNS)
+
 
 
 # write fields and energy spectra for each layer
@@ -196,17 +237,39 @@ U_DNS = UVP_DNS[0, 0, :, :].numpy()
 V_DNS = UVP_DNS[0, 1, :, :].numpy()
 P_DNS = UVP_DNS[0, 2, :, :].numpy()
 
+U_LES = UVP_LES[0, 0, :, :].numpy()
+V_LES = UVP_LES[0, 1, :, :].numpy()
+P_LES = UVP_LES[0, 2, :, :].numpy()
 
 if (TESTCASE=='HIT_2D'):
+
     filename = "../LES_Solvers/plots_restart.png"
-    print_fields_3(U_DNS, V_DNS, P_DNS, OUTPUT_DIM, filename, TESTCASE)
+    print_fields_3(U_DNS, V_DNS, P_DNS, N=OUTPUT_DIM, filename=filename, testcase=TESTCASE)
 
     filename = "../LES_Solvers/restart"
-    save_fields(0.6, U_DNS, V_DNS, zero_DNS, zero_DNS, zero_DNS, P_DNS, filename)  # Note: t=0.6 is the corrisponding time to t=545 tau_e
+    save_fields(0.6, U_DNS, V_DNS, P_DNS, filename=filename)  # Note: t=0.6 is the corrisponding time to t=545 tau_e
 
     filename = "../LES_Solvers/energy_spectrum_restart.png"
     closePlot=True
     plot_spectrum(U_DNS, V_DNS, L, filename, close=closePlot)
-else:
-    print("No restart created!")
+
+elif(TESTCASE=='HW' or TESTCASE=='mHW'):
+
+    DELX = L/N_LES
+    DELY = L/N_LES
+    
+    filename = "../bout_interfaces/restart_fromGAN/plots_DNS_restart.png"
+    print_fields_3(U_DNS, V_DNS, P_DNS, N=N_DNS, filename=filename, testcase=TESTCASE)
+
+    filename = "../bout_interfaces/restart_fromGAN/plots_LES_restart.png"
+    print_fields_3(U_LES, V_LES, P_LES, N=N_LES, filename=filename, testcase=TESTCASE)
+
+    filename = "../bout_interfaces/restart_fromGAN/restart_UVPLES"
+    save_fields(0.0, U_LES, V_LES, P_LES, filename=filename)
+
+    filename = "../bout_interfaces/restart_fromGAN/energy_spectrum_restart.png"
+    closePlot=True
+    gradV_LES = np.sqrt(((cr(V_LES, 1, 0) - cr(V_LES, -1, 0))/(2.0*DELX))**2 \
+                      + ((cr(V_LES, 0, 1) - cr(V_LES, 0, -1))/(2.0*DELY))**2)
+    plot_spectrum(U_LES, gradV_LES, L, filename, close=closePlot)
 
