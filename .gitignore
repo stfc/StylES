@@ -19,3 +19,9 @@ Uvw.png
 #folders
 images
 checkpoints
+utilities/results_latentSpace/plots/
+utilities/results_latentSpace/fields/
+utilities/results_latentSpace/energy/
+utilities/results_reconstruction/plots/
+utilities/results_reconstruction/fields/
+utilities/results_reconstruction/energy/

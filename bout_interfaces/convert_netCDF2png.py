@@ -8,6 +8,7 @@ import sys
 from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
+from LES_plot import *
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
@@ -18,16 +19,17 @@ from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
 MODE        = 'MAKE_ANIMATION'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-PATH_ANIMAT = "../../../../PhaseI_HNCDI/codes/StylES/utilities/results_reconstruction/plots/*.png"
-FIND_MIXMAX = True
+PATH_ANIMAT = "./results_bout/plots/*.png"
+#PATH_ANIMAT = "../utilities/results_reconstruction/plots/*.png"
+FIND_MIXMAX = False
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0 # starting time to take as first image
-FTIME       = 3*512 # starting time to take as last image
+FTIME       = 455 # starting time to take as last image
 ITIME       = 1  # skip between STIME, FTIME, ITIME
-SKIP        = 100  # skip between time steps when reading NUMPY arrays
+SKIP        = 1  # skip between time steps when reading NUMPY arrays
 min_U       = None
 max_U       = None
 min_V       = None
@@ -103,117 +105,7 @@ def plot_spectrum(U, V, L, filename, close=True, label=None):
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
 
 
-def print_fields(U_, V_, P_, filename, diff=False, \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None):
-    # Umin=-0.3, Umax=0.3, Vmin=-0.3, Vmax=0.3, Pmin=-0.3, Pmax=0.3):
-    # Umin=-5.0, Umax=5.0, Vmin=-5.0, Vmax=5.0, Pmin=-5.0, Pmax=5.0):
-    # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0):
 
-    #-------- convert to numpy arrays
-    U = convert(U_)
-    V = convert(V_)
-    P = convert(P_)
-
-    if (DIR==1):    # plot along vertical
-        U = np.transpose(U, axes=[1,0])
-        V = np.transpose(V, axes=[1,0])
-        P = np.transpose(P, axes=[1,0])
-
-    N = len(U[0,:])
-
-    #--------- plot surfaces
-    fig, axs = plt.subplots(2, 3, figsize=(15,10))
-    fig.subplots_adjust(hspace=0.25)
-
-    ax1 = axs[0,0]
-    ax2 = axs[1,0]
-    ax3 = axs[0,1]
-    ax4 = axs[1,1]
-    ax5 = axs[0,2]
-    ax6 = axs[1,2]
-
-    if (diff):
-        cmap0 = 'hot'
-        cmap1 = 'hot'
-        cmap2 = 'jet'
-        ax2title = (r'diff $n$')
-        ax4title = (r'diff $\phi$')
-        ax6title = (r'diff $\omega$')
-    else:
-        cmap0 = 'Blues'
-        cmap1 = 'Reds_r'
-        cmap2 = 'hot'
-        ax2title = (r'$n$')
-        ax4title = (r'$\phi$')
-        ax6title = (r'$\omega$')
-                
-    velx = ax1.pcolormesh(U, cmap=cmap0, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
-    fig.colorbar(velx, ax=ax1)
-    ax1.title.set_text(ax2title)
-    ax1.set_aspect(1)
-
-    vely = ax3.pcolormesh(V, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
-    fig.colorbar(vely, ax=ax3)
-    ax3.title.set_text(ax4title)
-    ax3.set_aspect(1)
-
-    pres = ax5.pcolormesh(P, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
-    fig.colorbar(pres, ax=ax5)
-    ax5.title.set_text(ax6title)
-    ax5.set_aspect(1)
-
-
-
-    colors = plt.cm.jet(np.linspace(10,1,21))
-    lineColor = colors[0]
-    if ("4" in filename):
-        lineColor = colors[0]
-    if ("8" in filename):
-        lineColor = colors[1]
-    if ("16" in filename):
-        lineColor = colors[2]
-    if ("32" in filename):
-        lineColor = colors[3]
-    if ("64" in filename):
-        lineColor = colors[4]
-    if ("128" in filename):
-        lineColor = colors[5]
-    if ("256" in filename):
-        lineColor = colors[6]
-    if ("512" in filename):
-        lineColor = colors[7]
-    if ("1024" in filename):
-        lineColor = colors[8]
-    if ("2048" in filename):
-        lineColor = colors[9]
-    if ("4096" in filename):
-        lineColor = colors[10]
-
-
-    #-------- plot centerlines
-    x = list(range(N))
-    hdim = N//2
-    yU = U[hdim,:]
-    yV = V[hdim,:]
-    yP = P[hdim,:]
-
-    velx = ax2.plot(x, yU, color=lineColor)
-    ax2.set_ylim([Umin, Umax])
-    ax2.title.set_text(ax2title)
-
-    vely = ax4.plot(x, yV, color=lineColor)
-    ax4.set_ylim([Vmin, Vmax])
-    ax4.title.set_text(ax4title)
-
-    pres = ax6.plot(x, yP, color=lineColor)
-    ax6.set_ylim([Pmin, Pmax])
-    ax6.title.set_text(ax6title)
-
-
-    # save images
-    plt.suptitle(filename)
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0)
-    plt.close()
 
 
 #----------------------------- select MODE
@@ -312,8 +204,9 @@ if (MODE=='READ_NETCDF'):
         filename = "../../../../../StylES/bout_interfaces/results_bout/fields/fields_time" + str(t).zfill(5) + ".npz"
         save_fields(t, Img_n, Img_phi, Img_vort, filename=filename)
 
-        filename = "../../../../../StylES/bout_interfaces/results_bout/plots/plots_time" + str(t).zfill(5) + ".png"
-        print_fields(Img_n, Img_phi, Img_vort, filename, Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+        if (t%1==0):
+            filename = "../../../../../StylES/bout_interfaces/results_bout/plots/plots_time" + str(t).zfill(5) + ".png"
+            print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
 
         gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
 
@@ -386,7 +279,7 @@ elif (MODE=='READ_NUMPY'):
             file_dest = file.replace("fields","plots")
             file_dest = file.replace(".npz",".png")
             filename  = "./results_bout/plots/" + file_dest
-            print_fields(Img_n, Img_phi, Img_vort, filename, diff=False, \
+            print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
                 Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
 
             gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \

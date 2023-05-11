@@ -162,7 +162,7 @@ class layer_const(layers.Layer):
     def __init__(self, x=None, fmaps=512):
         super(layer_const, self).__init__()
 
-        w_init = tf.ones_initializer()
+        w_init = tf.random_normal_initializer(mean=1.0, stddev=0.01, seed=0)   # add a bit of variation to avoid nan when noise is zero!
         self.w = tf.Variable(
             initial_value=w_init(shape=[fmaps, 4*4], dtype=DTYPE),
             trainable=True,
@@ -306,45 +306,6 @@ def apply_noise(x, ldx, phi_noise_in=None, randomize_noise=True):
     nweights = lnoise(x)
 
     return x + noise * nweights
-
-
-
-#-------------Layer layer_wlatent_LES
-class layer_wlatent_mDNS(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_wlatent_mDNS, self).__init__()
-
-        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
-        self.m = tf.Variable(
-            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="latent_mDNS"
-        )        
-
-    def call(self, w0, w1):
-        w = self.m*w0 + (1.0-self.m)*w1
-        return w
-
-        
-class layer_wlatent_mLES(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_wlatent_mLES, self).__init__()
-
-        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
-        self.m = tf.Variable(
-            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="latent_mLES"
-        )        
-
-    def call(self, w0, w1):
-        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
-        wa = wa[:,0:M_LAYERS,:]
-        w  = tf.concat([wa,wb], axis=1)
-        return w
- 
 
 
 
@@ -976,7 +937,7 @@ def step_find_latents_DNS(wl_synthesis, filter, opt, w0, w1, imgA, fimgA, ltv):
         loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
 
         
-    return resREC, resLES, resDNS, UVP_DNS, loss_fil
+    return resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil
 
 
 @tf.function
@@ -1016,14 +977,93 @@ def step_find_latents_LES(wl_synthesis, filter, opt, w0, w1, fimgA, ltv):
         loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
 
         
-    return resREC, resLES, resDNS, UVP_DNS, loss_fil
+    return resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil
+
+
 
 
 @tf.function
-def step_find_residuals(wl_synthesis, filter, z0, fimgA):
+def step_find_latents_LES_restart_A(wl_synthesis, filter, opt, w0, w1, ltv):
+    with tf.GradientTape() as tape_LES:
+        
+        # find predictions
+        predictions = wl_synthesis([w0, w1], training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+        UVP_LES = predictions[RES_LOG2-FIL-2]
+
+        # filter DNS field
+        fU_DNS = UVP_DNS[:,0,:,:]
+        fU_DNS = fU_DNS[:,tf.newaxis,:,:]
+        fU_DNS = filter(fU_DNS, training = False)
+
+        fV_DNS = UVP_DNS[:,1,:,:]
+        fV_DNS = fV_DNS[:,tf.newaxis,:,:]
+        fV_DNS = filter(fV_DNS, training = False)
+
+        fP_DNS = UVP_DNS[:,2,:,:]
+        fP_DNS = fP_DNS[:,tf.newaxis,:,:]
+        fP_DNS = filter(fP_DNS, training = False)
+        
+        fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+
+        # find residuals
+        resDNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
+        resLES = tf.math.reduce_mean(tf.math.squared_difference( UVP_LES, fUVP_DNS))
+        resREC = 0.5*(resDNS + resLES)
+
+        # find filter loss
+        loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
+
+        
+    return resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil
+
+
+
+@tf.function
+def step_find_latents_LES_restart_B(wl_synthesis, filter, opt, w0, w1, ltv):
+    with tf.GradientTape() as tape_LES:
+        
+        # find predictions
+        predictions = wl_synthesis([w0, w1], training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+        UVP_LES = predictions[RES_LOG2-FIL-2]
+
+        # filter DNS field
+        fU_DNS = UVP_DNS[:,0,:,:]
+        fU_DNS = fU_DNS[:,tf.newaxis,:,:]
+        fU_DNS = filter(fU_DNS, training = False)
+
+        fV_DNS = UVP_DNS[:,1,:,:]
+        fV_DNS = fV_DNS[:,tf.newaxis,:,:]
+        fV_DNS = filter(fV_DNS, training = False)
+
+        fP_DNS = UVP_DNS[:,2,:,:]
+        fP_DNS = fP_DNS[:,tf.newaxis,:,:]
+        fP_DNS = filter(fP_DNS, training = False)
+        
+        fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+
+        # find residuals
+        resDNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
+        resLES = tf.math.reduce_mean(tf.math.squared_difference( UVP_LES, fUVP_DNS))
+        resREC = 0.5*(resDNS + resLES)
+
+        # apply gradients
+        gradients_LES = tape_LES.gradient(resREC, ltv)
+        opt.apply_gradients(zip(gradients_LES, ltv))
+
+        # find filter loss
+        loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
+
+        
+    return resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil
+
+
+@tf.function
+def step_find_residuals(wl_synthesis, filter, w0, w1, fimgA):
         
     # find predictions
-    predictions = wl_synthesis(z0, training=False)
+    predictions = wl_synthesis([w0, w1], training=False)
     UVP_DNS = predictions[RES_LOG2-2]
     UVP_LES = predictions[RES_LOG2-FIL-2]
 
@@ -1050,4 +1090,4 @@ def step_find_residuals(wl_synthesis, filter, z0, fimgA):
     # find filter loss
     loss_fil = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, UVP_LES))
 
-    return resREC, resLES, resDNS, loss_fil, UVP_DNS, UVP_LES, fUVP_DNS
+    return resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil

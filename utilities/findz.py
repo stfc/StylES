@@ -117,7 +117,7 @@ for i in range(NL):
         plt.savefig("findz.png")
 
         filename = "findz_fields_diff.png"
-        print_fields_3(P_DNS_org, UVP_DNS[0,2,:,:], P_DNS_org-UVP_DNS[0,2,:,:], N_DNS, filename, \
+        print_fields_3(P_DNS_org, UVP_DNS[0,2,:,:], P_DNS_org-UVP_DNS[0,2,:,:], N=N_DNS, filename=filename, \
         Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0, diff=True)
 
     if (i%100 == 0):

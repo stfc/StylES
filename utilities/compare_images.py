@@ -42,14 +42,16 @@ from skimage.metrics import structural_similarity as ssim
 from testcases.HIT_2D.HIT_2D import L, rho
 
 os.chdir('../')
-from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS, TESTCASE
+from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS, TESTCASE, RES_LOG2
 from IO_functions import StyleGAN_load_fields
 os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "./results_latentSpace/fields_org/fields_lat_0_res_256.npz"
-FILE_STYLE = "./results_latentSpace/fields/fields_lat_0_res_256.npz"
+N_DNS = 2**RES_LOG2
+
+FILE_REAL  = "./results_latentSpace/fields_org/fields_lat0_res" + str(N_DNS) + ".npz"
+FILE_STYLE = "./results_latentSpace/fields/fields_lat0_res"     + str(N_DNS) + ".npz"
 
 os.system("rm Plots_DNS_diff.png")
 
