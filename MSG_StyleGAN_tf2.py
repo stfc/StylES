@@ -176,7 +176,7 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        # x = normalize(x)
+        x = normalize(x)
         return x
 
     # convert to RGB final
@@ -185,8 +185,8 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        # x = blur(x)
-        # x = normalize(x)
+        x = blur(x)
+        x = normalize(x)
         return x
 
     # Finally, arrange the computations for the layers
