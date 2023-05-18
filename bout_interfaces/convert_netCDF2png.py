@@ -9,6 +9,7 @@ from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
 from LES_plot import *
+from LES_functions import *
 
 # sys.path.insert(n, item) inserts the item at the nth position in the list 
 # (0 at the beginning, 1 after the first element, etc ...)
@@ -18,18 +19,28 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'MAKE_ANIMATION'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/"
+MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/DNS/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-PATH_ANIMAT = "./results_bout/plots/*.png"
-#PATH_ANIMAT = "../utilities/results_reconstruction/plots/*.png"
-FIND_MIXMAX = False
+PATH_ANIMAT = "./results_bout/plots/"
+#PATH_ANIMAT = "../utilities/results_reconstruction/plots/"
+FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0 # starting time to take as first image
-FTIME       = 455 # starting time to take as last image
-ITIME       = 1  # skip between STIME, FTIME, ITIME
-SKIP        = 1  # skip between time steps when reading NUMPY arrays
+
+if (MODE=='READ_NUMPY'):
+    files = os.listdir(PATH_NUMPY)
+    FTIME = len(files)
+elif (MODE=='MAKE_ANIMATION'):
+    files = os.listdir(PATH_ANIMAT)
+    FTIME = len(files)
+else:
+    FTIME = 101 # final time from netCFD
+
+ITIME       = 1    # skip between STIME, FTIME, ITIME
+SKIP        = 10   # cd - skip between time steps when reading NUMPY arrays
+DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 min_U       = None
 max_U       = None
 min_V       = None
@@ -43,8 +54,8 @@ xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
 yLogLim   = [1.e-10, 10.]
 xLinLim   = [0.0e0, 600]
 yLinLim   = [0.0e0, 1.0]
-time      = np.linspace(STIME, FTIME, FTIME)
-Energy    = np.zeros((FTIME), dtype=DTYPE)
+time      = []
+Energy    = []
 L         = 50.176 
 N         = 512
 delx      = L/N
@@ -73,38 +84,6 @@ def save_fields(totTime, U, V, P, filename="restart.npz"):
 
     # save restart file
     np.savez(filename, t=totTime, U=U, V=V, P=P)
-
-
-def plot_spectrum(U, V, L, filename, close=True, label=None):
-    U_cpu = convert(U)
-    V_cpu = convert(V)
-
-    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
-
-    if useLogSca:
-        plt.xscale("log")
-        plt.yscale("log")
-        plt.xlim(xLogLim)
-        plt.ylim(yLogLim)        
-    else:
-        plt.xlim(xLinLim)
-        plt.ylim(yLinLim) 
-
-    if (label is not None):
-        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
-        plt.legend()
-    else:    
-        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
-   
-
-    if (close):
-        plt.savefig(filename, bbox_inches='tight', pad_inches=0)
-        plt.close()
-
-    filename = filename.replace(".png",".txt")
-    np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
-
-
 
 
 
@@ -206,16 +185,22 @@ if (MODE=='READ_NETCDF'):
 
         if (t%1==0):
             filename = "../../../../../StylES/bout_interfaces/results_bout/plots/plots_time" + str(t).zfill(5) + ".png"
-            print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+            if (FIND_MIXMAX):
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
+                    Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+            else:
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False)
+                    # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0)
 
         gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
 
-        time[t] = t
-        Energy[t] = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+        time.append(t*DELT)
+        E = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+        Energy.append(E)
         
         closePlot=False
         if (t%1==0):
-            if (t==FTIME-1):
+            if (t+ITIME>FTIME-1):
                 closePlot=True
             filename = "../../../../../StylES/bout_interfaces/results_bout/energy/Spectrum_" + str(t).zfill(4) + ".png"
             plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
@@ -267,6 +252,7 @@ elif (MODE=='READ_NUMPY'):
         if (i%SKIP==0):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
+            simtime   = np.cast[DTYPE](data['simtime'])
             Img_n     = np.cast[DTYPE](data['U'])
             Img_phi   = np.cast[DTYPE](data['V'])
             Img_vort  = np.cast[DTYPE](data['P'])
@@ -279,20 +265,25 @@ elif (MODE=='READ_NUMPY'):
             file_dest = file.replace("fields","plots")
             file_dest = file.replace(".npz",".png")
             filename  = "./results_bout/plots/" + file_dest
-            print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
-                Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+            if (FIND_MIXMAX):
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
+                    Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+            else:
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False)
+                    # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0)
 
             gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \
                 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
 
-            time[i] = i
-            Energy[i] = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+            time.append(simtime)
+            E = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+            Energy.append(E)
             
             if (i%1==0 and i!=nfiles-1):
                 filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
 
-            if (i==nfiles-1):
+            if (i+SKIP>nfiles-1):
                 closePlot=True
                 filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
@@ -313,9 +304,16 @@ if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
 
 # #----------------------------- make animation
 anim_file = 'animation.gif'
-with imageio.get_writer(anim_file, mode='I') as writer:
-    filenames = glob.glob(PATH_ANIMAT)
-    filenames = sorted(filenames)
+filenames = glob.glob(PATH_ANIMAT + "*.png")
+filenames = sorted(filenames)
+
+ftime = np.diff(time)
+ftime = np.insert(ftime, 0, time[0])
+ftime = np.min(ftime) + ftime
+ftime = ftime*DELT
+ftime = ftime.tolist()
+
+with imageio.get_writer(anim_file, mode='I', duration=(ftime)) as writer:
     for filename in filenames:
         print(filename)
         image = imageio.v2.imread(filename)
