@@ -45,6 +45,8 @@ N_LES       = 2**RES_LOG2-FIL
 zero_DNS    = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 CHKP_DIR_WL = "./checkpoints_wl"
 RESTART_WL  = False
+INIT_SCAL   = 10.0
+
 
 if (TESTCASE=='HW' or TESTCASE=='mHW'):
     L = 50.176
@@ -145,18 +147,19 @@ else:
     w1 = mapping(z1, training=False)
 
 
-predictions = wl_synthesis([w0, w1], training=False)
-UVP_DNS = predictions[RES_LOG2-2]
-UVP_LES = predictions[RES_LOG2-FIL-2]
+# find inference
+resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = step_find_latents_LES_restart_A(wl_synthesis, filter, w0, w1)
+print("Initial residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fill {3:3e} " \
+        .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
 
+
+# tune to given tollerance
 if (TUNE):
     # save old w
     wto = tf.identity(w0)
 
     # start search
-    resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = \
-        step_find_latents_LES_restart_A(wl_synthesis, filter, opt_LES, w0, w1, ltv_LES)
     it     = 0
     tstart = time.time()
     while (resREC>tollLES and it<lr_LES_maxIt):                
@@ -232,15 +235,46 @@ if (not RESTART_WL):
 
 
 
-# write fields and energy spectra for each layer
+# find fields
+U_DNS = UVP_DNS[0, 0, :, :]
+V_DNS = UVP_DNS[0, 1, :, :]
+P_DNS = UVP_DNS[0, 2, :, :]
+
+U_DNS = U_DNS*INIT_SCAL
+V_DNS = V_DNS*INIT_SCAL
+P_DNS = P_DNS*INIT_SCAL
+
+U_DNS = U_DNS - tf.reduce_mean(U_DNS)
+V_DNS = V_DNS - tf.reduce_mean(V_DNS)
+P_DNS = P_DNS - tf.reduce_mean(P_DNS)
+
+U_DNS = U_DNS[tf.newaxis, tf.newaxis, :, :]
+V_DNS = V_DNS[tf.newaxis, tf.newaxis, :, :]
+P_DNS = P_DNS[tf.newaxis, tf.newaxis, :, :]
+
+fU_DNS = filter(U_DNS, training = False)
+fV_DNS = filter(V_DNS, training = False)
+fP_DNS = filter(P_DNS, training = False)
+
+UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
+fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+
 U_DNS = UVP_DNS[0, 0, :, :].numpy()
 V_DNS = UVP_DNS[0, 1, :, :].numpy()
 P_DNS = UVP_DNS[0, 2, :, :].numpy()
 
-U_LES = UVP_LES[0, 0, :, :].numpy()
-V_LES = UVP_LES[0, 1, :, :].numpy()
-P_LES = UVP_LES[0, 2, :, :].numpy()
+U_LES = fUVP_DNS[0, 0, :, :].numpy()
+V_LES = fUVP_DNS[0, 1, :, :].numpy()
+P_LES = fUVP_DNS[0, 2, :, :].numpy()
 
+fU_DNS = fUVP_DNS[0, 0, :, :].numpy()
+fV_DNS = fUVP_DNS[0, 1, :, :].numpy()
+fP_DNS = fUVP_DNS[0, 2, :, :].numpy()
+
+
+
+
+# print fields and energy spectra
 if (TESTCASE=='HIT_2D'):
 
     filename = "../LES_Solvers/plots_restart.png"
@@ -264,12 +298,20 @@ elif(TESTCASE=='HW' or TESTCASE=='mHW'):
     filename = "../bout_interfaces/restart_fromGAN/plots_LES_restart.png"
     print_fields_3(U_LES, V_LES, P_LES, N=N_LES, filename=filename, testcase=TESTCASE)
 
+    filename = "../bout_interfaces/restart_fromGAN/plots_fDNS_restart.png"
+    print_fields_3(fU_DNS, fV_DNS, fP_DNS, N=N_LES, filename=filename, testcase=TESTCASE)
+
     filename = "../bout_interfaces/restart_fromGAN/restart_UVPLES"
     save_fields(0.0, U_LES, V_LES, P_LES, filename=filename)
+
+    filename = "../bout_interfaces/restart_fromGAN/energy_spectrum_restart.png"
+    closePlot=False
+    gradV_DNS = np.sqrt(((cr(V_DNS, 1, 0) - cr(V_DNS, -1, 0))/(2.0*DELX))**2 \
+                      + ((cr(V_DNS, 0, 1) - cr(V_DNS, 0, -1))/(2.0*DELY))**2)
+    plot_spectrum(U_DNS, gradV_DNS, L, filename, close=closePlot)
 
     filename = "../bout_interfaces/restart_fromGAN/energy_spectrum_restart.png"
     closePlot=True
     gradV_LES = np.sqrt(((cr(V_LES, 1, 0) - cr(V_LES, -1, 0))/(2.0*DELX))**2 \
                       + ((cr(V_LES, 0, 1) - cr(V_LES, 0, -1))/(2.0*DELY))**2)
     plot_spectrum(U_LES, gradV_LES, L, filename, close=closePlot)
-
