@@ -52,7 +52,7 @@ Markdown==3.4.1
 MarkupSafe==2.1.1
 matplotlib==3.7.1
 matplotlib-inline==0.1.6
-mpmath==1.2.1
+mpmath==1.3.0
 natsort==8.2.0
 nbformat==5.7.0
 netCDF4==1.6.1
