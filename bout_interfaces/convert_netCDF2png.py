@@ -22,7 +22,7 @@ from isoturb import generate_isotropic_turbulence_2d
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/DNS/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-PATH_ANIMAT = "./results_bout/plots/"
+PATH_ANIMAT = "./analysis/plots/"
 #PATH_ANIMAT = "../utilities/results_reconstruction/plots/"
 FIND_MIXMAX = True
 DTYPE       = 'float32'
@@ -36,10 +36,10 @@ elif (MODE=='MAKE_ANIMATION'):
     files = os.listdir(PATH_ANIMAT)
     FTIME = len(files)
 else:
-    FTIME = 101 # final time from netCFD
+    FTIME = 2 # final time from netCFD
 
 ITIME       = 1    # skip between STIME, FTIME, ITIME
-SKIP        = 10   # cd - skip between time steps when reading NUMPY arrays
+SKIP        = 50   # cd - skip between time steps when reading NUMPY arrays
 DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 min_U       = None
 max_U       = None
@@ -63,12 +63,12 @@ dely      = L/N
 
 # delete folders
 if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
-    os.system("rm -rf results_bout/plots/*")
-    os.system("rm -rf results_bout/fields/*")
-    os.system("rm -rf results_bout/energy/*")
-    os.system("mkdir -p results_bout/plots/")
-    os.system("mkdir -p results_bout/fields/")
-    os.system("mkdir -p results_bout/energy/")
+    os.system("rm -rf analysis/plots/*")
+    os.system("rm -rf analysis/fields/*")
+    os.system("rm -rf analysis/energy/*")
+    os.system("mkdir -p analysis/plots/")
+    os.system("mkdir -p analysis/fields/")
+    os.system("mkdir -p analysis/energy/")
 
 
 #----------------------------- functions
@@ -91,33 +91,33 @@ def save_fields(totTime, U, V, P, filename="restart.npz"):
 if (MODE=='READ_NETCDF'):
 
     # create folders fields and paths
-    path = "results_bout"
+    path = "analysis"
     isExist = os.path.exists(path)
     if not isExist:
         os.makedirs(path)
 
-    path = "results_bout/fields"
+    path = "analysis/fields"
     isExist = os.path.exists(path)
     if not isExist:
         os.makedirs(path)
     else:
-        cmd = "rm results_bout/fields/*"
+        cmd = "rm analysis/fields/*"
         os.system(cmd)
         
-    path = "results_bout/plots"
+    path = "analysis/plots"
     isExist = os.path.exists(path)
     if not isExist:
         os.makedirs(path)
     else:
-        cmd = "rm results_bout/plots/*"
+        cmd = "rm analysis/plots/*"
         os.system(cmd)
         
-    path = "results_bout/energy"
+    path = "analysis/energy"
     isExist = os.path.exists(path)
     if not isExist:
         os.makedirs(path)
     else:
-        cmd = "rm results_bout/energy/*"
+        cmd = "rm analysis/energy/*"
         os.system(cmd)
 
 
@@ -180,11 +180,11 @@ if (MODE=='READ_NETCDF'):
         # minv = np.min(Img_vort)
         # Img_vort = (Img_vort - minv)/(maxv - minv)
         
-        filename = "../../../../../StylES/bout_interfaces/results_bout/fields/fields_time" + str(t).zfill(5) + ".npz"
+        filename = "../../../../../StylES/bout_interfaces/analysis/fields/fields_time" + str(t).zfill(5) + ".npz"
         save_fields(t, Img_n, Img_phi, Img_vort, filename=filename)
 
         if (t%1==0):
-            filename = "../../../../../StylES/bout_interfaces/results_bout/plots/plots_time" + str(t).zfill(5) + ".png"
+            filename = "../../../../../StylES/bout_interfaces/analysis/plots/plots_time" + str(t).zfill(5) + ".png"
             if (FIND_MIXMAX):
                 print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
@@ -199,10 +199,10 @@ if (MODE=='READ_NETCDF'):
         Energy.append(E)
         
         closePlot=False
-        if (t%1==0):
+        if (t%100==0 or (t+ITIME>FTIME-1)):
             if (t+ITIME>FTIME-1):
                 closePlot=True
-            filename = "../../../../../StylES/bout_interfaces/results_bout/energy/Spectrum_" + str(t).zfill(4) + ".png"
+            filename = "../../../../../StylES/bout_interfaces/analysis/energy/Spectrum_" + str(t).zfill(4) + ".png"
             plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
         
         print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
@@ -257,14 +257,9 @@ elif (MODE=='READ_NUMPY'):
             Img_phi   = np.cast[DTYPE](data['V'])
             Img_vort  = np.cast[DTYPE](data['P'])
             
-            # if (i>0 and i<301):
-            #     Img_phi = Img_phi*0
-            # if (i>400 and i<601):
-            #     Img_n = Img_n*0
-
             file_dest = file.replace("fields","plots")
             file_dest = file.replace(".npz",".png")
-            filename  = "./results_bout/plots/" + file_dest
+            filename  = "./analysis/plots/" + file_dest
             if (FIND_MIXMAX):
                 print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
@@ -280,12 +275,12 @@ elif (MODE=='READ_NUMPY'):
             Energy.append(E)
             
             if (i%1==0 and i!=nfiles-1):
-                filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
+                filename = "./analysis/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
 
             if (i+SKIP>nfiles-1):
                 closePlot=True
-                filename = "./results_bout/energy/Spectrum_" + str(i).zfill(4) + ".png"
+                filename = "./analysis/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
 
             print ("done for file " + file_dest)
@@ -294,10 +289,10 @@ elif (MODE=='READ_NUMPY'):
 
 # plot energy
 if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
-    filename="./results_bout/energy/energy_vs_time"
+    filename="./analysis/energy/energy_vs_time"
     np.savez(filename, time=time, Energy=Energy)
     plt.plot(time, Energy)
-    plt.savefig('./results_bout/energy/energy_vs_time.png')
+    plt.savefig('./analysis/energy/energy_vs_time.png')
     plt.close()
 
 
@@ -313,7 +308,7 @@ ftime = np.min(ftime) + ftime
 ftime = ftime*DELT
 ftime = ftime.tolist()
 
-with imageio.get_writer(anim_file, mode='I', duration=(ftime)) as writer:
+with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
     for filename in filenames:
         print(filename)
         image = imageio.v2.imread(filename)
