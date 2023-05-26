@@ -186,7 +186,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
-def print_fields_3(U_, V_, P_, N, filename, testcase='HIT_2D', \
+def print_fields_3(U_, V_, P_, N=None, filename=None, testcase='HIT_2D', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False):
 
     if (testcase=='HIT_2D'):

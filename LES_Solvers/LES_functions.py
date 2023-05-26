@@ -56,7 +56,7 @@ def save_fields(totTime, U, V, P, C=None, B=None, W=None, filename="restart.npz"
 
 
 
-def plot_spectrum(U, V, L, filename, close=True, label=None):
+def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=None, ylim=None, useLogSca=False):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -65,11 +65,9 @@ def plot_spectrum(U, V, L, filename, close=True, label=None):
     if useLogSca:
         plt.xscale("log")
         plt.yscale("log")
-        plt.xlim(xLogLim)
-        plt.ylim(yLogLim)        
-    else:
-        plt.xlim(xLinLim)
-        plt.ylim(yLinLim) 
+
+    plt.xlim(xlim)
+    plt.ylim(ylim) 
 
     if (label is not None):
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)

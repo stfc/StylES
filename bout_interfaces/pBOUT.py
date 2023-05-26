@@ -57,10 +57,8 @@ CHKP_DIR_WL = PATH_StylES + "utilities/checkpoints_wl"
 
 
 # clean up and prepare folders
-os.system("rm -rf results_bout")
-
-os.system("mkdir -p results_bout/plots")
-os.system("mkdir -p results_bout/fields")
+os.system("rm -rf results_StylES")
+os.system("mkdir -p results_StylES/fields")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
@@ -196,7 +194,8 @@ def initFlow(npv):
     # load fields from file or from inference
     if (LOAD_DATA):
 
-        data = np.load('../../../../StylES/bout_interfaces/restart_fromGAN/restart_UVPLES.npz')
+        # data = np.load('../../../../StylES/bout_interfaces/restart_fromGAN/restart_UVPLES.npz')
+        data = np.load('./results_StylES_10tu_tollm3/fields/fields_DNS_0000300.npz')
         U_LES = data['U']
         V_LES = data['V']
         P_LES = data['P']
@@ -388,6 +387,13 @@ def findLESTerms(pLES):
     resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = step_find_residuals(wl_synthesis, filter, w0, w1, fimgA, INIT_SCAL)
     # print("Starting residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fill {3:3e} " \
     #     .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
+
+    # # to make sure we use the same restarting point as comparison between difference tollerances...
+    # if (pStep==pStepStart):
+    #     tollLES = 1.0e-3
+    # else:
+    #     tollLES = 1.0e-2
+
     while (resREC.numpy()>tollLES and it<lr_LES_maxIt): 
 
         resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = \
@@ -470,8 +476,8 @@ def findLESTerms(pLES):
     #------------------------------------- print values
     if (pStep>=pPrint):
         pPrint = pPrint+100
-        filename = "./results_bout/fields/fields_DNS_" + str(pStep).zfill(7)
-        nc.savez(filename, simtime=simtime, U=UVP_DNS[0,0,:,:].numpy(), V=UVP_DNS[0,1,:,:].numpy(), P=UVP_DNS[0,2,:,:].numpy())
+        filename = "./results_StylES/fields/fields_DNS_" + str(pStep).zfill(7)
+        np.savez(filename, simtime=simtime, U=UVP_DNS[0,0,:,:].numpy(), V=UVP_DNS[0,1,:,:].numpy(), P=UVP_DNS[0,2,:,:].numpy())
 
     return rLES
     
@@ -498,35 +504,35 @@ if (RUN_TEST):
 
 
 
-        # filename = "./results_bout/fields/fields_LES_" + str(pStep).zfill(7)
+        # filename = "./results_StylES/fields/fields_LES_" + str(pStep).zfill(7)
         # nc.savez(filename, U=UVP_LES[0,0,:,:].numpy(), V=UVP_LES[0,1,:,:].numpy(), P=UVP_LES[0,2,:,:].numpy())
 
-        # filename = "./results_bout/fields/fields_diffLES_" + str(pStep).zfill(7)
+        # filename = "./results_StylES/fields/fields_diffLES_" + str(pStep).zfill(7)
         # diff =(UVP_LES-fUVP_DNS)
         # nc.savez(filename, U=diff[0,0,:,:].numpy(), V=diff[0,1,:,:].numpy(), P=diff[0,2,:,:].numpy())
 
-        # filename = "./results_bout/fields/fields_diffLESBOUT_" + str(pStep).zfill(7)
+        # filename = "./results_StylES/fields/fields_diffLESBOUT_" + str(pStep).zfill(7)
         # diff =(UVP_LES-fimgA)
         # nc.savez(filename, U=diff[0,0,:,:].numpy(), V=diff[0,1,:,:].numpy(), P=diff[0,2,:,:].numpy())
 
-        # filename = "./results_bout/fields/fields_fromBOUT_" + str(pStep).zfill(7)
+        # filename = "./results_StylES/fields/fields_fromBOUT_" + str(pStep).zfill(7)
         # nc.savez(filename, U=fimgA_fromBOUT[0,0,:,:].numpy(), V=fimgA_fromBOUT[0,1,:,:].numpy(), P=fimgA_fromBOUT[0,2,:,:].numpy())
 
-        # filename = "./results_bout/plots/Plots_DNS_" + str(pStep).zfill(7) + ".png"
+        # filename = "./results_StylES/plots/Plots_DNS_" + str(pStep).zfill(7) + ".png"
         # print_fields_3(UVP_DNS[0,0,:,:].numpy(), UVP_DNS[0,1,:,:].numpy(), UVP_DNS[0,2,:,:].numpy(), N=N_DNS, filename=filename)
 
-        # filename = "./results_bout/plots/Plots_LES_" + str(pStep).zfill(7) + ".png"
+        # filename = "./results_StylES/plots/Plots_LES_" + str(pStep).zfill(7) + ".png"
         # print_fields_3(UVP_LES[0,0,:,:].numpy(), UVP_LES[0,1,:,:].numpy(), UVP_LES[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-        # filename = "./results_bout/plots/Plots_diffLES_" + str(pStep).zfill(7) + ".png"
+        # filename = "./results_StylES/plots/Plots_diffLES_" + str(pStep).zfill(7) + ".png"
         # diff =(UVP_LES-fUVP_DNS)
         # print_fields_3(diff[0,0,:,:].numpy(), diff[0,1,:,:].numpy(), diff[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-        # filename = "./results_bout/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7) + ".png"
+        # filename = "./results_StylES/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7) + ".png"
         # diff =(UVP_LES-fimgA)
         # print_fields_3(diff[0,0,:,:].numpy(), diff[0,1,:,:].numpy(), diff[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-        # filename = "./results_bout/plots/Plots_fromBOUT_" + str(pStep).zfill(7) + ".png"
+        # filename = "./results_StylES/plots/Plots_fromBOUT_" + str(pStep).zfill(7) + ".png"
         # print_fields_3(fimgA[0,0,:,:].numpy(), fimgA[0,1,:,:].numpy(), fimgA[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
 
@@ -701,39 +707,39 @@ if (RUN_TEST):
 #         fimgA    = rescale(fimgA, UVP_minmax)
 
 #         # print
-#         filename = "./results_bout/plots/Plots_DNS_" + str(pStep).zfill(7)
+#         filename = "./results_StylES/plots/Plots_DNS_" + str(pStep).zfill(7)
 #         nc.savez(filename, U=UVP_DNS[0,0,:,:].numpy(), V=UVP_DNS[0,1,:,:].numpy(), P=UVP_DNS[0,2,:,:].numpy())
 
-#         filename = "./results_bout/plots/Plots_LES_" + str(pStep).zfill(7)
+#         filename = "./results_StylES/plots/Plots_LES_" + str(pStep).zfill(7)
 #         nc.savez(filename, U=UVP_LES[0,0,:,:].numpy(), V=UVP_LES[0,1,:,:].numpy(), P=UVP_LES[0,2,:,:].numpy())
 
-#         filename = "./results_bout/plots/Plots_diffLES_" + str(pStep).zfill(7)
+#         filename = "./results_StylES/plots/Plots_diffLES_" + str(pStep).zfill(7)
 #         diff =(UVP_LES-fUVP_DNS)
 #         nc.savez(filename, U=diff[0,0,:,:].numpy(), V=diff[0,1,:,:].numpy(), P=diff[0,2,:,:].numpy())
 
-#         filename = "./results_bout/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7)
+#         filename = "./results_StylES/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7)
 #         diff =(UVP_LES-fimgA)
 #         nc.savez(filename, U=diff[0,0,:,:].numpy(), V=diff[0,1,:,:].numpy(), P=diff[0,2,:,:].numpy())
 
-#         filename = "./results_bout/plots/Plots_fromBOUT_" + str(pStep).zfill(7)
+#         filename = "./results_StylES/plots/Plots_fromBOUT_" + str(pStep).zfill(7)
 #         nc.savez(filename, U=fimgA[0,0,:,:].numpy(), V=fimgA[0,1,:,:].numpy(), P=fimgA[0,2,:,:].numpy())
         
 
-#         # filename = "./results_bout/plots/Plots_DNS_" + str(pStep).zfill(7) + ".png"
+#         # filename = "./results_StylES/plots/Plots_DNS_" + str(pStep).zfill(7) + ".png"
 #         # print_fields_3(UVP_DNS[0,0,:,:].numpy(), UVP_DNS[0,1,:,:].numpy(), UVP_DNS[0,2,:,:].numpy(), N=N_DNS, filename=filename)
 
-#         # filename = "./results_bout/plots/Plots_LES_" + str(pStep).zfill(7) + ".png"
+#         # filename = "./results_StylES/plots/Plots_LES_" + str(pStep).zfill(7) + ".png"
 #         # print_fields_3(UVP_LES[0,0,:,:].numpy(), UVP_LES[0,1,:,:].numpy(), UVP_LES[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-#         # filename = "./results_bout/plots/Plots_diffLES_" + str(pStep).zfill(7) + ".png"
+#         # filename = "./results_StylES/plots/Plots_diffLES_" + str(pStep).zfill(7) + ".png"
 #         # diff =(UVP_LES-fUVP_DNS)
 #         # print_fields_3(diff[0,0,:,:].numpy(), diff[0,1,:,:].numpy(), diff[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-#         # filename = "./results_bout/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7) + ".png"
+#         # filename = "./results_StylES/plots/Plots_diffLESBOUT_" + str(pStep).zfill(7) + ".png"
 #         # diff =(UVP_LES-fimgA)
 #         # print_fields_3(diff[0,0,:,:].numpy(), diff[0,1,:,:].numpy(), diff[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
-#         # filename = "./results_bout/plots/Plots_fromBOUT_" + str(pStep).zfill(7) + ".png"
+#         # filename = "./results_StylES/plots/Plots_fromBOUT_" + str(pStep).zfill(7) + ".png"
 #         # print_fields_3(fimgA[0,0,:,:].numpy(), fimgA[0,1,:,:].numpy(), fimgA[0,2,:,:].numpy(), N=N_LES, filename=filename)
 
 
