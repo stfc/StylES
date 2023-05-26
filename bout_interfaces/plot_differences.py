@@ -21,14 +21,15 @@ from isoturb import generate_isotropic_turbulence_2d
 
 
 #----------------------------- initiliaze
-PATH_ANIMAT   = "./analysis_comparison/plots/"
-FIND_MIXMAX   = True
-DTYPE         = 'float32'
-DIR           = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
-L             = 50.176 
-N_DNS2        = 128
-delx          = L/N
-dely          = L/N
+PATH_ANIMAT = "./analysis_comparison/plots/"
+FIND_MIXMAX = True
+DTYPE       = 'float32'
+DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
+L           = 50.176 
+N_DNS2      = 128
+delx        = L/N
+dely        = L/N
+listRUN     = ["DNS", "StylES_m2", "StylES_m3"]
 
 os.system("rm -rf analysis_comparison/plots/*")
 os.system("rm -rf analysis_comparison/fields/*")
@@ -38,19 +39,28 @@ os.system("mkdir -p analysis_comparison/plots/")
 os.system("mkdir -p analysis_comparison/fields/")
 os.system("mkdir -p analysis_comparison/energy/")
 
-time_DNS         = []
-time_StylES      = []
+cst = []
+cst.append(0)
 
-Energy_DNS       = []
-Energy_StylES    = []
+time_DNS    = []
+time_StylES = []
 
-n_cDNS       = []
-n_cStylES    = []
-phi_cDNS     = []
-phi_cStylES  = []
-vort_cDNS    = []
-vort_cStylES = []
+Energy_DNS    = []
+Energy_StylES = []
 
+n_cDNS    = []
+n_cStylES = []
+p_cDNS    = []
+p_cStylES = []
+v_cDNS    = []
+v_cStylES = []
+
+n_tDNS    = []
+n_tStylES = []
+p_tDNS    = []
+p_tStylES = []
+v_tDNS    = []
+v_tStylES = []
 
 
 #----------------------------- functions
@@ -64,48 +74,25 @@ def save_fields(totTime, U, V, P, filename="restart.npz"):
 
 
 #----------------------------- loop over DNS and StylES
-#listRUN = ["DNS", "StylES_m3"]
-listRUN = ["DNS", "StylES_m1"]
+cont_StylES = 0
 for lrun in listRUN:
     
     if (lrun=='DNS'):
         MODE        = 'READ_NETCDF'
-        PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+        PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS_10tu/"
         STIME       = 0    # starting time to take as first image
-        FTIME       = 11   # final time from netCFD
+        FTIME       = 101   # final time from netCFD
         ITIME       = 1    # skip between STIME, FTIME, ITIME
-        DELT        = 0.01  # delt equal to timestep in BOUT++ input file
-    elif (lrun=='StylES_m1'):
+        DELT        = 0.1  # delt equal to timestep in BOUT++ input file
+        TGAP        = 0.43845692
+    elif ('StylES' in lrun):
+        tail        = lrun.replace('StylES_m','')
         MODE        = 'READ_NUMPY'
-        PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/DNS/"
+        PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_10tu_tollm" + tail +"/fields/"
         files       = os.listdir(PATH_NUMPY)
         STIME       = 0    # starting time to take as first image
         FTIME       = len(files)
-        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
-        DELT        = 1.0  # delt equal to timestep in BOUT++ input file
-    elif (lrun=='StylES_m2'):
-        MODE        = 'READ_NUMPY'
-        PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_10tu_tollm2/fields/DNS/"
-        files       = os.listdir(PATH_NUMPY)
-        STIME       = 0    # starting time to take as first image
-        FTIME       = len(files)
-        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
-        DELT        = 1.0  # delt equal to timestep in BOUT++ input file
-    elif (lrun=='StylES_m3'):
-        MODE        = 'READ_NUMPY'
-        PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_10tu_tollm3/fields/DNS/"
-        files       = os.listdir(PATH_NUMPY)
-        STIME       = 0    # starting time to take as first image
-        FTIME       = len(files)
-        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
-        DELT        = 1.0  # delt equal to timestep in BOUT++ input file
-    elif (lrun=='StylES_m4'):
-        MODE        = 'READ_NUMPY'
-        PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_10tu_tollm4/fields/DNS/"
-        files       = os.listdir(PATH_NUMPY)
-        STIME       = 0    # starting time to take as first image
-        FTIME       = len(files)
-        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
+        ITIME       = int(len(files)/101)   # cd - skip between time steps when reading NUMPY arrays
         DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 
     #------------ read data
@@ -120,20 +107,24 @@ for lrun in listRUN:
 
         cont_DNS = 0
         for t in range(STIME,FTIME,ITIME):
-            simtime      = t*DELT
-            n_DNS    = n[t,:,0,:]
-            phi_DNS  = phi[t,:,0,:]
-            vort_DNS = vort[t,:,0,:]
+            simtime = t*DELT + TGAP
+            n_DNS   = n[t,:,0,:]
+            p_DNS   = phi[t,:,0,:]
+            v_DNS   = vort[t,:,0,:]
             
-            n_cDNS.append(      n_DNS[N_DNS2, N_DNS2])
-            phi_cDNS.append(  phi_DNS[N_DNS2, N_DNS2])
-            vort_cDNS.append(vort_DNS[N_DNS2, N_DNS2])
+            n_cDNS.append(n_DNS[N_DNS2, N_DNS2])
+            p_cDNS.append(p_DNS[N_DNS2, N_DNS2])
+            v_cDNS.append(v_DNS[N_DNS2, N_DNS2])
+
+            n_tDNS.append(n_DNS)
+            p_tDNS.append(p_DNS)
+            v_tDNS.append(v_DNS)
             
-            gradV_phi_DNS = np.sqrt(((cr(phi_DNS, 1, 0) - cr(phi_DNS, -1, 0))/(2.0*delx))**2 \
-                + ((cr(phi_DNS, 0, 1) - cr(phi_DNS, 0, -1))/(2.0*dely))**2)
+            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*delx))**2 \
+                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*dely))**2)
 
             time_DNS.append(simtime)
-            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_phi_DNS**2)
+            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)
             Energy_DNS.append(E)
 
             cont_DNS = cont_DNS+1
@@ -150,28 +141,33 @@ for lrun in listRUN:
         cont_StylES = 0
         for i,file in enumerate(sorted(files)):
             if (i%ITIME==0):
-                filename    = PATH_NUMPY + file
-                data        = np.load(filename)
-                simtime     = np.cast[DTYPE](data['simtime'])
-                n_StylES    = np.cast[DTYPE](data['U'])
-                phi_StylES  = np.cast[DTYPE](data['V'])
-                vort_StylES = np.cast[DTYPE](data['P'])
+                filename = PATH_NUMPY + file
+                data     = np.load(filename)
+                simtime  = np.cast[DTYPE](data['simtime'])
+                n_StylES = np.cast[DTYPE](data['U'])
+                p_StylES = np.cast[DTYPE](data['V'])
+                v_StylES = np.cast[DTYPE](data['P'])
                 
-                n_cStylES.append(      n_StylES[N_DNS2, N_DNS2])
-                phi_cStylES.append(  phi_StylES[N_DNS2, N_DNS2])
-                vort_cStylES.append(vort_StylES[N_DNS2, N_DNS2])
-                            
-                gradV_phi_StylES = np.sqrt(((cr(phi_StylES, 1, 0) - cr(phi_StylES, -1, 0))/(2.0*delx))**2 \
-                    + ((cr(phi_StylES, 0, 1) - cr(phi_StylES, 0, -1))/(2.0*dely))**2)
+                n_cStylES.append(n_StylES[N_DNS2, N_DNS2])
+                p_cStylES.append(p_StylES[N_DNS2, N_DNS2])
+                v_cStylES.append(v_StylES[N_DNS2, N_DNS2])
+
+                n_tStylES.append(n_StylES)
+                p_tStylES.append(p_StylES)
+                v_tStylES.append(v_StylES)
+                                        
+                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*delx))**2 \
+                    + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*dely))**2)
 
                 time_StylES.append(simtime)
-                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_phi_StylES**2)
+                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)
                 Energy_StylES.append(E)
                 
                 cont_StylES = cont_StylES+1
 
                 print ("done for file " + filename + " at simtime " + str(simtime))
                 
+        cst.append(cont_StylES)
 
 
 #-----------------------------  plot energy
@@ -180,42 +176,95 @@ np.savez(filename, time_DNS=time_DNS, Energy_DNS=Energy_DNS, time_StylES=time_St
 
 
 
-#-----------------------------  plot fields
-plt.plot(time_DNS,    n_cDNS,       color='k', linestyle='solid',   label=r"$n$ DNS")
-plt.plot(time_DNS,    phi_cDNS,     color='r', linestyle='solid',   label=r"$\phi$ DNS")
-plt.plot(time_DNS,    vort_cDNS,    color='b', linestyle='solid',   label=r"$\omega$ DNS")
-
+#-----------------------------  plots
 cl = plt.cm.jet(np.linspace(0,1,3*len(listRUN)))
 ls = ['dotted', 'dashed']
-for i in range(len(listRUN)-1):
-    st = cont_StylES
-    plt.plot(time_StylES[i*st:(i+1)*st], n_cStylES[i*st:(i+1)*st],    color='k', linewidth=0.5, linestyle=ls[i],  label=r"$n$ StylES_m" + str(i+1))
-    plt.plot(time_StylES[i*st:(i+1)*st], phi_cStylES[i*st:(i+1)*st],  color='r', linewidth=0.5, linestyle=ls[i],  label=r"$\phi$ StylES_m" + str(i+1))
-    plt.plot(time_StylES[i*st:(i+1)*st], vort_cStylES[i*st:(i+1)*st], color='b', linewidth=0.5, linestyle=ls[i],  label=r"$\omega$ StylES_m" + str(i+1))
 
-    filename="./analysis_comparison/DNS_vs_StylES_cUVP_m" + str(i+1)
-    np.savez(filename, time_DNS=time_DNS, time_StylES=time_StylES, \
-        n_cDNS=n_cDNS, phi_cDNS=phi_cDNS, vort_cDNS=vort_cDNS, \
-        n_cStylES=n_cStylES[i*st:(i+1)*st], phi_cStylES=phi_cStylES[i*st:(i+1)*st], vort_cStylES=vort_cStylES[i*st:(i+1)*st])
+# fields
+i = 0
+for lrun in listRUN:
+    if (lrun=='DNS'):
+        plt.plot(time_DNS, n_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$n$ DNS")
+        plt.plot(time_DNS, p_cDNS, color='r', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
+        plt.plot(time_DNS, v_cDNS, color='b', linewidth=0.5, linestyle='solid', label=r"$\omega$ DNS")
+    elif ('StylES' in lrun):
+        tail        = lrun.replace('StylES_m','')
+        i1 = cst[i]
+        i2 = cst[i]+cst[i+1]
+        plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color='k', linewidth=0.5, linestyle=ls[i], label=r"$n$ StylES_m" + tail)
+        plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color='r', linewidth=0.5, linestyle=ls[i], label=r"$\phi$ StylES_m" + tail)
+        plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color='b', linewidth=0.5, linestyle=ls[i], label=r"$\omega$ StylES_m" + tail)
 
-# plt.legend()
+        filename="./analysis_comparison/DNS_vs_StylES_cUVP_m" + tail
+        np.savez(filename, time_DNS=time_DNS, time_StylES=time_StylES, \
+            n_cDNS=n_cDNS, p_cDNS=p_cDNS, v_cDNS=v_cDNS, \
+            n_cStylES=n_cStylES[i1:i2], p_cStylES=p_cStylES[i1:i2], v_cStylES=v_cStylES[i1:i2])
+        
+        i = i+1
+
+plt.legend(fontsize="5", loc ="upper right")
 plt.savefig('./analysis_comparison/DNS_vs_StylES_UVP.png', dpi=200)
 plt.close()
 
 
+# SME on centerline
+for i in range(len(listRUN)-1):
+    i1 = cst[i]
+    i2 = cst[i]+cst[i+1]
 
-#-----------------------------  plot SME
-n_cStylES_int    = np.interp(time_DNS, time_StylES, n_cStylES)
-phi_cStylES_int  = np.interp(time_DNS, time_StylES, phi_cStylES)
-vort_cStylES_int = np.interp(time_DNS, time_StylES, vort_cStylES)
+    n_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], n_cStylES[i1:i2])
+    p_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], p_cStylES[i1:i2])
+    v_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], v_cStylES[i1:i2])
 
-SME_n    = ((n_cDNS    - n_cStylES_int)**2)
-SME_phi  = ((phi_cDNS  - phi_cStylES_int)**2)
-SME_vort = ((vort_cDNS - vort_cStylES_int)**2)
+    SME_n = ((n_cDNS - n_cStylES_int)**2)
+    SME_p = ((p_cDNS - p_cStylES_int)**2)
+    SME_v = ((v_cDNS - v_cStylES_int)**2)
 
-plt.plot(time_DNS, SME_n)
-plt.plot(time_DNS, SME_phi)
-plt.plot(time_DNS, SME_vort)
+    plt.plot(time_DNS, SME_n,    label=r"$n$      StylES toll m" + str(i))
+    plt.plot(time_DNS, SME_p,  label=r"$\phi$   StylES toll m" + str(i))
+    plt.plot(time_DNS, SME_v, label=r"$\omega$ StylES toll m" + str(i))
 
-plt.savefig('./analysis_comparison/SME_n.png')
+plt.legend(fontsize="5", loc ="upper left")
+plt.savefig('./analysis_comparison/SME.png')
+plt.close()
+
+
+# SME on images
+sumcst = 0
+cst.append(0)
+for j in range(len(listRUN)-1):
+
+    id = 0
+    SME_n = []
+    SME_p = []
+    SME_v = []
+    for i in range (cst[j+1]):
+        ii = sumcst + i
+        if (time_StylES[ii]>=time_DNS[id]):
+            SME_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
+            SME_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
+            SME_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
+
+            id = id+1
+
+    sumcst = sumcst + cst[j+1]
+
+    if (j==0):
+        n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+    else:
+        n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        
+    plt.plot(time_DNS[0:id], SME_n, color='k', linewidth=0.5, linestyle=ls[j], label=n_label)
+    plt.plot(time_DNS[0:id], SME_p, color='r', linewidth=0.5, linestyle=ls[j], label=p_label)
+    plt.plot(time_DNS[0:id], SME_v, color='b', linewidth=0.5, linestyle=ls[j], label=v_label)
+
+
+plt.legend(fontsize="10", loc ="upper left", frameon=False)
+plt.xlabel("time units [$\omega^{-1}_i$]")
+plt.ylabel("SME")
+plt.savefig('./analysis_comparison/SME_images.png')
 plt.close()

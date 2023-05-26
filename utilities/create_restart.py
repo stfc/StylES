@@ -37,7 +37,7 @@ os.chdir('./utilities')
 
 
 # parameters
-TUNE        = True
+TUNE        = False
 TUNE_NOISE  = False
 tollLES     = 1.e-3
 N_DNS       = 2**RES_LOG2
@@ -198,8 +198,8 @@ if (TUNE):
                 # filename = "results_reconstruction/plots/plots_restart_" + str(it) + ".png"
             elif(TESTCASE=='HW' or TESTCASE=='mHW'):
                 os.system("mkdir -p ../bout_interfaces/restart_fromGAN/")
-                filename = "../bout_interfaces/restart_fromGAN.png"
-                # filename = "../bout_interfaces/restart_fromGAN_" + str(it) + ".png"
+                filename = "../bout_interfaces/restart_fromGAN/plots_DNS_restart.png"
+                # filename = "../bout_interfaces/plots_DNS_restart_" + str(it) + ".png"
             print_fields_3(U_DNS, V_DNS, P_DNS, N=N_DNS, filename=filename)
                                     
         it = it+1

@@ -39,10 +39,10 @@ from MSG_StyleGAN_tf2 import *
 
 #------------------------------------------- set local parameters
 NL          = 1     # number of different latent vectors randomly selected
-TUNE_NOISE  = True
+TUNE_NOISE  = False
 LOAD_FIELD  = False       # load field from DNS solver (via restart.npz file)
 NITEZ       = 0
-RESTART_WL  = True
+RESTART_WL  = False
 CHKP_DIR_WL = "./checkpoints_wl"
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**RES_LOG2-FIL

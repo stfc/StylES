@@ -19,9 +19,9 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+MODE        = 'READ_NETCDF'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/DNS/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS_10tu/"
 PATH_ANIMAT = "./analysis/plots/"
 #PATH_ANIMAT = "../utilities/results_reconstruction/plots/"
 FIND_MIXMAX = True
@@ -36,10 +36,10 @@ elif (MODE=='MAKE_ANIMATION'):
     files = os.listdir(PATH_ANIMAT)
     FTIME = len(files)
 else:
-    FTIME = 2 # final time from netCFD
+    FTIME = 100 # final time from netCFD
 
 ITIME       = 1    # skip between STIME, FTIME, ITIME
-SKIP        = 50   # cd - skip between time steps when reading NUMPY arrays
+SKIP        = 1   # cd - skip between time steps when reading NUMPY arrays
 DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 min_U       = None
 max_U       = None
