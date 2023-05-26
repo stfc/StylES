@@ -946,7 +946,7 @@ def step_find_latents_DNS(wl_synthesis, filter, opt, w0, w1, imgA, fimgA, ltv):
 
 
 @tf.function
-def step_find_latents_LES(wl_synthesis, filter, opt, w0, w1, fimgA, ltv, INIT_SCAL):
+def step_find_latents_LES(wl_synthesis, filter, opt, w0, w1, fimgA, ltv, INIT_SCAL=1.0):
     with tf.GradientTape() as tape_LES:
         
         # find predictions
