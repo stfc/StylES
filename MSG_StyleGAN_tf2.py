@@ -450,7 +450,7 @@ for layer in synthesis.layers:
             ltv_DNS.append(variable)
 
 # print("LES noises:")
-# for variable in ltv:
+# for variable in ltv_LES:
 #     print(variable.name)
 
 # print("DNS noises:")

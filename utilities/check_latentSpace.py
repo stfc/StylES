@@ -38,10 +38,11 @@ from MSG_StyleGAN_tf2 import *
 
 
 #------------------------------------------- set local parameters
-NL          = 1     # number of different latent vectors randomly selected
+NL          = 5     # number of different latent vectors randomly selected
 TUNE_NOISE  = False
 LOAD_FIELD  = False       # load field from DNS solver (via restart.npz file)
 NITEZ       = 0
+CHECK_FIL   = False
 RESTART_WL  = False
 CHKP_DIR_WL = "./checkpoints_wl"
 N_DNS       = 2**RES_LOG2
@@ -361,85 +362,86 @@ for k in range(NL):
     predictions = wl_synthesis([w0, w1], training=False) 
     UVP_DNS     = predictions[RES_LOG2-2]
     UVP_LES     = predictions[RES_LOG2-FIL-2]
-      
-    # DNS fields
-    U_DNS = UVP_DNS[0,0,:,:]
-    V_DNS = UVP_DNS[0,1,:,:]
-    P_DNS = UVP_DNS[0,2,:,:]
+    
+    if (CHECK_FIL):
+        # DNS fields
+        U_DNS = UVP_DNS[0,0,:,:]
+        V_DNS = UVP_DNS[0,1,:,:]
+        P_DNS = UVP_DNS[0,2,:,:]
 
-    # LES fields
-    U_LES = UVP_LES[0,0,:,:]
-    V_LES = UVP_LES[0,1,:,:]
-    P_LES = UVP_LES[0,2,:,:]
+        # LES fields
+        U_LES = UVP_LES[0,0,:,:]
+        V_LES = UVP_LES[0,1,:,:]
+        P_LES = UVP_LES[0,2,:,:]
+            
+        # fDNS fields
+        fU_DNS   = (filter(U_DNS[tf.newaxis,tf.newaxis,:,:]))
+        fV_DNS   = (filter(V_DNS[tf.newaxis,tf.newaxis,:,:]))
+        fP_DNS   = (filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))
+        fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], 1)  
+        fU_DNS   = fUVP_DNS[0,0,:,:]
+        fV_DNS   = fUVP_DNS[0,1,:,:]
+        fP_DNS   = fUVP_DNS[0,2,:,:]   
+
+
+        #-------- verify filter properties
+        cf_DNS =                               (10.0*U_DNS)[tf.newaxis,tf.newaxis,:,:]  # conservation
+        lf_DNS =                            (U_DNS + V_DNS)[tf.newaxis,tf.newaxis,:,:]  # linearity
+        df_DNS = ((tr(P_DNS, 1, 0) - tr(P_DNS,-1, 0))/DELX)[tf.newaxis,tf.newaxis,:,:]  # commutative with derivatives
         
-    # fDNS fields
-    fU_DNS   = (filter(U_DNS[tf.newaxis,tf.newaxis,:,:]))
-    fV_DNS   = (filter(V_DNS[tf.newaxis,tf.newaxis,:,:]))
-    fP_DNS   = (filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))
-    fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], 1)  
-    fU_DNS   = fUVP_DNS[0,0,:,:]
-    fV_DNS   = fUVP_DNS[0,1,:,:]
-    fP_DNS   = fUVP_DNS[0,2,:,:]   
+        cf_DNS = (filter(cf_DNS))[0,0,:,:]
+        lf_DNS = (filter(lf_DNS))[0,0,:,:]
+        df_DNS = (filter(df_DNS))[0,0,:,:]
+        
+        c_LES = 10*U_LES
+        l_LES = U_LES + V_LES
+        d_LES = (tr((filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:], 1, 0) \
+            - tr((filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:],-1, 0))/delx_LES
+        
+
+        #-------- plots
+        # fields
+        filename = "results_latentSpace/plots/plots_LES_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(U_LES, V_LES, P_LES, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None)
+
+        filename = "results_latentSpace/plots/plots_fDNS_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(fU_DNS, fV_DNS, fP_DNS, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None)
+
+        filename = "results_latentSpace/plots/plots_diffLES_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(U_LES-fU_DNS, V_LES-fV_DNS, P_LES-fP_DNS, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
 
 
-    #-------- verify filter properties
-    cf_DNS =                               (10.0*U_DNS)[tf.newaxis,tf.newaxis,:,:]  # conservation
-    lf_DNS =                            (U_DNS + V_DNS)[tf.newaxis,tf.newaxis,:,:]  # linearity
-    df_DNS = ((tr(P_DNS, 1, 0) - tr(P_DNS,-1, 0))/DELX)[tf.newaxis,tf.newaxis,:,:]  # commutative with derivatives
-    
-    cf_DNS = (filter(cf_DNS))[0,0,:,:]
-    lf_DNS = (filter(lf_DNS))[0,0,:,:]
-    df_DNS = (filter(df_DNS))[0,0,:,:]
-    
-    c_LES = 10*U_LES
-    l_LES = U_LES + V_LES
-    d_LES = (tr((filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:], 1, 0) \
-           - tr((filter(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:],-1, 0))/delx_LES
-    
+        # filter properties
+        filename = "results_latentSpace/plots/plots_conservation_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(cf_DNS, c_LES, cf_DNS-c_LES, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
 
-    #-------- plots
-    # fields
-    filename = "results_latentSpace/plots/plots_LES_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(U_LES, V_LES, P_LES, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None)
+        filename = "results_latentSpace/plots/plots_linearity_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(lf_DNS, l_LES, lf_DNS-l_LES, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
 
-    filename = "results_latentSpace/plots/plots_fDNS_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(fU_DNS, fV_DNS, fP_DNS, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None)
-
-    filename = "results_latentSpace/plots/plots_diffLES_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(U_LES-fU_DNS, V_LES-fV_DNS, P_LES-fP_DNS, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
+        filename = "results_latentSpace/plots/plots_derivatives_lat" + str(k) + "_res" + str(res) + ".png"
+        print_fields_3(df_DNS, d_LES, df_DNS-d_LES, N=res, filename=filename, testcase=TESTCASE, \
+                    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
 
 
-    # filter properties
-    filename = "results_latentSpace/plots/plots_conservation_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(cf_DNS, c_LES, cf_DNS-c_LES, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
-
-    filename = "results_latentSpace/plots/plots_linearity_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(lf_DNS, l_LES, lf_DNS-l_LES, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
-
-    filename = "results_latentSpace/plots/plots_derivatives_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(df_DNS, d_LES, df_DNS-d_LES, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
-
-
-    # spectrum
-    filename = "results_latentSpace/energy/energy_spectrum_LES_lat" + str(k) + "_res" + str(res) + ".png"
-    if (TESTCASE=='HIT_2D'):
-        plot_spectrum(U_LES, V_LES, L, filename, close=True, label='LES')
-    elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        gradV_LES = np.sqrt(((cr(V_LES, 1, 0) - cr(V_LES, -1, 0))/(2.0*delx_LES))**2 + ((cr(V_LES, 0, 1) - cr(V_LES, 0, -1))/(2.0*dely_LES))**2)
-        plot_spectrum(U_LES, gradV_LES, L, filename, close=True, label='LES')
+        # spectrum
+        filename = "results_latentSpace/energy/energy_spectrum_LES_lat" + str(k) + "_res" + str(res) + ".png"
+        if (TESTCASE=='HIT_2D'):
+            plot_spectrum(U_LES, V_LES, L, filename, close=True, label='LES')
+        elif (TESTCASE=='HW' or TESTCASE=='mHW'):
+            gradV_LES = np.sqrt(((cr(V_LES, 1, 0) - cr(V_LES, -1, 0))/(2.0*delx_LES))**2 + ((cr(V_LES, 0, 1) - cr(V_LES, 0, -1))/(2.0*dely_LES))**2)
+            plot_spectrum(U_LES, gradV_LES, L, filename, close=True, label='LES')
 
 
 
 
     #--------------------------------------------- find fields for each layer
     closePlot=False
-    for kk in range(RES_LOG2-FIL, RES_LOG2+1):
+    for kk in range(RES_LOG2, RES_LOG2+1):
         UVP_DNS = predictions[kk-2]
         res = 2**kk
         

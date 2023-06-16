@@ -19,11 +19,14 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_bout/fields/DNS/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS_10tu/"
-PATH_ANIMAT = "./analysis/plots/"
-#PATH_ANIMAT = "../utilities/results_reconstruction/plots/"
+MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
+# PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
+PATH_ANIMAT_PLOTS = "./analysis/plots/"
+PATH_ANIMAT_ENERGY = "./analysis/energy/"
+# PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
+# PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
@@ -33,10 +36,12 @@ if (MODE=='READ_NUMPY'):
     files = os.listdir(PATH_NUMPY)
     FTIME = len(files)
 elif (MODE=='MAKE_ANIMATION'):
-    files = os.listdir(PATH_ANIMAT)
+    files = os.listdir(PATH_ANIMAT_PLOTS)
     FTIME = len(files)
 else:
-    FTIME = 100 # final time from netCFD
+    FTIME = 1 # final time from netCFD
+
+print("There are " + str(FTIME) + " files")
 
 ITIME       = 1    # skip between STIME, FTIME, ITIME
 SKIP        = 1   # cd - skip between time steps when reading NUMPY arrays
@@ -252,7 +257,7 @@ elif (MODE=='READ_NUMPY'):
         if (i%SKIP==0):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
-            simtime   = np.cast[DTYPE](data['simtime'])
+            simtime   = i #np.cast[DTYPE](data['simtime'])
             Img_n     = np.cast[DTYPE](data['U'])
             Img_phi   = np.cast[DTYPE](data['V'])
             Img_vort  = np.cast[DTYPE](data['P'])
@@ -292,21 +297,47 @@ if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
     filename="./analysis/energy/energy_vs_time"
     np.savez(filename, time=time, Energy=Energy)
     plt.plot(time, Energy)
-    plt.savefig('./analysis/energy/energy_vs_time.png')
+    plt.savefig('./analysis/energy_vs_time.png')
     plt.close()
 
 
 
-# #----------------------------- make animation
-anim_file = 'animation.gif'
-filenames = glob.glob(PATH_ANIMAT + "*.png")
+#----------------------------- make animation fields
+anim_file = 'animation_plots.gif'
+filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
 filenames = sorted(filenames)
 
-ftime = np.diff(time)
-ftime = np.insert(ftime, 0, time[0])
-ftime = np.min(ftime) + ftime
-ftime = ftime*DELT
-ftime = ftime.tolist()
+if (MODE!="MAKE_ANIMATION"):
+    ftime = np.diff(time)
+    ftime = np.insert(ftime, 0, time[0])
+    ftime = np.min(ftime) + ftime
+    ftime = ftime*DELT
+    ftime = ftime.tolist()
+
+with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+    for filename in filenames:
+        print(filename)
+        image = imageio.v2.imread(filename)
+        writer.append_data(image)
+    image = imageio.v2.imread(filename)
+    writer.append_data(image)
+
+import tensorflow_docs.vis.embed as embed
+embed.embed_file(anim_file)
+
+
+
+#----------------------------- make animation energy
+anim_file = 'animation_energy.gif'
+filenames = glob.glob(PATH_ANIMAT_ENERGY + "/*.png")
+filenames = sorted(filenames)
+
+if (MODE!="MAKE_ANIMATION"):
+    ftime = np.diff(time)
+    ftime = np.insert(ftime, 0, time[0])
+    ftime = np.min(ftime) + ftime
+    ftime = ftime*DELT
+    ftime = ftime.tolist()
 
 with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
     for filename in filenames:
