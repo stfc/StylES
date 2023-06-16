@@ -133,17 +133,17 @@ def StyleGAN_load_fields(file_path):
             data[1,:,:] = V
             data[2,:,:] = P
         else:
-            if (TESTCASE=='mHW'):
-                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
-                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
-                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
-            else:
-                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
-                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
-            data[0,:,:] = U_DNS_g[::rs,::rs]
-            data[1,:,:] = V_DNS_g[::rs,::rs]  
-            data[2,:,:] = P_DNS_g[::rs,::rs]  
+            # if (TESTCASE=='mHW'):
+            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
+            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
+            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
+            # else:
+            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
+            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
+            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
+            data[0,:,:] = U[::rs,::rs]
+            data[1,:,:] = V[::rs,::rs]  
+            data[2,:,:] = P[::rs,::rs]  
 
         img_out.append(data)
 
@@ -167,7 +167,7 @@ else:
 
 
 # prepare training dataset
-def prepare_for_training(ds, cache=True, batch_size=BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
+def prepare_for_training(ds, cache=False, batch_size=BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
 
     # take batch size
     ds = ds.batch(batch_size)
@@ -382,7 +382,12 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
             if (NUM_CHANNELS == 3):
 
                 # print divergence
-                divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
+                if (TESTCASE=='HIT_2D'):
+                    divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
+                else:
+                    divergence = 0.0
+                    dUdt       = 0.0
+                    dVdt       = 0.0
                 div[reslog] = divergence
                 momU[reslog] = dUdt
                 momV[reslog] = dVdt

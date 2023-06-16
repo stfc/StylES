@@ -89,8 +89,8 @@ SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 NEXAMPLES         = 1 
-AMP_NOISE         = 0.5
-NC_NOISE          = 200
+AMP_NOISE         = 0.1
+NC_NOISE          = 10
 NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = False
 
@@ -126,12 +126,14 @@ BETA2_DIS        = 0.99
 
 
 # Reconstruction hyper-parameters
+NWTOT     = 2
+INIT_SCAL = 10.0
 
 # learning rate for DNS optimizer
 lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-1   # exponential policy initial learning rate
+lr_DNS        = 1.0e-6   # exponential policy initial learning rate
 lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
@@ -144,7 +146,9 @@ lr_DNS_BETA2  = 0.99
 lr_LES_maxIt  = 100000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
-lr_LES        = 1.0e-1   # exponential policy initial learning rate
+lr_LES_coarse = 1.0e-3   # exponential policy initial learning rate
+lr_LES_medium = 1.0e-2   # exponential policy initial learning rate
+lr_LES_finest = 1.0e-1   # exponential policy initial learning rate
 lr_LES_RATE   = 1.0       # exponential policy decay rate
 lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
 lr_LES_EXP_ST = False      # exponential policy staircase

@@ -56,7 +56,7 @@ def save_fields(totTime, U, V, P, C=None, B=None, W=None, filename="restart.npz"
 
 
 
-def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=None, ylim=None, useLogSca=False):
+def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e2], ylim=[1e-8, 1e1], useLogSca=True):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -65,6 +65,15 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=None, ylim=Non
     if useLogSca:
         plt.xscale("log")
         plt.yscale("log")
+
+    # xLogLim    = [1.0e0, 1000]   # to do: to make nmore general
+    # yLogLim    = [1.e-8, 0.1]
+    # xLinLim    = [0.0e0, 600]
+    # yLinLim    = [0.0e0, 1.0]
+    # xLogLim    = [1.0e-1, 1.e+3]
+    # yLogLim    = [1.e-11, 1.e+2]
+    # xLinLim    = [0.0e0, 600]
+    # yLinLim    = [0.0e0, 0.1]
 
     plt.xlim(xlim)
     plt.ylim(ylim) 
@@ -75,9 +84,13 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=None, ylim=Non
     else:    
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
    
+    plt.xlabel("$k$")
+    # plt.ylabel("$\mathcal{E} (k)$")
+    plt.ylabel("$\mathcal{F} (\phi)$")
 
+
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)
     if (close):
-        plt.savefig(filename, bbox_inches='tight', pad_inches=0)
         plt.close()
 
     filename = filename.replace(".png",".txt")

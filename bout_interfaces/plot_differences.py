@@ -92,7 +92,7 @@ for lrun in listRUN:
         files       = os.listdir(PATH_NUMPY)
         STIME       = 0    # starting time to take as first image
         FTIME       = len(files)
-        ITIME       = int(len(files)/101)   # cd - skip between time steps when reading NUMPY arrays
+        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
         DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 
     #------------ read data
@@ -191,9 +191,19 @@ for lrun in listRUN:
         tail        = lrun.replace('StylES_m','')
         i1 = cst[i]
         i2 = cst[i]+cst[i+1]
-        plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color='k', linewidth=0.5, linestyle=ls[i], label=r"$n$ StylES_m" + tail)
-        plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color='r', linewidth=0.5, linestyle=ls[i], label=r"$\phi$ StylES_m" + tail)
-        plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color='b', linewidth=0.5, linestyle=ls[i], label=r"$\omega$ StylES_m" + tail)
+        
+        if (tail=="2"):
+            n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+            p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+            v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        else:
+            n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+            p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+            v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        
+        plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color='k', linewidth=0.5, linestyle=ls[i], label=n_label)
+        plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color='r', linewidth=0.5, linestyle=ls[i], label=p_label)
+        plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color='b', linewidth=0.5, linestyle=ls[i], label=v_label)
 
         filename="./analysis_comparison/DNS_vs_StylES_cUVP_m" + tail
         np.savez(filename, time_DNS=time_DNS, time_StylES=time_StylES, \
@@ -202,69 +212,159 @@ for lrun in listRUN:
         
         i = i+1
 
-plt.legend(fontsize="5", loc ="upper right")
+plt.legend(fontsize="5", loc ="upper left", frameon=False)
+plt.xlabel("time units [$\omega^{-1}_i$]")
+plt.ylabel("fields")
 plt.savefig('./analysis_comparison/DNS_vs_StylES_UVP.png', dpi=200)
 plt.close()
 
 
-# SME on centerline
-for i in range(len(listRUN)-1):
-    i1 = cst[i]
-    i2 = cst[i]+cst[i+1]
+# # fields
+# colDNS = np.linspace(0,1,num=len(time_DNS))
+# for f in range(3):
 
-    n_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], n_cStylES[i1:i2])
-    p_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], p_cStylES[i1:i2])
-    v_cStylES_int = np.interp(time_DNS, time_StylES[i1:i2], v_cStylES[i1:i2])
+#     if (f==0):
+#         fDNS    = n_cDNS
+#         fStylES = n_cStylES
+#         cmap    = 'jet'
+#         label   = r"$n$"
+#     elif (f==1):
+#         fDNS    = p_cDNS
+#         fStylES = p_cStylES
+#         cmap    = 'jet'
+#         label   = r"$\phi$"
+#     elif (f==2):
+#         fDNS    = v_cDNS
+#         fStylES = v_cStylES
+#         cmap    = 'jet'
+#         label   = r"$\omega$"
 
-    SME_n = ((n_cDNS - n_cStylES_int)**2)
-    SME_p = ((p_cDNS - p_cStylES_int)**2)
-    SME_v = ((v_cDNS - v_cStylES_int)**2)
+#     i = 0
+#     for lrun in listRUN:
+            
+#         if (lrun=='DNS'):
+#             marker  = '^'
+#             plt.scatter(time_DNS, fDNS, c=colDNS, vmax=2, cmap=cmap, marker=marker, s=5, label=label + " DNS")
+#         elif ('StylES' in lrun):
+#             tail        = lrun.replace('StylES_m','')
+#             i1 = cst[i]
+#             i2 = cst[i]+cst[i+1]
+            
+#             if (tail=="2"):
+#                 marker  = 'o'
+#                 n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 colStylES = np.linspace(0,0.5,num=len(time_StylES[i1:i2]))
+#                 vmax      = 1.5
+#             else:
+#                 marker  = '*'
+#                 n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 colStylES = np.linspace(0,1,num=len(time_StylES[i1:i2]))
+#                 vmax      = 1
+            
+#             plt.scatter(time_StylES[i1:i2], fStylES[i1:i2], c=colStylES, vmax=vmax, cmap=cmap, marker=marker, s=5, label=label + " StylES")
+                    
+#             i = i+1
 
-    plt.plot(time_DNS, SME_n,    label=r"$n$      StylES toll m" + str(i))
-    plt.plot(time_DNS, SME_p,  label=r"$\phi$   StylES toll m" + str(i))
-    plt.plot(time_DNS, SME_v, label=r"$\omega$ StylES toll m" + str(i))
-
-plt.legend(fontsize="5", loc ="upper left")
-plt.savefig('./analysis_comparison/SME.png')
-plt.close()
+#     plt.legend(fontsize="10", loc ="lower left", frameon=False)
+#     plt.xlabel("time units [$\omega^{-1}_i$]")
+#     plt.ylabel(label)
+#     plt.savefig('./analysis_comparison/DNS_vs_StylES_UVP_' + str(f) + '.png', dpi=200)
+#     plt.close()
 
 
-# SME on images
+
+
+
+
+# # MSE on images
+# sumcst = 0
+# cst.append(0)
+# for j in range(len(listRUN)-1):
+
+#     id = 0
+#     MSE_n = []
+#     MSE_p = []
+#     MSE_v = []
+#     for i in range (cst[j+1]):
+#         ii = sumcst + i
+#         if (time_StylES[ii]>=time_DNS[id]):
+#             MSE_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
+#             MSE_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
+#             MSE_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
+
+#             id = id+1
+
+#     sumcst = sumcst + cst[j+1]
+
+#     if (j==0):
+#         n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#         p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#         v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#     else:
+#         n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#         p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#         v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        
+#     plt.plot(time_DNS[0:id], MSE_n, color='k', linewidth=0.5, linestyle=ls[j], label=n_label)
+#     plt.plot(time_DNS[0:id], MSE_p, color='r', linewidth=0.5, linestyle=ls[j], label=p_label)
+#     plt.plot(time_DNS[0:id], MSE_v, color='b', linewidth=0.5, linestyle=ls[j], label=v_label)
+
+
+# plt.legend(fontsize="10", loc ="upper left", frameon=False)
+# plt.xlabel("time units [$\omega^{-1}_i$]")
+# plt.ylabel("MSE")
+# plt.savefig('./analysis_comparison/MSE_images.png')
+# plt.close()
+
+# exit()
+
+
+
+
+# MSE on images
+cmap = 'jet'
 sumcst = 0
 cst.append(0)
 for j in range(len(listRUN)-1):
 
     id = 0
-    SME_n = []
-    SME_p = []
-    SME_v = []
+    MSE_n = []
+    MSE_p = []
+    MSE_v = []
     for i in range (cst[j+1]):
         ii = sumcst + i
         if (time_StylES[ii]>=time_DNS[id]):
-            SME_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
-            SME_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
-            SME_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
+            MSE_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
+            MSE_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
+            MSE_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
 
             id = id+1
 
     sumcst = sumcst + cst[j+1]
 
     if (j==0):
-        n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-        p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-        v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        colStylES = np.linspace(0,0.5,num=len(MSE_n))
+        vmax      = 1.5        
     else:
-        n_label = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-        p_label = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-        v_label = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-        
-    plt.plot(time_DNS[0:id], SME_n, color='k', linewidth=0.5, linestyle=ls[j], label=n_label)
-    plt.plot(time_DNS[0:id], SME_p, color='r', linewidth=0.5, linestyle=ls[j], label=p_label)
-    plt.plot(time_DNS[0:id], SME_v, color='b', linewidth=0.5, linestyle=ls[j], label=v_label)
+        n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        colStylES = np.linspace(0,1,num=len(MSE_n))
+        vmax      = 1        
 
-
-plt.legend(fontsize="10", loc ="upper left", frameon=False)
+    plt.scatter(time_DNS[0:id], MSE_n, c=colStylES, vmax=vmax, cmap=cmap, marker='^', s=5, label=n_label)
+    plt.scatter(time_DNS[0:id], MSE_p, c=colStylES, vmax=vmax, cmap=cmap, marker='o', s=5, label=p_label)
+    plt.scatter(time_DNS[0:id], MSE_v, c=colStylES, vmax=vmax, cmap=cmap, marker='*', s=5, label=v_label)
+            
+plt.legend(fontsize="10", loc ="upper right", frameon=False)
 plt.xlabel("time units [$\omega^{-1}_i$]")
-plt.ylabel("SME")
-plt.savefig('./analysis_comparison/SME_images.png')
+plt.ylabel("MSE")
+plt.savefig('./analysis_comparison/MSE_images.png')
 plt.close()
