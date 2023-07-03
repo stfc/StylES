@@ -1,6 +1,8 @@
 Style Eddy Simulation (StylES) is a reconstruction procedure of Direct Numerical Simulation (DNS) results from Large Eddy Simulation (LES).
 It is based on traditional LES solvers and Generative Adverserial Networks (GANs), mainly [SyleGAN](https://github.com/NVlabs/stylegan) and [MSG-Style GANs](https://github.com/akanimax/msg-stylegan-tf).
 
+Paper is available at [StylES](https://dl.acm.org/doi/10.1145/3592979.3593404)
+
 </br>
 
 # Description
