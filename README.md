@@ -8,6 +8,8 @@ Paper is available at [StylES](https://dl.acm.org/doi/10.1145/3592979.3593404)
 # Description
 The idea is to train StyleGAN on DNS data and then use the GAN generator as deconvolution operator for LES. More details are in the PASC23 ACM paper: **StyleGAN as Deconvolution operator for Large Eddy Simulation**.
 
+Paper is available at [StylES](https://dl.acm.org/doi/10.1145/3592979.3593404)
+
 </br>
 
 # Requirements
