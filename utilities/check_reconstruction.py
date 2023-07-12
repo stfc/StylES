@@ -389,8 +389,9 @@ for tv, tollLES in enumerate(tollLESValues):
             if (tf.reduce_min(mLES)<0 or tf.reduce_max(mLES)>1):
                 print("Find new w1...")
                 wa = mLESo*w0[:,0:M_LAYERS,:] + (1.0-mLESo)*w1[:,0:M_LAYERS,:]
-                wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-                wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+                mb = mLESo[M_LAYERS-1:M_LAYERS,:]
+                mb = tf.tile(mb, [G_LAYERS-M_LAYERS,1])
+                wb = mb*w0[:,M_LAYERS:G_LAYERS,:] + (1.0-mb)*w1[:,M_LAYERS:G_LAYERS,:]
                 wa = wa[:,0:M_LAYERS,:]
                 wt = tf.concat([wa,wb], axis=1)
                 w1 = 2*wt - wto
@@ -445,8 +446,9 @@ for tv, tollLES in enumerate(tollLESValues):
         # save old w
         mLES = layer_LES.trainable_variables[0]
         wa = mLES*w0[:,0:M_LAYERS,:] + (1.0-mLES)*w1[:,0:M_LAYERS,:]
-        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        mb = mLES[M_LAYERS-1:M_LAYERS,:]
+        mb = tf.tile(mb, [G_LAYERS-M_LAYERS,1])
+        wb = mb*w0[:,M_LAYERS:G_LAYERS,:] + (1.0-mb)*w1[:,M_LAYERS:G_LAYERS,:]
         wa = wa[:,0:M_LAYERS,:]
         wto = tf.concat([wa,wb], axis=1)
 

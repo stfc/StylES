@@ -337,8 +337,9 @@ class layer_wlatent_mLES(layers.Layer):
 
     def call(self, w0, w1):
         wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        mb = self.m[M_LAYERS-1:M_LAYERS,:]
+        mb = tf.tile(mb, [G_LAYERS-M_LAYERS,1])
+        wb = mb*w0[:,M_LAYERS:G_LAYERS,:] + (1.0-mb)*w1[:,M_LAYERS:G_LAYERS,:]
         wa = wa[:,0:M_LAYERS,:]
         w  = tf.concat([wa,wb], axis=1)
         return w
