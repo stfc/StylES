@@ -39,7 +39,7 @@ os.chdir('./utilities')
 
 # local parameters
 USE_DLATENTS   = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NINTER         = 101
+NINTER         = 11
 NLATS          = 1
 
 # clean up and prepare folders
@@ -99,11 +99,11 @@ for nl in range(NLATS):
             print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N=res, filename=filename, \
                 Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
-            # filename = "results_checkStyles/plots/vort_" + str(nl).zfill(2) + "_inter_" + str(ninter) + "_res_" + str(res).zfill(3) + ".png"
+            # filename = "results_checkStyles/plots/vort_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3) + ".png"
             # print_fields_1(vor_DNS_t, filename)
 
-            # filename = "results_checkStyles/fields/fields_" + str(nl).zfill(2) + "_inter_" + str(ninter) + "_res_" + str(res).zfill(3)
-            # save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
+            filename = "results_checkStyles/fields/fields_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3)
+            save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
 
             print("Interpolation step " + str(ninter+1) + " of " + str(NINTER))
 

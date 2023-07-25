@@ -12,7 +12,7 @@
             // "cwd": "${workspaceFolder}/",
             // "program": "LES_solver_staggered.py",
             // "cwd": "${workspaceFolder}/LES_Solvers/",
-            "program": "create_restart.py",
+            "program": "check_reconstruction.py",
             "cwd": "${workspaceFolder}/utilities/",
             // "program": "plot_differences.py",
             // "cwd": "${workspaceFolder}/bout_interfaces/",

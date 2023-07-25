@@ -45,9 +45,8 @@ SEED_RESTART = 5
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
-
-TESTCASE          = 'HW' 
-DATASET           = '/archive/jcastagna/Fields/HW/fields_N512_k1_singleImg/'
+TESTCASE          = 'HIT_2D' 
+DATASET           = '/archive/jcastagna/Fields/HIT_2D/fields_N256/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -83,24 +82,24 @@ G_LAYERS_FIL      = RES_LOG2-FIL*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
 
-NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
+NUM_CHANNELS      = 3 # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
+BUFFER_SIZE       = 4995 #same size of the number of images in DATASET
 NEXAMPLES         = 1 
-AMP_NOISE         = 0.1
-NC_NOISE          = 10
+AMP_NOISE_MAX     = 0.25
+NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
-TOT_ITERATIONS = 10
-PRINT_EVERY    = 1
-IMAGES_EVERY   = 10
+TOT_ITERATIONS = 1000000
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
 SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
-IRESTART       = True
+IRESTART       = False
 
 # learning rates
 LR_GEN           = 7.5e-4
@@ -126,14 +125,20 @@ BETA2_DIS        = 0.99
 
 
 # Reconstruction hyper-parameters
-NWTOT     = 2
-INIT_SCAL = 10.0
+NWTOT     = 10
+GAMMA     = 0.5
+LOG2NWTOT = int(np.log2(NWTOT))
+if (TESTCASE=='HIT_2D'):
+    INIT_SCAL = 1.0
+elif (TESTCASE=='HW' or TESTCASE=='mHW'):
+    INIT_SCAL = 5.0
+
 
 # learning rate for DNS optimizer
-lr_DNS_maxIt  = 100000
+lr_DNS_maxIt  = 100
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-6   # exponential policy initial learning rate
+lr_DNS        = 1.0e-3   # exponential policy initial learning rate
 lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
@@ -146,9 +151,7 @@ lr_DNS_BETA2  = 0.99
 lr_LES_maxIt  = 100000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
-lr_LES_coarse = 1.0e-3   # exponential policy initial learning rate
-lr_LES_medium = 1.0e-2   # exponential policy initial learning rate
-lr_LES_finest = 1.0e-1   # exponential policy initial learning rate
+lr_LES        = 1.0e-3   # exponential policy initial learning rate
 lr_LES_RATE   = 1.0       # exponential policy decay rate
 lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
 lr_LES_EXP_ST = False      # exponential policy staircase
