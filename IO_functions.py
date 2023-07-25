@@ -167,7 +167,7 @@ else:
 
 
 # prepare training dataset
-def prepare_for_training(ds, cache=False, batch_size=BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
+def prepare_for_training(ds, cache=True, batch_size=BATCH_SIZE, shuffle_buffer_size=BUFFER_SIZE, augment=False):
 
     # take batch size
     ds = ds.batch(batch_size)

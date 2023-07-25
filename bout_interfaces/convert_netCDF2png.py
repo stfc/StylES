@@ -8,6 +8,9 @@ import sys
 from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
+
+sys.path.insert(0, '../LES_Solvers/')
+
 from LES_plot import *
 from LES_functions import *
 
@@ -19,14 +22,15 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
-# PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
+MODE        = 'MAKE_ANIMATION'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+# PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
+PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-PATH_ANIMAT_PLOTS = "./analysis/plots/"
 PATH_ANIMAT_ENERGY = "./analysis/energy/"
+# PATH_ANIMAT_PLOTS = "./analysis/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
+PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
 FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
@@ -57,7 +61,7 @@ max_P       = None
 useLogSca = True
 xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
 yLogLim   = [1.e-10, 10.]
-xLinLim   = [0.0e0, 600]
+xLinLim   = [0.0e0, 600] 
 yLinLim   = [0.0e0, 1.0]
 time      = []
 Energy    = []

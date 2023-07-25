@@ -29,6 +29,7 @@ print_ckp = 100
 print_spe = 1000
 statsTime = 0.0
 NRUNS     = 1   # number of total runs to execute
+FILE_RES  = "./restart_fromGAN/restart.npz"
 
 te_s = []
 te   = []

@@ -364,6 +364,9 @@ def print_fields_4_diff(U_DNS_, U_LES_, U_, diff_, N, filename, testcase='HIT_2D
     ax3.axes.yaxis.set_visible(False)
     ax3.axis('off')
 
+    Pmin = np.min(U_DNS)
+    Pmax = np.max(U_DNS)
+
     pres = ax4.pcolormesh(diff, cmap='jet', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
     #fig.colorbar(pres, ax=ax4)
     ax4.title.set_text(labelB)

@@ -322,7 +322,7 @@ def initFlow(npv):
     else:
 
         resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = step_find_latents_LES_restart_A(wl_synthesis, filter, w0, INIT_SCAL)
-        print("Starting residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fill {3:3e} " \
+        print("Starting residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
             .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
         # find fields
@@ -524,7 +524,7 @@ def findLESTerms(pLES):
     tstart = time.time()
     # resREC = tollLES+1
     resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = step_find_residuals(wl_synthesis, filter, w0, fimgA, INIT_SCAL)
-    # print("Starting residuals:  step {0:3d}   simtime {1:3e}   resREC {2:3e} resLES {3:3e}  resDNS {4:3e} loss_fill {5:3e} " \
+    # print("Starting residuals:  step {0:3d}   simtime {1:3e}   resREC {2:3e} resLES {3:3e}  resDNS {4:3e} loss_fil {5:3e} " \
     #      .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
             
     # # to make sure we use the same restarting point as comparison between difference tollerances...
@@ -674,7 +674,7 @@ def findLESTerms(pLES):
         # if (it%1==0):
         if (it!=0 and (it+1)%100==0):
             tend = time.time()
-            print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fill {6:3e}" \
+            print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fil {6:3e}" \
                 .format(tend-tstart, pStep, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
 
@@ -686,7 +686,7 @@ def findLESTerms(pLES):
         
         # print final residuals
         # tend = time.time()
-        print("Finishing residuals:  step {0:5d}   it {1:3d}   simtime {2:3e}   resREC {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fill {6:3e} " \
+        print("Finishing residuals:  step {0:5d}   it {1:3d}   simtime {2:3e}   resREC {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fil {6:3e} " \
             .format(pStep, it, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))    
 
         # find derivatives
@@ -768,7 +768,7 @@ if (RUN_TEST):
         # # if (it%10==0):
         # if (it!=0 and it%100==0):
         #     tend = time.time()
-        #     print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fill {6:3e}  lrc {7:3e}  lrm {8:3e}  lrf {9:3e} " \
+        #     print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fil {6:3e}  lrc {7:3e}  lrm {8:3e}  lrf {9:3e} " \
         #         .format(tend-tstart, pStep, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lrc, lrm, lrf))
 
         #     # resREC, resLES, resDNS, UVP_DNS, UVP_LES, fUVP_DNS, loss_fil = step_find_residuals(wl_synthesis, filter, w0, fimgA, INIT_SCAL)
