@@ -249,7 +249,7 @@ def step_find_latents_LES(latents, fimgA, ltv):
         UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
 
         # filter        
-        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
+        fUVP_DNS = filters[IFIL](UVP_DNS, training=False)
 
         # find residuals
         resDNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, fimgA))
@@ -333,7 +333,7 @@ while (resREC>tollLES and it<lr_LES_maxIt):
 
         # print residuals
         tend = time.time()
-        print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fil {6:3e}  lr {7:3e} " \
+        print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fill {6:3e}  lr {7:3e} " \
             .format(tend-tstart, k, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
 
@@ -358,7 +358,7 @@ while (resREC>tollLES and it<lr_LES_maxIt):
 # print final residuals
 lr = lr_schedule_LES(it)
 tend = time.time()
-print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fil {6:3e}  lr {7:3e} " \
+print("LES iterations:  time {0:3e}   step {1:4d}  it {2:6d}  residuals {3:3e} resLES {4:3e}  resDNS {5:3e} loss_fill {6:3e}  lr {7:3e} " \
     .format(tend-tstart, k, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
 
@@ -453,7 +453,7 @@ while (tstep<totSteps and totTime<finalTime):
 
     # filter them
     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
-    NL = filter[FIL](tNL_DNS, training=False)
+    NL = filters[IFIL](tNL_DNS, training=False)
     fUU = NL[0, 0, :, :].numpy()
     fUV = NL[0, 1, :, :].numpy()
     fVV = NL[0, 2, :, :].numpy()
