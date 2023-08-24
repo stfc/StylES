@@ -29,7 +29,6 @@ print_ckp = 1000
 print_spe = 1000
 statsTime = 0.0
 NRUNS     = 333   # number of total runs to execute
-FILE_RES  = "./restart.npz"
 
 # te_s = []
 # te   = []

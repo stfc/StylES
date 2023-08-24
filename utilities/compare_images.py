@@ -50,8 +50,9 @@ os.chdir('./utilities')
 #-------------------------------- local variables, initialization and functions
 N_DNS = 2**RES_LOG2
 
-FILE_REAL  = "./results_latentSpace/fields_org/fields_lat0_res" + str(N_DNS) + ".npz"
-FILE_STYLE = "./results_latentSpace/fields/fields_lat0_res"     + str(N_DNS) + ".npz"
+FILE_PATH  = "../../../data/BOUT_runs/Papers/PoP23/HW_N256/fields/"
+FILE_REAL  = FILE_PATH + "fields_run0_time741.npz"
+FILE_STYLE = FILE_PATH + "fields_run0_time761.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
@@ -70,6 +71,18 @@ if (TESTCASE=='HW' or TESTCASE=='mHW'):
 
 def cr(phi, i, j):
     return np.roll(phi, (-i, -j), axis=(0,1))
+
+def compare_SSIM(imageA, imageB, title):
+    # compute SSIM only
+
+    # index for the images
+    m = np.mean((imageA - imageB)**2)   # Mean Square Error
+    if (NUM_CHANNELS==1):
+        s = ssim(imageA, imageB, multichannel=False)
+    else:
+        s = ssim(imageA, imageB, multichannel=True, channel_axis=2, data_range=2)
+
+    return s
 
 
 def compare_images(imageA, imageB, title):
@@ -224,67 +237,90 @@ def trim(im):
 
 
 #-------------------------------- starts comparison
-if (FILE_REAL.endswith('.npz')):
+def load_images(file_real, file_Style):
+    if (file_real.endswith('.npz')):
 
-    # load numpy array
-    orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
-    img_in = StyleGAN_load_fields(FILE_REAL)
-    orig[:,:,0] = img_in[-1][0,:,:]
-    orig[:,:,1] = img_in[-1][1,:,:]
-    orig[:,:,2] = img_in[-1][2,:,:]
-    orig = np.cast[DTYPE](orig)
+        # load numpy array
+        orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+        img_in = StyleGAN_load_fields(file_real)
+        orig[:,:,0] = img_in[-1][0,:,:]
+        orig[:,:,1] = img_in[-1][1,:,:]
+        orig[:,:,2] = img_in[-1][2,:,:]
+        orig = np.cast[DTYPE](orig)
 
-elif (FILE_REAL.endswith('.png')):
+    elif (file_real.endswith('.png')):
 
-    # load image
-    orig = Image.open(FILE_REAL).convert('RGB')
+        # load image
+        orig = Image.open(file_real).convert('RGB')
 
-    # convert to black and white, if needed
-    if (NUM_CHANNELS==1):
-        orig = orig.convert("L")
+        # convert to black and white, if needed
+        if (NUM_CHANNELS==1):
+            orig = orig.convert("L")
 
-    # remove white spaces
-    #orig = trim(orig)
+        # remove white spaces
+        #orig = trim(orig)
 
-    # resize images
-    orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
+        # resize images
+        orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
 
-    # convert to numpy array
-    orig = np.asarray(orig, dtype=DTYPE)
-    orig = orig/255.0
-
-
-# load style images
-if (FILE_STYLE.endswith('.npz')):
-
-    style = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
-    img_in = StyleGAN_load_fields(FILE_STYLE)
-    style[:,:,0] = img_in[-1][0,:,:]
-    style[:,:,1] = img_in[-1][1,:,:]
-    style[:,:,2] = img_in[-1][2,:,:]
-    style = np.cast[DTYPE](style)
-
-else:
-
-    # load image
-    style = Image.open(FILE_STYLE).convert('RGB')
-
-    # convert to black and white, if needed
-    if (NUM_CHANNELS==1):
-        style = style.convert("L")
-
-    # remove white spaces
-    #style = trim(style)
-
-    # resize images
-    style = style.resize((OUTPUT_DIM,OUTPUT_DIM))
-
-    # convert to numpy array
-    style = np.asarray(style, dtype=DTYPE)
-    style = style/255.0
+        # convert to numpy array
+        orig = np.asarray(orig, dtype=DTYPE)
+        orig = orig/255.0
 
 
+    # load style images
+    if (file_Style.endswith('.npz')):
+
+        style = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+        img_in = StyleGAN_load_fields(file_Style)
+        style[:,:,0] = img_in[-1][0,:,:]
+        style[:,:,1] = img_in[-1][1,:,:]
+        style[:,:,2] = img_in[-1][2,:,:]
+        style = np.cast[DTYPE](style)
+
+    else:
+
+        # load image
+        style = Image.open(file_Style).convert('RGB')
+
+        # convert to black and white, if needed
+        if (NUM_CHANNELS==1):
+            style = style.convert("L")
+
+        # remove white spaces
+        #style = trim(style)
+
+        # resize images
+        style = style.resize((OUTPUT_DIM,OUTPUT_DIM))
+
+        # convert to numpy array
+        style = np.asarray(style, dtype=DTYPE)
+        style = style/255.0
+
+    return orig, style
+
+
+# compute SSIM for all fiels in the folder
+files = os.listdir(FILE_PATH)
+nfiles = len(files)
+minSSIM = 1.0
+maxSSIM = 0.0
+
+for rr in range(100):
+    for tt in range(501,981,10):
+        curr = "fields_run" + str(rr) + "_time" + str(tt).zfill(3) + ".npz"
+        next = "fields_run" + str(rr) + "_time" + str(tt+20).zfill(3) + ".npz"
+        file_curr = FILE_PATH + curr
+        file_next = FILE_PATH + next
+        print(file_curr, file_next)
+        curr, next = load_images(file_curr, file_next)
+        s = compare_SSIM(curr, next, "results_latentSpace/Plots_DNS_diff.png")
+        minSSIM = min(s, minSSIM)
+        maxSSIM = max(s, maxSSIM)
+
+print("minSSIM, maxSSIM values are: ", minSSIM, maxSSIM)
 
 # compare the images
+orig, style = load_images(FILE_REAL, FILE_STYLE)
 compare_images(orig, style, "results_latentSpace/Plots_DNS_diff.png")
 
