@@ -87,6 +87,7 @@ def train_step(input, images):
         tf.GradientTape() as fil_tape_m2, \
         tf.GradientTape() as fil_tape_m3, \
         tf.GradientTape() as fil_tape_m4, \
+        tf.GradientTape() as fil_tape_m5, \
         tf.GradientTape() as dis_tape:
         dlatents = mapping(input, training = True)
         g_images = synthesis(dlatents, training = True)
@@ -122,6 +123,8 @@ def train_step(input, images):
         gradients_of_filters.append(fil_tape_m3.gradient(loss_filters[2], filters[2].trainable_variables))
     if (NFIL>3):
         gradients_of_filters.append(fil_tape_m4.gradient(loss_filters[3], filters[3].trainable_variables))
+    if (NFIL>4):
+        gradients_of_filters.append(fil_tape_m5.gradient(loss_filters[4], filters[4].trainable_variables))
     
     
 
