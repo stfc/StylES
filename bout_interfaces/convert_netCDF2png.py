@@ -19,7 +19,7 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
 PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
 PATH_ANIMAT = "./results/plots/"
@@ -38,7 +38,7 @@ elif (MODE=='MAKE_ANIMATION'):
 else:
     FTIME = 101 # final time from netCFD
 
-ITIME       = 1    # skip between STIME, FTIME, ITIME
+ITIME       = 1   # skip between STIME, FTIME, ITIME
 SKIP        = 1   # cd - skip between time steps when reading NUMPY arrays
 DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 min_U       = None
@@ -72,14 +72,17 @@ if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
 
 
 #----------------------------- Define the grid points
-L = 50.176
-L0 = 0.2*L
-N = 512 
-r,theta = np.meshgrid(np.linspace(L0, L0+L, N),
-                      np.linspace(1.5*np.pi, 2.5*np.pi, N),
-                      indexing="ij")
-geomR = r * np.sin(theta)
-geomZ = r * np.cos(theta)
+geomR = None
+geomZ = None
+
+# L = 50.176
+# L0 = 0.2*L
+# N = 512 
+# r,theta = np.meshgrid(np.linspace(L0, L0+L, N),
+#                       np.linspace(1.5*np.pi, 2.5*np.pi, N),
+#                       indexing="ij")
+# geomR = r * np.sin(theta)
+# geomZ = r * np.cos(theta)
 
 
 
