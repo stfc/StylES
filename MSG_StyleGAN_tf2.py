@@ -400,7 +400,10 @@ mapping       = make_mapping_model()
 synthesis     = make_synthesis_model()
 discriminator = make_discriminator_model()
 
-filter = make_filter_model(RES_LOG2, RES_LOG2-FIL)
+filters = [] 
+for fil in range(NFIL):
+    filter = make_filter_model(RES_LOG2, RES_LOG2-(1+fil))
+    filters.append(filter)
 
 
 #mapping.summary()
@@ -422,7 +425,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                     discriminator_optimizer=discriminator_optimizer,
                                     mapping=mapping,
                                     synthesis=synthesis,
-                                    filter=filter,
+                                    filters=filters,
                                     discriminator=discriminator)
 
 def gradient_penalty(x):
@@ -439,8 +442,8 @@ def gradient_penalty(x):
 
 
 # find lists of coarse, medium and fine tunable noises
-ltv_DNS = []
 ltv_LES = []
+ltv_DNS = []
 
 for layer in synthesis.layers:
     if "layer_noise_constants" in layer.name:
@@ -450,4 +453,5 @@ for layer in synthesis.layers:
             if (ldx<M_LAYERS):
                 ltv_LES.append(variable)
             ltv_DNS.append(variable)
+
 

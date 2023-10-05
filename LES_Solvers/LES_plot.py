@@ -186,7 +186,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
-def print_fields_3(U_, V_, P_, N=None, filename=None, testcase='HIT_2D', \
+def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False):
 
     if (testcase=='HIT_2D'):
@@ -236,17 +236,29 @@ def print_fields_3(U_, V_, P_, N=None, filename=None, testcase='HIT_2D', \
         cmap2 = 'hot'
         cmap3 = 'jet'
 
-    velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    if (geomR is not None>0):
+        velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    else:
+        velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+        
     fig.colorbar(velx, ax=ax1)
     ax1.title.set_text(labelR)
     ax1.set_aspect(1)
 
-    vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    if (geomR is not None):
+        vely = ax3.pcolormesh(geomR, geomZ, V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    else:
+        vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+        
     fig.colorbar(vely, ax=ax3)
     ax3.title.set_text(labelG)
     ax3.set_aspect(1)
 
-    pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    if (geomR is not None):
+        pres = ax5.pcolormesh(geomR, geomZ, P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    else:
+        pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+        
     fig.colorbar(pres, ax=ax5)
     ax5.title.set_text(labelB)
     ax5.set_aspect(1)
@@ -363,9 +375,6 @@ def print_fields_4_diff(U_DNS_, U_LES_, U_, diff_, N, filename, testcase='HIT_2D
     ax3.axes.xaxis.set_visible(False)
     ax3.axes.yaxis.set_visible(False)
     ax3.axis('off')
-
-    Pmin = np.min(U_DNS)
-    Pmax = np.max(U_DNS)
 
     pres = ax4.pcolormesh(diff, cmap='jet', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
     #fig.colorbar(pres, ax=ax4)

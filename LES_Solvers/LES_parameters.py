@@ -14,12 +14,3 @@ alphaP     = 0.1e0      # pressure relaxation factor
 alphaUV    = 0.1e0       # velocity relaxation factor
 uRef       = 100.0e0
 useLogSca  = True
-
-# xLogLim    = [1.0e0, 1000]   # to do: to make nmore general
-# yLogLim    = [1.e-8, 0.1]
-# xLinLim    = [0.0e0, 600]
-# yLinLim    = [0.0e0, 1.0]
-# xLogLim    = [1.0e-1, 1.e+3]
-# yLogLim    = [1.e-11, 1.e+2]
-# xLinLim    = [0.0e0, 600]
-# yLinLim    = [0.0e0, 0.1]

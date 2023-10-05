@@ -81,7 +81,7 @@ os.system("mkdir v_viol")
 for run in range(NRUNS):
     totTime = zero
     if (RESTART):
-        U, V, P, C, B, totTime = load_fields(filename=FILE_RES, DNSrun=True)
+        U, V, P, C, B, totTime = load_fields(DNSrun=True)
     else:
         U, V, P, C, B, totTime = init_fields(run)
 
