@@ -92,7 +92,7 @@ for lrun in listRUN:
         files       = os.listdir(PATH_NUMPY)
         STIME       = 0    # starting time to take as first image
         FTIME       = len(files)
-        ITIME       = 1   # cd - skip between time steps when reading NUMPY arrays
+        ITIME       = 5   # cd - skip between time steps when reading NUMPY arrays
         DELT        = 1.0  # delt equal to timestep in BOUT++ input file
 
     #------------ read data
