@@ -111,7 +111,7 @@ def train_step(input, images):
 
     #apply gradients
     gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_synthesis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
     gradients_of_discriminator = dis_tape.gradient(loss_dis, discriminator.trainable_variables)
 
     gradients_of_filters = []
@@ -129,7 +129,7 @@ def train_step(input, images):
     
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping]
-    gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis]
+    gradients_of_synthesis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthesis]
     gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator]
 
     for fil in range(NFIL):
@@ -137,7 +137,7 @@ def train_step(input, images):
 
 
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
-    generator_optimizer.apply_gradients(zip(gradients_of_synthetis,         synthesis.trainable_variables))
+    generator_optimizer.apply_gradients(zip(gradients_of_synthesis,         synthesis.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
     for fil in range(NFIL):
@@ -175,12 +175,16 @@ def train(dataset, train_summary_writer):
             var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
             tf.summary.scalar(var_name, momV[res], step=0)
 
+    batch1 = -1*tf.ones([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
+    batch2 =    tf.ones([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE)
     tstart = time.time()
     tint   = tstart
     for it in range(TOT_ITERATIONS):
     
         # take next batch
-        input_batch = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+        k = np.random.normal(loc=np.random.uniform(), scale=np.random.uniform(), size=[BATCH_SIZE, LATENT_SIZE])
+        k = np.clip(k, 0, 1)
+        input_batch = batch1*k + batch2*(1-k)
         image_batch = next(iter(dataset))
         mtr = train_step(input_batch, image_batch)
 

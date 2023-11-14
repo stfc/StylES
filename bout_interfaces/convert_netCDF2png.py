@@ -8,6 +8,11 @@ import sys
 from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
+
+sys.path.insert(0, '../')
+sys.path.insert(0, '../LES_Solvers/')
+
+from parameters import *
 from LES_plot import *
 from LES_functions import *
 
@@ -21,45 +26,80 @@ from isoturb import generate_isotropic_turbulence_2d
 #----------------------------- parameters
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
-PATH_ANIMAT = "./results/plots/"
-#PATH_ANIMAT = "../utilities/results_reconstruction/plots/"
+# PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+PATH_ANIMAT_ENERGY = "./results/energy/"
+PATH_ANIMAT_PLOTS = "./results/plots/"
+# PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
+# PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
+# PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
 FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
-STIME       = 0 # starting time to take as first image
+STIME       = 0  # starting time to take as first image
+ITIME       = 1  # skip between STIME, FTIME, ITIME
 
-if (MODE=='READ_NUMPY'):
+useLogSca = True
+xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
+yLogLim   = [1.e-10, 10.]
+xLinLim   = [0.0e0, 600] 
+yLinLim   = [0.0e0, 1.0]
+time      = []
+Energy    = []
+L         = 50.176 
+N         = OUTPUT_DIM
+delx      = L/N
+dely      = L/N
+
+
+#----------------------------- initialize
+if (MODE=='READ_NETCDF'):
+
+    # find number of timesteps
+    CWD = os.getcwd()
+    os.chdir(PATH_NETCDF)
+    n = collect("n", xguards=False, info=False)
+    FTIME = len(n)
+    os.chdir(CWD)
+    
+    # find number of initial time
+    os.chdir(CWD)
+    data = np.load(FILE_DNS_fromGAN)
+    TGAP = np.cast[DTYPE](data['simtime'])
+    print("starting time ", TGAP)
+
+    # find timestep
+    file = open(PATH_NETCDF + "BOUT.inp", 'r')
+    for line in file:
+        if "timestep" in line:
+            DELT = float(line.split()[2])
+
+elif (MODE=='READ_NUMPY'):
+
+    # find timestep
+    file = open(PATH_NETCDF + "BOUT.inp", 'r')
+    for line in file:
+        if "timestep" in line:
+            DELT = float(line.split()[2])
+
     files = os.listdir(PATH_NUMPY)
     FTIME = len(files)
-elif (MODE=='MAKE_ANIMATION'):
-    files = os.listdir(PATH_ANIMAT)
-    FTIME = len(files)
-else:
-    FTIME = 101 # final time from netCFD
+    TGAP = 0.0
+    print("starting time ", TGAP)    
 
-ITIME       = 1   # skip between STIME, FTIME, ITIME
-SKIP        = 1   # cd - skip between time steps when reading NUMPY arrays
-DELT        = 1.0  # delt equal to timestep in BOUT++ input file
+elif (MODE=='MAKE_ANIMATION'):
+
+    files = os.listdir(PATH_ANIMAT_PLOTS)
+    FTIME = len(files)
+
+print("There are " + str(FTIME) + " files")
+
 min_U       = None
 max_U       = None
 min_V       = None
 max_V       = None
 min_P       = None
 max_P       = None
-
-# plot spectrum vars
-useLogSca = True
-xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
-yLogLim   = [1.e-10, 10.]
-xLinLim   = [0.0e0, 600]
-yLinLim   = [0.0e0, 1.0]
-time      = []
-Energy    = []
-L         = 50.176 
-N         = 512
-delx      = L/N
-dely      = L/N
 
 # delete folders
 if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
@@ -69,20 +109,6 @@ if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
     os.system("mkdir -p results/plots/")
     os.system("mkdir -p results/fields/")
     os.system("mkdir -p results/energy/")
-
-
-#----------------------------- Define the grid points
-geomR = None
-geomZ = None
-
-# L = 50.176
-# L0 = 0.2*L
-# N = 512 
-# r,theta = np.meshgrid(np.linspace(L0, L0+L, N),
-#                       np.linspace(1.5*np.pi, 2.5*np.pi, N),
-#                       indexing="ij")
-# geomR = r * np.sin(theta)
-# geomZ = r * np.cos(theta)
 
 
 
@@ -201,20 +227,20 @@ if (MODE=='READ_NETCDF'):
         if (t%1==0):
             filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, geomR=geomR, geomZ=geomZ, filename=filename, diff=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, geomR=geomR, geomZ=geomZ, filename=filename, diff=False)
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False)
                     # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0)
 
         gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
 
-        time.append(t*DELT)
+        time.append(TGAP + t*DELT)
         E = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
         Energy.append(E)
         
         closePlot=False
-        if (t%100==0 or (t+ITIME>FTIME-1)):
+        if (t%1==0 or (t+ITIME>FTIME-1)):
             if (t+ITIME>FTIME-1):
                 closePlot=True
             filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + str(t).zfill(4) + ".png"
@@ -242,7 +268,7 @@ elif (MODE=='READ_NUMPY'):
         files = os.listdir(PATH_NUMPY)
         nfiles = len(files)
         for i,file in enumerate(sorted(files)):
-            if (i%SKIP==0):
+            if (i%ITIME==0):
                 filename = PATH_NUMPY + file
                 data     = np.load(filename)
                 Img_n    = np.cast[DTYPE](data['U'])
@@ -264,7 +290,7 @@ elif (MODE=='READ_NUMPY'):
     nfiles = len(files)
     closePlot=False
     for i,file in enumerate(sorted(files)):
-        if (i%SKIP==0):
+        if (i%ITIME==0):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
             simtime   = np.cast[DTYPE](data['simtime'])
@@ -276,11 +302,11 @@ elif (MODE=='READ_NUMPY'):
             file_dest = file.replace(".npz",".png")
             filename  = "./results/plots/" + file_dest
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, geomR=geomR, geomZ=geomZ, filename=filename, diff=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, geomR=geomR, geomZ=geomZ, filename=filename, diff=False)
-                    # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0)
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False) #, \
+                    #Umin=-5.0, Umax=5.0, Vmin=-5.0, Vmax=5.0, Pmin=-5.0, Pmax=5.0)
 
             gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \
                 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
@@ -293,7 +319,7 @@ elif (MODE=='READ_NUMPY'):
                 filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
 
-            if (i+SKIP>nfiles-1):
+            if (i+ITIME>nfiles-1):
                 closePlot=True
                 filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
@@ -307,21 +333,33 @@ if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
     filename="./results/energy/energy_vs_time"
     np.savez(filename, time=time, Energy=Energy)
     plt.plot(time, Energy)
-    plt.savefig('./results/energy/energy_vs_time.png')
+    plt.savefig('./results/energy_vs_time.png')
     plt.close()
 
 
 
-# #----------------------------- make animation
-anim_file = 'animation.gif'
-filenames = glob.glob(PATH_ANIMAT + "*.png")
+#----------------------------- make animation fields
+anim_file = './results/animation_plots.gif'
+filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
 filenames = sorted(filenames)
 
-ftime = np.diff(time)
-ftime = np.insert(ftime, 0, time[0])
-ftime = np.min(ftime) + ftime
-ftime = ftime*DELT
-ftime = ftime.tolist()
+with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+    for filename in filenames:
+        print(filename)
+        image = imageio.v2.imread(filename)
+        writer.append_data(image)
+    image = imageio.v2.imread(filename)
+    writer.append_data(image)
+
+import tensorflow_docs.vis.embed as embed
+embed.embed_file(anim_file)
+
+
+
+#----------------------------- make animation energy
+anim_file = './results/animation_energy.gif'
+filenames = glob.glob(PATH_ANIMAT_ENERGY + "/*.png")
+filenames = sorted(filenames)
 
 with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
     for filename in filenames:

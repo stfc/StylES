@@ -185,9 +185,9 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter(x[0,0,:,:], rs=1)
-        x_G = gaussian_filter(x[0,1,:,:], rs=1)
-        x_B = gaussian_filter(x[0,2,:,:], rs=1)
+        x_R = gaussian_filter_withNorm(x[0,0,:,:], rs=1)
+        x_G = gaussian_filter_withNorm(x[0,1,:,:], rs=1)
+        x_B = gaussian_filter_withNorm(x[0,2,:,:], rs=1)
         x = tf.concat([x_R, x_G, x_B], axis=1)
         x = normalize(x)
         return x
