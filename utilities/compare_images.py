@@ -50,9 +50,9 @@ os.chdir('./utilities')
 #-------------------------------- local variables, initialization and functions
 N_DNS = 2**RES_LOG2
 
-FILE_PATH  = "../../../data/BOUT_runs/Papers/PoP23/HW_N256/fields/"
-FILE_REAL  = FILE_PATH + "fields_run0_time741.npz"
-FILE_STYLE = FILE_PATH + "fields_run0_time761.npz"
+FILE_PATH  = "/archive/jcastagna/Fields/HW/fields_N1024_1image/"
+FILE_REAL  = FILE_PATH + "fields_run1_time1000.npz"
+FILE_STYLE = "./results_latentSpace/fields/fields_lat0_res1024.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
@@ -64,7 +64,7 @@ if (TESTCASE=='HIT_2D'):
 
 if (TESTCASE=='HW' or TESTCASE=='mHW'):
     labelR = r'$n$'
-    labelG = r'$\phi$'
+    labelG = r'$\nabla |\phi|$'
     labelB = r'$\zeta$'
 
 
@@ -119,8 +119,6 @@ def compare_images(imageA, imageB, title):
     print("Divergence for StyleGAN image", div)
 
     # find differences and min-max
-    imageD = imageA - imageB
-
     minUA = np.min(imageA[:,:,0])
     minUB = np.min(imageB[:,:,0])
     minU  = min(minUA, minUB)
@@ -140,6 +138,13 @@ def compare_images(imageA, imageB, title):
     maxWA = np.max(imageA[:,:,2])
     maxWB = np.max(imageB[:,:,2])
     maxW  = max(maxWA, maxWB)
+
+    imageD = imageA - imageB
+    print(np.min(imageD), np.max(imageD))
+    imageD[:,:,0] = imageD[:,:,0]/(np.max(imageD[:,:,0]) - np.min(imageD[:,:,0]))*100
+    imageD[:,:,1] = imageD[:,:,1]/(np.max(imageD[:,:,1]) - np.min(imageD[:,:,1]))*100
+    imageD[:,:,2] = imageD[:,:,2]/(np.max(imageD[:,:,2]) - np.min(imageD[:,:,2]))*100
+    print(np.min(imageD), np.max(imageD))
 
     # setup figures
     fig, ax = plt.subplots(3, 3, figsize=(15,15))
@@ -204,7 +209,7 @@ def compare_images(imageA, imageB, title):
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,2]
-    im = sub.imshow(imageD[:,:,1], cmap="jet")
+    im = sub.imshow(imageD[:,:,1], cmap="jet", vmin=-1, vmax=1)
     sub.axis("off")
     sub.set_title("diff " + labelG)
     plt.colorbar(im, ax=sub)
@@ -248,6 +253,19 @@ def load_images(file_real, file_Style):
         orig[:,:,2] = img_in[-1][2,:,:]
         orig = np.cast[DTYPE](orig)
 
+        # normalize
+        orig[:,:,0] = (orig[:,:,0] - np.min(orig[:,:,0]))/(np.max(orig[:,:,0]) - np.min(orig[:,:,0]))
+        orig[:,:,1] = (orig[:,:,1] - np.min(orig[:,:,1]))/(np.max(orig[:,:,1]) - np.min(orig[:,:,1]))
+        orig[:,:,2] = (orig[:,:,2] - np.min(orig[:,:,2]))/(np.max(orig[:,:,2]) - np.min(orig[:,:,2]))
+        
+        # calc grad phi
+        V_DNS_org = orig[:,:,1]
+                
+        DELX = 50.176/1024
+        DELY = 50.176/1024
+        orig[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+                    + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+
     elif (file_real.endswith('.png')):
 
         # load image
@@ -277,6 +295,19 @@ def load_images(file_real, file_Style):
         style[:,:,1] = img_in[-1][1,:,:]
         style[:,:,2] = img_in[-1][2,:,:]
         style = np.cast[DTYPE](style)
+        
+        # normalize
+        style[:,:,0] = (style[:,:,0] - np.min(style[:,:,0]))/(np.max(style[:,:,0]) - np.min(style[:,:,0]))
+        style[:,:,1] = (style[:,:,1] - np.min(style[:,:,1]))/(np.max(style[:,:,1]) - np.min(style[:,:,1]))
+        style[:,:,2] = (style[:,:,2] - np.min(style[:,:,2]))/(np.max(style[:,:,2]) - np.min(style[:,:,2]))
+        
+        # calc grad phi
+        V_DNS_org = style[:,:,1]
+                
+        DELX = 50.176/1024
+        DELY = 50.176/1024
+        style[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+                    + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 
     else:
 
@@ -300,25 +331,25 @@ def load_images(file_real, file_Style):
     return orig, style
 
 
-# compute SSIM for all fiels in the folder
-files = os.listdir(FILE_PATH)
-nfiles = len(files)
-minSSIM = 1.0
-maxSSIM = 0.0
+# # compute SSIM for all fiels in the folder
+# files = os.listdir(FILE_PATH)
+# nfiles = len(files)
+# minSSIM = 1.0
+# maxSSIM = 0.0
 
-for rr in range(100):
-    for tt in range(501,981,10):
-        curr = "fields_run" + str(rr) + "_time" + str(tt).zfill(3) + ".npz"
-        next = "fields_run" + str(rr) + "_time" + str(tt+20).zfill(3) + ".npz"
-        file_curr = FILE_PATH + curr
-        file_next = FILE_PATH + next
-        print(file_curr, file_next)
-        curr, next = load_images(file_curr, file_next)
-        s = compare_SSIM(curr, next, "results_latentSpace/Plots_DNS_diff.png")
-        minSSIM = min(s, minSSIM)
-        maxSSIM = max(s, maxSSIM)
+# for rr in range(100):
+#     for tt in range(501,981,10):
+#         curr = "fields_run" + str(rr) + "_time" + str(tt).zfill(3) + ".npz"
+#         next = "fields_run" + str(rr) + "_time" + str(tt+20).zfill(3) + ".npz"
+#         file_curr = FILE_PATH + curr
+#         file_next = FILE_PATH + next
+#         print(file_curr, file_next)
+#         curr, next = load_images(file_curr, file_next)
+#         s = compare_SSIM(curr, next, "results_latentSpace/Plots_DNS_diff.png")
+#         minSSIM = min(s, minSSIM)
+#         maxSSIM = max(s, maxSSIM)
 
-print("minSSIM, maxSSIM values are: ", minSSIM, maxSSIM)
+# print("minSSIM, maxSSIM values are: ", minSSIM, maxSSIM)
 
 # compare the images
 orig, style = load_images(FILE_REAL, FILE_STYLE)
