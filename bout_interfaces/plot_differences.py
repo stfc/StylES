@@ -35,7 +35,7 @@ L           = 50.176
 N_DNS2      = 2**(RES_LOG2-FIL)
 delx        = L/N
 dely        = L/N
-listRUN     = ["DNS", 1, 2, 3, 4]
+listRUN     = ["DNS", 1, 2, 3]
 PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
@@ -105,6 +105,7 @@ for lrun in listRUN:
         for line in file:
             if "timestep" in line:
                 DELT = float(line.split()[2])
+                break
     else:
         tail        = str(lrun)
         MODE        = 'READ_NUMPY'

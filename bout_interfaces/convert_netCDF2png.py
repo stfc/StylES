@@ -37,7 +37,7 @@ FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 1  # skip between STIME, FTIME, ITIME
+ITIME       = 10  # skip between STIME, FTIME, ITIME
 
 useLogSca = True
 xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
@@ -73,6 +73,8 @@ if (MODE=='READ_NETCDF'):
     for line in file:
         if "timestep" in line:
             DELT = float(line.split()[2])
+            print("DELT is ", DELT)
+            break
 
 elif (MODE=='READ_NUMPY'):
 
@@ -81,6 +83,8 @@ elif (MODE=='READ_NUMPY'):
     for line in file:
         if "timestep" in line:
             DELT = float(line.split()[2])
+            print("DELT is ", DELT)
+            break
 
     files = os.listdir(PATH_NUMPY)
     FTIME = len(files)
@@ -246,7 +250,7 @@ if (MODE=='READ_NETCDF'):
             filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + str(t).zfill(4) + ".png"
             plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
         
-        print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
+        # print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
         # print("average", t, np.mean(Img_n), np.mean(Img_phi), np.mean(Img_vort))
         print("done for file time step", t)
 
@@ -332,7 +336,7 @@ elif (MODE=='READ_NUMPY'):
 if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
     filename="./results/energy/energy_vs_time"
     np.savez(filename, time=time, Energy=Energy)
-    plt.plot(time, Energy)
+    plt.plot(time, Energy, 'o-')
     plt.savefig('./results/energy_vs_time.png')
     plt.close()
 
