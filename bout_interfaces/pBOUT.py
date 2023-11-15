@@ -54,8 +54,8 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollLES_in  = 5.e-3
-tollLES     = 5.e-3
+tollLES_in  = 2.e-3
+tollLES     = 2.e-3
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_LES_maxIt
@@ -122,15 +122,24 @@ time.sleep(3)
 
 
 #--------------------------------------- model 3
+# layer_kDNS = layer_wlatent_mLES()
+
+# z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+# w0           = mapping( z_in, training=False)
+# w1           = mapping(-z_in, training=False)  
+# w            = layer_kDNS(w0, w1)
+# outputs      = synthesis(w, training=False)
+# wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
+
+
+#--------------------------------------- model 4
 layer_kDNS = layer_wlatent_mLES()
 
-z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping( z_in, training=False)
-w1           = mapping(-z_in, training=False)  
-w            = layer_kDNS(w0, w1)
+z_in         = tf.keras.Input(shape=([G_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
+w0           = mapping(z_in[:,0,:], training=False)
+w            = layer_kDNS(w0, z_in[:,1:G_LAYERS+1,:])
 outputs      = synthesis(w, training=False)
 wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
-
 
 
 
@@ -192,11 +201,10 @@ kDNS      = data["kDNS"]
 noise_DNS = data["noise_DNS"]
 
 # convert to TensorFlow tensors            
-z0        = tf.convert_to_tensor(z0)
-kDNS      = layer_kDNS.trainable_variables[0].numpy()
-
-# assign kDNS
-layer_kDNS.trainable_variables[0].assign(kDNS)
+z0 = tf.convert_to_tensor(z0, dtype=DTYPE)
+for nvars in range(len(kDNS)):
+    tkDNS = tf.convert_to_tensor(kDNS[nvars], dtype=DTYPE)
+    layer_kDNS.trainable_variables[nvars].assign(tkDNS)
 
 # assign variable noise
 if (TUNE_NOISE):
@@ -444,10 +452,11 @@ def findLESTerms(pLES):
     lr = lr_schedule_DNS(it)
     tstart = time.time()
 
-    UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
+    UVP_DNS, UVP_LES, fUVP_DNS, wno, _ = find_predictions(wl_synthesis, gfilter, z0)
     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, fimgA, typeRes=1)
-    # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e} lr {6:3e}" \
-    #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+    if (pStep==pStepStart):
+        print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e} lr {6:3e}" \
+            .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
     # to make sure we use the same restarting point as comparison between different tollerances...
     if (pStep==pStepStart):
@@ -458,15 +467,25 @@ def findLESTerms(pLES):
 
     while (resREC>ctollLES and it<maxit):
 
-        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil = \
+        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, UVP_DNS, fimgA, ltv_DNS, typeRes=1)
 
-        # kDNS  = layer_kDNS.trainable_variables[0]
-        # kDNSn = tf.clip_by_value(kDNS, 0, 1)
-        # if (tf.reduce_any((kDNS-kDNSn)>0)):
-        #     layer_kDNS.trainable_variables[0].assign(kDNSn)
-        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
-        #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, fimgA, typeRes=1)        
+        valid_wn = True
+        for nvars in range(len(layer_kDNS.trainable_variables[:])):
+            kDNS  = layer_kDNS.trainable_variables[nvars]
+            kDNSn = tf.clip_by_value(kDNS, 0.0, 1.0)
+            if (tf.reduce_any((kDNS-kDNSn)>0) or (it%100==0 and it!=0)):
+                print("reset values ", pStep)
+                valid_wn = False
+                kDNSn = tf.zeros_like(kDNSn)
+                zn = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+                z0 = tf.concat([zn[:,tf.newaxis,:], wno], axis=1)
+                layer_kDNS.trainable_variables[nvars].assign(kDNSn)
+                UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
+                resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, fimgA, typeRes=1)        
+
+        if (valid_wn):
+            wno = tf.identity(wn)
 
         # if (it%1==0):
         if (it!=0 and it%1000==0):
@@ -483,8 +502,8 @@ def findLESTerms(pLES):
 
         # print final residuals
         tend = time.time()
-        # print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
-        #     .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+        print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
+            .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
         # find Poisson terms
         spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
@@ -533,10 +552,8 @@ def findLESTerms(pLES):
         fpPhiN_DNS    = fpPhiN_DNS.numpy()
 
 
-
-
         if (it==LES_pass):
-            print("Reset LES fields")
+            # print("Reset LES fields")
 
             # find LES fields to pass back
             U_LES = fUVP_DNS[0,0,:,:]

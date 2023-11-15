@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 5.0e-3
+tollDNS     = 1.0e-2
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**RES_LOG2-FIL
 RESTART_WL  = False
@@ -112,13 +112,23 @@ time.sleep(3)
 # wl_synthesis = tf.keras.Model(inputs=phi_noise_in, outputs=[outputs, w])
 
 
-#--------------------------------------- model 3
+# #--------------------------------------- model 3
+# layer_kDNS = layer_wlatent_mLES()
+
+# z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+# w0           = mapping( z_in, training=False)
+# w1           = mapping(-z_in, training=False)  
+# w            = layer_kDNS(w0, w1)
+# outputs      = synthesis(w, training=False)
+# wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
+
+
+#--------------------------------------- model 4
 layer_kDNS = layer_wlatent_mLES()
 
-z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping( z_in, training=False)
-w1           = mapping(-z_in, training=False)  
-w            = layer_kDNS(w0, w1)
+z_in         = tf.keras.Input(shape=([G_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
+w0           = mapping(z_in[:,0,:], training=False)
+w            = layer_kDNS(w0, z_in[:,1:G_LAYERS+1,:])
 outputs      = synthesis(w, training=False)
 wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
 
@@ -173,12 +183,10 @@ if (RESTART_WL):
     print("z0",        z0.shape,        np.min(z0),        np.max(z0))
     print("kDNS",      kDNS.shape,      np.min(kDNS),      np.max(kDNS))
 
-    # convert to TensorFlow tensors
-    z0         = tf.convert_to_tensor(z0,         dtype=DTYPE)
-    kDNS       = tf.convert_to_tensor(kDNS,       dtype=DTYPE)
-
-    # assign kDNS
-    layer_kDNS.trainable_variables[0].assign(kDNS)
+    z0 = tf.convert_to_tensor(z0, dtype=DTYPE)
+    for nvars in range(len(kDNS)):
+        tkDNS = tf.convert_to_tensor(kDNS[nvars], dtype=DTYPE)
+        layer_kDNS.trainable_variables[nvars].assign(tkDNS)
 
     # assign variable noise
     if (TUNE_NOISE):
@@ -188,7 +196,7 @@ if (RESTART_WL):
         for layer in synthesis.layers:
             if "layer_noise_constants" in layer.name:
                 print(layer.trainable_variables)
-                layer.trainable_variables[0].assign(noise_DNS[it])
+                layer.trainable_variables[:].assign(noise_DNS[it])
                 it=it+1
 
 else:             
@@ -202,15 +210,20 @@ else:
     # z0    = tf.concat([z0min, z0max, z0med], axis=1)
 
     #--------------------------------------- model 2
-    z0 = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-
-    #--------------------------------------- model 3
     # z0 = tf.random.uniform(shape=[BATCH_SIZE, NC2_NOISE,1], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
+    #--------------------------------------- model 3
+    # z0 = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+
+    #--------------------------------------- model 4
+    zn = tf.random.uniform(shape=[BATCH_SIZE, 1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    zw = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    wn = mapping(zw, training=False)
+    z0 = tf.concat([zn, wn], axis=1)
 
 
 # find inference
-UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
+UVP_DNS, UVP_LES, fUVP_DNS, wno, _ = find_predictions(wl_synthesis, gfilter, z0)
 resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
 print("Initial residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
         .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil.numpy()))
@@ -226,16 +239,25 @@ if (TUNE):
     while (resREC>tollDNS and it<lr_LES_maxIt):
 
         lr = lr_schedule_DNS(it)
-        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil = \
+        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, imgA, fimgA, ltv_DNS, typeRes=0)
 
-        # kDNS  = layer_kDNS.trainable_variables[0]
-        # kDNSn = tf.clip_by_value(kDNS, 0, 1)
-        # if (tf.reduce_any((kDNS-kDNSn)>0)):
-        #     layer_kDNS.trainable_variables[0].assign(kDNSn)
-        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
-        #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)        
-            
+        valid_wn = True
+        for nvars in range(len(layer_kDNS.trainable_variables[:])):
+            kDNS  = layer_kDNS.trainable_variables[nvars]
+            kDNSn = tf.clip_by_value(kDNS, -1, 2)
+            if (tf.reduce_any((kDNS-kDNSn)>0)):
+                print("reset values")
+                kDNSn = tf.zeros_like(kDNSn)
+                zn = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+                z0 = tf.concat([zn[:,tf.newaxis,:], wno], axis=1)
+                layer_kDNS.trainable_variables[nvars].assign(kDNSn)
+                UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
+                resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)        
+        
+        if (valid_wn):
+            wno = tf.identity(wn)
+ 
         # print fields
         if (it%10==0):
             tend = time.time()
@@ -268,7 +290,9 @@ if (not RESTART_WL):
     z0 = z0.numpy()
 
     # load parameters
-    kDNS = layer_kDNS.trainable_variables[0].numpy()
+    kDNS = []
+    for nvars in range(len(layer_kDNS.trainable_variables[:])):
+        kDNS.append(layer_kDNS.trainable_variables[nvars].numpy())
 
     # load noise
     if (TUNE_NOISE):
@@ -276,7 +300,7 @@ if (not RESTART_WL):
         noise_DNS=[]
         for layer in synthesis.layers:
             if "layer_noise_constants" in layer.name:
-                noise_DNS.append(layer.trainable_variables[0].numpy())
+                noise_DNS.append(layer.trainable_variables[:].numpy())
     else:
         noise_DNS=[]
 

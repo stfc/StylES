@@ -943,7 +943,7 @@ class layer_zlatent_kDNS(layers.Layer):
         k_init = tf.random_normal_initializer(mean=0.6, stddev=0.1)
         self.k = tf.Variable(
             initial_value=k_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=False,
+            trainable=True,
             name="zlatent_kDNS"
         )
 
@@ -1013,7 +1013,7 @@ class layer_wlatent_mLES(layers.Layer):
     def call(self, w0, w1):
 
         w_LES = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        w_DNS = 0.5*w0[:,M_LAYERS:G_LAYERS,:] + 0.5*w1[:,M_LAYERS:G_LAYERS,:] 
+        w_DNS = w1[:,M_LAYERS:G_LAYERS,:] 
         w = tf.concat([w_LES,w_DNS], axis=1)
         
         return w
@@ -1146,7 +1146,7 @@ def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
         loss_fil = resLES
     elif (typeRes==1):  # residuals for create_restart
         resDNS   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
-        resLES   = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
+        resLES   = 0.0*tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
         resREC   = resDNS + resLES
         loss_fil = resLES        
 
@@ -1169,4 +1169,4 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, typeRes)
         opt.apply_gradients(zip(gradients_LES, ltv))
 
         
-    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil
+    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn

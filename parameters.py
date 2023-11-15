@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '/archive/jcastagna/Fields/HW/fields_N1024_1image/'
+DATASET           = '/archive/jcastagna/Fields/HW/fields_N256_1image/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -130,14 +130,14 @@ BETA2_DIS        = 0.99
 # Reconstruction hyper-parameters
 PARAMETERS_PATH     = "/home/jcastagna/projects/Turbulence_with_Style/PhaseII_FARSCAPE2/codes/"
 FILE_DNS            = PARAMETERS_PATH + "StylES/bout_interfaces/results_DNS/fields/fields_time00020.npz"
-FILE_DNS_fromGAN    = PARAMETERS_PATH + "BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m3/fields/fields_DNS_0000200.npz"
+FILE_DNS_fromGAN    = PARAMETERS_PATH + "BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/fields_DNS_0000200.npz"
 USE_GAUSSIAN_FILTER = True
 
 # learning rate for DNS optimizer
 lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-2  # exponential policy initial learning rate
+lr_DNS        = 1.0e-3  # exponential policy initial learning rate
 lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
@@ -150,7 +150,7 @@ lr_DNS_BETA2  = 0.99
 lr_LES_maxIt  = 100000
 lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_LES_STAIR  = False
-lr_LES        = 1.0e-2   # exponential policy initial learning rate
+lr_LES        = 1.0e-3   # exponential policy initial learning rate
 lr_LES_RATE   = 1.0       # exponential policy decay rate
 lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
 lr_LES_EXP_ST = False      # exponential policy staircase
