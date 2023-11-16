@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 1.0e-2
+tollDNS     = 5.0e-3
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**RES_LOG2-FIL
 RESTART_WL  = False
@@ -89,12 +89,12 @@ time.sleep(3)
 # create variable synthesis model
 
 #--------------------------------------- model 1
-# layer_kDNS = layer_zlatent_kDNS()
+layer_kDNS = layer_zlatent_kDNS()
 
-# z            = tf.keras.Input(shape=([2*M_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
-# w            = layer_kDNS(mapping, z)
-# outputs      = synthesis(w, training=False)
-# wl_synthesis = tf.keras.Model(inputs=z, outputs=[outputs, w])
+z            = tf.keras.Input(shape=([2*M_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
+w            = layer_kDNS(mapping, z)
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=z, outputs=[outputs, w])
 
 
 #--------------------------------------- model 2
@@ -124,13 +124,13 @@ time.sleep(3)
 
 
 #--------------------------------------- model 4
-layer_kDNS = layer_wlatent_mLES()
+# layer_kDNS = layer_wlatent_mLES()
 
-z_in         = tf.keras.Input(shape=([G_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
-w0           = mapping(z_in[:,0,:], training=False)
-w            = layer_kDNS(w0, z_in[:,1:G_LAYERS+1,:])
-outputs      = synthesis(w, training=False)
-wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
+# z_in         = tf.keras.Input(shape=([G_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
+# w0           = mapping(z_in[:,0,:], training=False)
+# w            = layer_kDNS(w0, z_in[:,1:G_LAYERS+1,:])
+# outputs      = synthesis(w, training=False)
+# wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
 
 
 
@@ -203,11 +203,7 @@ else:
 
     # set z
     #--------------------------------------- model 1
-    # z0min = tf.constant(MINVALRAN, shape=[BATCH_SIZE, M_LAYERS, LATENT_SIZE], dtype=DTYPE)
-    # z0max = tf.constant(MAXVALRAN, shape=[BATCH_SIZE, M_LAYERS, LATENT_SIZE], dtype=DTYPE)
-    # z0med = tf.random.normal(shape=[BATCH_SIZE, 1, LATENT_SIZE], mean=0.0, stddev=1.0, dtype=DTYPE)
-    # z0med = tf.clip_by_value(z0med, clip_value_min=MINVALRAN, clip_value_max=MAXVALRAN)
-    # z0    = tf.concat([z0min, z0max, z0med], axis=1)
+    z0 = tf.random.uniform(shape=[BATCH_SIZE, 2*M_LAYERS+1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
     #--------------------------------------- model 2
     # z0 = tf.random.uniform(shape=[BATCH_SIZE, NC2_NOISE,1], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
@@ -216,10 +212,10 @@ else:
     # z0 = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
     #--------------------------------------- model 4
-    zn = tf.random.uniform(shape=[BATCH_SIZE, 1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-    zw = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-    wn = mapping(zw, training=False)
-    z0 = tf.concat([zn, wn], axis=1)
+    # zn = tf.random.uniform(shape=[BATCH_SIZE, 1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    # zw = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    # wn = mapping(zw, training=False)
+    # z0 = tf.concat([zn, wn], axis=1)
 
 
 # find inference
@@ -242,22 +238,46 @@ if (TUNE):
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, imgA, fimgA, ltv_DNS, typeRes=0)
 
-        valid_wn = True
-        for nvars in range(len(layer_kDNS.trainable_variables[:])):
-            kDNS  = layer_kDNS.trainable_variables[nvars]
-            kDNSn = tf.clip_by_value(kDNS, -1, 2)
-            if (tf.reduce_any((kDNS-kDNSn)>0)):
-                print("reset values")
-                kDNSn = tf.zeros_like(kDNSn)
-                zn = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-                z0 = tf.concat([zn[:,tf.newaxis,:], wno], axis=1)
-                layer_kDNS.trainable_variables[nvars].assign(kDNSn)
-                UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
-                resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)        
-        
-        if (valid_wn):
-            wno = tf.identity(wn)
- 
+        valid_zn = True
+        kDNSt = layer_kDNS.trainable_variables[0]
+        for nlay in range(M_LAYERS):
+            kDNS = kDNSt[nlay,:]
+            kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
+            if (tf.reduce_any((kDNS-kDNSc)>0) or (it%100==0 and it!=0)):
+                if (valid_zn):
+                    print("reset values")
+                z0p = tf.random.uniform(shape=[BATCH_SIZE, 1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+                z1p = kDNSc*z0[:,2*nlay,:] + (1.0-kDNSc)*z0[:,2*nlay+1,:]
+                z1p = z1p[:,tf.newaxis,:]
+                kDNS0 = tf.zeros_like(kDNSc)
+                kDNSp = kDNS0[tf.newaxis,:]
+                if (nlay==0):
+                    z0n   = tf.concat([z0p, z1p], axis=1)
+                    kDNSn = tf.identity(kDNSp)
+                else:
+                    z0n   = tf.concat([z0n, z0p, z1p], axis=1)
+                    kDNSn = tf.concat([kDNSn, kDNSp], axis=0)
+                valid_zn = False
+            else:
+                z0p   = z0[:,2*nlay  :2*nlay+1,:]
+                z1p   = z0[:,2*nlay+1:2*nlay+2,:]
+                kDNSp = kDNSc[tf.newaxis,:]
+                if (nlay==0):
+                    z0n   = tf.concat([z0p, z1p], axis=1)
+                    kDNSn = tf.identity(kDNSp)
+                else:
+                    z0n   = tf.concat([z0n, z0p, z1p], axis=1)
+                    kDNSn = tf.concat([kDNSn, kDNSp], axis=0)
+
+        if (not valid_zn):
+            zf = z0[:,2*M_LAYERS,:]   # latent space for final layers
+            zf = zf[:,tf.newaxis,:]
+            z0 = tf.concat([z0n,zf], axis=1)
+            layer_kDNS.trainable_variables[0].assign(kDNSn)
+            UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
+            resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)        
+
+            
         # print fields
         if (it%10==0):
             tend = time.time()
