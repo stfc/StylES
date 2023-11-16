@@ -940,7 +940,7 @@ class layer_zlatent_kDNS(layers.Layer):
     def __init__(self, **kwargs):
         super(layer_zlatent_kDNS, self).__init__()
 
-        k_init = tf.random_normal_initializer(mean=0.6, stddev=0.1)
+        k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
         self.k = tf.Variable(
             initial_value=k_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
@@ -950,10 +950,10 @@ class layer_zlatent_kDNS(layers.Layer):
     def call(self, mapping, z):
 
         # interpolate latent spaces
-        zn = self.k[0,:]*z[:,0,:] + (1.0-self.k[0,:])*z[:,M_LAYERS,:]
+        zn = self.k[0,:]*z[:,0,:] + (1.0-self.k[0,:])*z[:,1,:]
         zn = zn[:,tf.newaxis,:]
-        for i in range(1,M_LAYERS):
-            zs = self.k[i,:]*z[:,i,:] + (1.0-self.k[i,:])*z[:,M_LAYERS+i,:]
+        for i in range(M_LAYERS):
+            zs = self.k[i,:]*z[:,2*i,:] + (1.0-self.k[i,:])*z[:,2*i+1,:]
             zs = zs[:,tf.newaxis,:]
             zn = tf.concat([zn,zs], axis=1)
 

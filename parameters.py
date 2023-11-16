@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float64"        # Data type to use for activations and outputs.
+DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
