@@ -4,6 +4,131 @@ import tensorflow as tf
 import time
 
 
+#--------------------------- compare filters
+import os
+import sys
+import scipy as sc
+
+sys.path.insert(0, './')
+sys.path.insert(0, '../')
+sys.path.insert(0, '../LES_Solvers/')
+
+from parameters import *
+from LES_constants import *
+from LES_parameters import *
+from LES_plot import *
+from MSG_StyleGAN_tf2 import *
+
+tf.random.set_seed(SEED_RESTART)
+
+
+
+N_DNS = 256
+L     = 50.176
+RS    = int(2**FIL)
+FILE_REAL = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run21_time501.npz"
+
+os.system("rm -rf tests")
+os.system("mkdir tests")
+
+
+
+# load numpy array
+U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_REAL)
+U_DNS = np.cast[DTYPE](U_DNS)
+V_DNS = np.cast[DTYPE](V_DNS)
+P_DNS = np.cast[DTYPE](P_DNS)
+
+
+# plot DNS spectrum
+DELX  = L/N_DNS
+DELY  = L/N_DNS
+filename = "./tests/energy_spectrum_DNS.png"
+gradV = np.sqrt(((cr(V_DNS, 1, 0) - cr(V_DNS, -1, 0))/(2.0*DELX))**2 \
+              + ((cr(V_DNS, 0, 1) - cr(V_DNS, 0, -1))/(2.0*DELY))**2)
+plot_spectrum(U_DNS, gradV, L, filename, close=False)
+
+
+# plot filtered fields using top-hat filter
+fU_DNS = U_DNS[::RS, ::RS]
+fV_DNS = V_DNS[::RS, ::RS]
+fP_DNS = P_DNS[::RS, ::RS]
+
+DELX  = L/N_DNS*RS
+DELY  = L/N_DNS*RS
+filename = "./tests/energy_spectrum_th.png"
+
+gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+
+
+
+# plot filtered fields using scipy gaussian
+fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='grid-wrap')
+fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='grid-wrap')
+fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='grid-wrap')
+
+fU_DNS = fU_DNS[::RS, ::RS]
+fV_DNS = fV_DNS[::RS, ::RS]
+fP_DNS = fP_DNS[::RS, ::RS]
+
+DELX  = L/N_DNS*RS
+DELY  = L/N_DNS*RS
+filename = "./tests/energy_spectrum_scg.png"
+
+gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+
+
+
+# plot filtered fields using scipy top-hat
+fU_DNS = sc.ndimage.white_tophat(U_DNS, RS, mode='grid-wrap')
+fV_DNS = sc.ndimage.white_tophat(V_DNS, RS, mode='grid-wrap')
+fP_DNS = sc.ndimage.white_tophat(P_DNS, RS, mode='grid-wrap')
+
+fU_DNS = fU_DNS[::RS, ::RS]
+fV_DNS = fV_DNS[::RS, ::RS]
+fP_DNS = fP_DNS[::RS, ::RS]
+
+DELX  = L/N_DNS*RS
+DELY  = L/N_DNS*RS
+filename = "./tests/energy_spectrum_scth.png"
+
+gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+
+
+
+# plot filtered fields using tf
+U_DNS = tf.convert_to_tensor(U_DNS)
+V_DNS = tf.convert_to_tensor(V_DNS)
+P_DNS = tf.convert_to_tensor(P_DNS)
+
+fU_DNS = gaussian_filter(U_DNS, rs=RS, rsca=RS)
+fV_DNS = gaussian_filter(V_DNS, rs=RS, rsca=RS)
+fP_DNS = gaussian_filter(P_DNS, rs=RS, rsca=RS)
+
+fU_DNS = fU_DNS[0,0,:,:].numpy()
+fV_DNS = fV_DNS[0,0,:,:].numpy()
+fP_DNS = fP_DNS[0,0,:,:].numpy()
+
+DELX  = L/N_DNS*RS
+DELY  = L/N_DNS*RS
+filename = "./tests/energy_spectrum_tf.png"
+
+gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+plot_spectrum(fU_DNS, gradV, L, filename, close=True)
+
+exit(0)
+
+
+
+
+
 #--------------------------- create random tuning noise
 
 # # parameters
@@ -45,30 +170,32 @@ import time
 # exit(0)    
     
 
-N = 512
 
-a = -1*np.ones(N)
-b = np.ones(N)
+# #--------------------------- create a tuning gaussian random noise
+# N = 512
 
-for i in range(100):
-    k = np.random.normal(loc=np.random.uniform(), scale=np.random.uniform(), size=N)
-    k = np.clip(k, 0, 1)
+# a = -1*np.ones(N)
+# b = np.ones(N)
 
-    c = a*k + b*(1-k)
-    print(np.mean(a), np.mean(b), np.mean(c))
+# for i in range(100):
+#     k = np.random.normal(loc=np.random.uniform(), scale=np.random.uniform(), size=N)
+#     k = np.clip(k, 0, 1)
+
+#     c = a*k + b*(1-k)
+#     print(np.mean(a), np.mean(b), np.mean(c))
     
-    # count, bins, ignored = plt.hist(a, 15, density=True)
-    # plt.plot(bins, np.ones_like(bins), linewidth=2, color='r')
+#     # count, bins, ignored = plt.hist(a, 15, density=True)
+#     # plt.plot(bins, np.ones_like(bins), linewidth=2, color='r')
 
-    # count, bins, ignored = plt.hist(b, 15, density=True)
-    # plt.plot(bins, np.ones_like(bins), linewidth=2, color='b')
+#     # count, bins, ignored = plt.hist(b, 15, density=True)
+#     # plt.plot(bins, np.ones_like(bins), linewidth=2, color='b')
 
-    count, bins, ignored = plt.hist(c, 100, density=True)
-    plt.plot(bins, np.ones_like(bins), linewidth=2, color='y')
-    ax = plt.gca()
-    ax.set_ylim([0,1])
-    plt.savefig("tests.png")
-    input()
+#     count, bins, ignored = plt.hist(c, 100, density=True)
+#     plt.plot(bins, np.ones_like(bins), linewidth=2, color='y')
+#     ax = plt.gca()
+#     ax.set_ylim([0,1])
+#     plt.savefig("tests.png")
+#     input()
     
     
 # N=16

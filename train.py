@@ -89,8 +89,8 @@ def train_step(input, images):
         tf.GradientTape() as fil_tape_m4, \
         tf.GradientTape() as fil_tape_m5, \
         tf.GradientTape() as dis_tape:
-        dlatents = mapping(input, training = True)
-        g_images = synthesis(dlatents, training = True)
+        dlatents = mapping(input[0], training = True)
+        g_images = synthesis([dlatents, input[1]], training = True)
 
         f_images = []
         for fil in range(NFIL):
@@ -164,7 +164,8 @@ def train(dataset, train_summary_writer):
 
 
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
+    input_img = next(iter(dataset))[RES_LOG2-FIL-2]
+    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, input_img, 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -185,8 +186,9 @@ def train(dataset, train_summary_writer):
         k = np.random.normal(loc=np.random.uniform(), scale=np.random.uniform(), size=[BATCH_SIZE, LATENT_SIZE])
         k = np.clip(k, 0, 1)
         input_batch = batch1*k + batch2*(1-k)
+        input_img   = next(iter(dataset))[RES_LOG2-FIL-2]
         image_batch = next(iter(dataset))
-        mtr = train_step(input_batch, image_batch)
+        mtr = train_step([input_batch, input_img], image_batch)
 
         # print losses
         if it % PRINT_EVERY == 0:
@@ -229,7 +231,7 @@ def train(dataset, train_summary_writer):
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, input_img, it+1)
 
             if (TESTCASE=='HIT_2D'):
                 with train_summary_writer.as_default():
