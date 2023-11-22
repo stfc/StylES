@@ -90,11 +90,11 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-NEXAMPLES         = 1
+NEXAMPLES         = 1 
 AMP_NOISE_MAX     = 0.25
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-RANDOMIZE_NOISE   = False
+RANDOMIZE_NOISE   = False 
 
 # Training hyper-parameters
 TOT_ITERATIONS = 1000000
@@ -102,7 +102,7 @@ PRINT_EVERY    = 1000
 IMAGES_EVERY   = 10000
 SAVE_EVERY     = 100000
 BATCH_SIZE     = NEXAMPLES
-IRESTART       = False
+IRESTART       = False 
 
 # learning rates
 LR_GEN           = 7.5e-4
@@ -128,16 +128,13 @@ BETA2_DIS        = 0.99
 
 
 # Reconstruction hyper-parameters
-PARAMETERS_PATH     = "/home/jcastagna/projects/Turbulence_with_Style/PhaseII_FARSCAPE2/codes/"
-FILE_DNS            = PARAMETERS_PATH + "StylES/bout_interfaces/results_DNS/fields/fields_time00020.npz"
-FILE_DNS_fromGAN    = PARAMETERS_PATH + "BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/fields_DNS_0000200.npz"
-USE_GAUSSIAN_FILTER = True
+FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run10_time801.npz"
 
 # learning rate for DNS optimizer
 lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-3  # exponential policy initial learning rate
+lr_DNS        = 1.0e-3   # exponential policy initial learning rate
 lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase

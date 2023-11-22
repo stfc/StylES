@@ -88,6 +88,7 @@ def make_synthesis_model():
 
     # Inputs
     dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+    img_LES  = tf.keras.Input(shape=([NUM_CHANNELS, 2**(RES_LOG2-FIL), 2**(RES_LOG2-FIL)]), dtype=DTYPE)
 
 
     # Noise inputs
@@ -103,6 +104,15 @@ def make_synthesis_model():
 
         noise_inputs.append(phi_noise)
 
+
+    def fromrgb(in_x, in_fmaps, in_ker, in_str, full_maps=False):  # res = 2..RES_LOG2
+        tail = "in_lod%d" % (RES_LOG2 - in_fmaps)
+        in_x = conv2d(in_x, fmaps=in_fmaps, kernel=in_ker, in_str=in_str, use_wscale=use_wscale, name="Conv_" + tail)
+        bias = layer_bias(in_x, name="Bias_" + tail)
+        in_x = bias(in_x)
+        in_x = layers.LeakyReLU()(in_x)
+        return in_x
+    
 
     # Things to do at the end of each layer.
     def layer_epilogue(in_x, ldx):
@@ -176,7 +186,6 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x = normalize(x)
         return x
 
     # convert to RGB final
@@ -185,25 +194,28 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter_withNorm(x[0,0,:,:], rs=1)
-        x_G = gaussian_filter_withNorm(x[0,1,:,:], rs=1)
-        x_B = gaussian_filter_withNorm(x[0,2,:,:], rs=1)
+        x_R = gaussian_filter(x[0,0,:,:], rs=1)
+        x_G = gaussian_filter(x[0,1,:,:], rs=1)
+        x_B = gaussian_filter(x[0,2,:,:], rs=1)
         x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = normalize(x)
+        x = normalize_max(x)
+        x = find_centred_fields(x)
         return x
 
     # Finally, arrange the computations for the layers
     images_out = []  # list will contain the output images at different resolutions
     images_out.append(torgb(2, x))
-    for res in range(3, RES_LOG2):
+    for res in range(3, RES_LOG2-FIL+1):
         x = block(res, x)
         images_out.append(torgb(res, x))
 
-    for res in range(RES_LOG2, RES_LOG2+1):
+    x_LES = fromrgb(img_LES, x.shape[1], 1, 1)
+    x = x*0.0 + x_LES*1.0
+    for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
         x = block(res, x)
         images_out.append(torgb_final(res, x))
         
-    synthesis_model = Model(inputs=dlatents, outputs=images_out)
+    synthesis_model = Model(inputs=[dlatents, img_LES], outputs=images_out)
 
     return synthesis_model
 

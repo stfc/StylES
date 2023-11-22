@@ -116,18 +116,23 @@ else:
 
 
 # create variable synthesis model
-layer_kDNS = layer_zlatent_kDNS()
+layer_mLES = layer_wlatent_mLES()
 
-z            = tf.keras.Input(shape=([2*M_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
-w            = layer_kDNS(mapping, z)
-outputs      = synthesis(w, training=False)
-wl_synthesis = tf.keras.Model(inputs=z, outputs=[outputs, w])
+z_in         = tf.keras.Input(shape=([LATENT_SIZE]), dtype=DTYPE)
+img_in       = tf.keras.Input(shape=([NUM_CHANNELS, 2**(RES_LOG-FIL), 2**(RES_LOG-FIL)]), dtype=DTYPE)
+w0           = mapping( z_in, training=False)
+w1           = mapping(-z_in, training=False)
+w            = layer_kDNS(w0, w1)
+outputs      = synthesis([w,img_in], training=False)
+wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
 
 
 # create filter model
 if (USE_GAUSSIAN_FILTER):
+    rs      = 2**(FIL)
     x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out     = gaussian_filter(x_in[0,0,:,:], rs=1, rsca=int(2**FIL))
+    # out     = gaussian_filter(x_in[0,0,:,:], rs=1, rsca=int(2**FIL))
+    out     = x_in[0,0,::rs,::rs]
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 else:
     gfilter = filters[IFIL]
@@ -211,7 +216,8 @@ formatter_kilos = FuncFormatter(kilos)
 
 
 # start main loop
-itot = 0
+itot   = 0
+z0     = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
 tstart = time.time()
 for tv, tollLES in enumerate(tollLESValues):
 
@@ -271,26 +277,66 @@ for tv, tollLES in enumerate(tollLESValues):
             cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
                    + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
 
-        # normalize
-        U_min = np.min(U_DNS)
-        U_max = np.max(U_DNS)
-        V_min = np.min(V_DNS)
-        V_max = np.max(V_DNS)
-        P_min = np.min(P_DNS)
-        P_max = np.max(P_DNS)
-
-        UVP_minmax = np.asarray([U_min, U_max, V_min, V_max, P_min, P_max])
-        UVP_minmax = tf.convert_to_tensor(UVP_minmax)    
-
-        U_DNS_org = 2.0*(U_DNS - U_min)/(U_max - U_min) - 1.0
-        V_DNS_org = 2.0*(V_DNS - V_min)/(V_max - V_min) - 1.0
-        P_DNS_org = 2.0*(P_DNS - P_min)/(P_max - P_min) - 1.0
+        # save original DNS fields
+        U_DNS_org = tf.identity(U_DNS)
+        V_DNS_org = tf.identity(V_DNS)
+        P_DNS_org = tf.identity(P_DNS)
             
         # print plots
         if (tv==-1):
             filename = "results_reconstruction/plots_org/Plots_DNS_org_" + str(k).zfill(4) +".png"
             print_fields_3(U_DNS_org, V_DNS_org, P_DNS_org, N=N_DNS, filename=filename) #, \
                 #Umin=-INIT_SCAL, Umax=INIT_SCAL, Vmin=-INIT_SCAL, Vmax=INIT_SCAL, Pmin=-INIT_SCAL, Pmax=INIT_SCAL)
+
+
+        # find LES
+        rs = 2**FIL
+        U_LES = U_DNS_org[::rs,::rs]
+        V_LES = V_DNS_org[::rs,::rs]
+        P_LES = P_DNS_org[::rs,::rs]
+
+        # if (TESTCASE=='mHW'):
+        #     U_LES = sc.ndimage.gaussian_filter(U_DNS_org, rs, mode=['constant','wrap'])
+        #     V_LES = sc.ndimage.gaussian_filter(V_DNS_org, rs, mode=['constant','wrap'])
+        #     P_LES = sc.ndimage.gaussian_filter(P_DNS_org, rs, mode=['constant','wrap'])
+        # else:
+        #     U_LES = sc.ndimage.gaussian_filter(U_DNS_org, rs, mode='grid-wrap')
+        #     V_LES = sc.ndimage.gaussian_filter(V_DNS_org, rs, mode='grid-wrap')
+        #     P_LES = sc.ndimage.gaussian_filter(P_DNS_org, rs, mode='grid-wrap')
+
+        # U_LES = tf.convert_to_tensor(U_LES)
+        # V_LES = tf.convert_to_tensor(V_LES)
+        # P_LES = tf.convert_to_tensor(P_LES)
+
+        # U_LES = U_LES[::rs,::rs]
+        # V_LES = V_LES[::rs,::rs]
+        # P_LES = P_LES[::rs,::rs]
+
+        # save original
+        U_LES_org = tf.identity(U_LES)
+        V_LES_org = tf.identity(V_LES)
+        P_LES_org = tf.identity(P_LES)
+        
+        # normalize
+        U_min = np.min(U_LES)
+        U_max = np.max(U_LES)
+        V_min = np.min(V_LES)
+        V_max = np.max(V_LES)
+        P_min = np.min(P_LES)
+        P_max = np.max(P_LES)
+
+        UVP_minmax = np.asarray([U_min, U_max, V_min, V_max, P_min, P_max])
+        UVP_minmax = tf.convert_to_tensor(UVP_minmax)    
+
+        U_LES = 2.0*(U_LES - U_min)/(U_max - U_min) - 1.0
+        V_LES = 2.0*(V_LES - V_min)/(V_max - V_min) - 1.0
+        P_LES = 2.0*(P_LES - P_min)/(P_max - P_min) - 1.0
+
+        U_LES = U_LES[tf.newaxis, tf.newaxis, :, :]
+        V_LES = V_LES[tf.newaxis, tf.newaxis, :, :]
+        P_LES = P_LES[tf.newaxis, tf.newaxis, :, :]
+        input_img = tf.concat([U_LES, V_LES, P_LES], axis=1)
+
 
         #-------------- save centerline for DNS values
         velx_DNS[tv,0,k] = U_DNS_org[N2_DNS, N2_DNS]

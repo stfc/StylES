@@ -35,7 +35,7 @@ L           = 50.176
 N_DNS2      = 2**(RES_LOG2-FIL)
 delx        = L/N
 dely        = L/N
-listRUN     = ["DNS", 1, 2, 3]
+listRUN     = ["DNS", 1, 2]
 PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
@@ -95,9 +95,10 @@ for lrun in listRUN:
         os.chdir(CWD)
 
         # find number of initial time
-        os.chdir(CWD)
-        data = np.load(FILE_DNS_fromGAN)
-        TGAP = np.cast[DTYPE](data['simtime'])
+        # os.chdir(CWD)
+        # data = np.load(FILE_DNS_fromGAN)
+        # TGAP = np.cast[DTYPE](data['simtime'])
+        TGAP = 0.0
         print("starting time ", TGAP)
 
         # find timestep
@@ -105,6 +106,7 @@ for lrun in listRUN:
         for line in file:
             if "timestep" in line:
                 DELT = float(line.split()[2])
+                print("timestep DNS", DELT)
                 break
     else:
         tail        = str(lrun)
@@ -243,9 +245,9 @@ for nf in range(3):
             if (nf==0):
                 plt.plot(time_DNS, n_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$n$ DNS")
             elif (nf==1):
-                plt.plot(time_DNS, p_cDNS, color='r', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
+                plt.plot(time_DNS, p_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
             else:
-                plt.plot(time_DNS, v_cDNS, color='b', linewidth=0.5, linestyle='solid', label=r"$\omega$ DNS")
+                plt.plot(time_DNS, v_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\omega$ DNS")
         else:
             tail = str(lrun)
             i1 = cst[i]

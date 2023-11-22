@@ -57,7 +57,7 @@ def gaussian_kernel(size: int, mean: float, std: float):
     """Makes 2D gaussian Kernel for convolution."""
 
     x = tf.range(start = -size, limit = size + 1, dtype = DTYPE)
-    Z = (2 * np.pi * std**2)**0.5
+    Z = (2.0 * np.pi * std**2)**0.5
     d = tf.math.exp(-0.5 * (x - mean)**2 / std**2) / Z
     gauss_kernel = tf.einsum('i,j->ij', d, d)
 
@@ -633,12 +633,12 @@ class layer_downscale2d(layers.Layer):
 
 
 #-------------Layer Conv2D
-def conv2d(x, fmaps, kernel, **kwargs):
+def conv2d(x, fmaps, kernel, in_str=1, **kwargs):
     assert kernel >= 1 and kernel % 2 == 1
     get_weight = layer_get_Weight([kernel, kernel, x.shape[1], fmaps], **kwargs)
     w = get_weight(x)
     w = tf.cast(w, DTYPE)
-    strides=[1, 1, 1, 1]
+    strides=[1, 1, in_str, in_str]
 
     if (w.shape[0] % 2 == 0):
         pleft   = np.int((w.shape[0]-1)/2)
@@ -856,11 +856,9 @@ def VGG_loss_LES(imgA, imgB, VGG_extractor):
     return losses    
 
 
-
 def tf_find_vorticity(U, V):
     W = ((tr(V, 1, 0)-tr(V, -1, 0)) - (tr(U, 0, 1)-tr(U, 0, -1)))
     return W
-
 
 
 def normalize_sc(U):
@@ -899,7 +897,6 @@ def normalize(UVP):
     return UVP
 
 
-
 def rescale(UVP, UVP_minmax):
     
     U_min = UVP_minmax[0]
@@ -935,119 +932,78 @@ def rescale(UVP, UVP_minmax):
 
 
 
-#---------------------------------------------- Layers search latent space
-class layer_zlatent_kDNS(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_zlatent_kDNS, self).__init__()
 
-        k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
-        self.k = tf.Variable(
-            initial_value=k_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="zlatent_kDNS"
-        )
+def normalize_max(UVP):
 
-    def call(self, mapping, z):
+    tU = UVP[0,0,:,:]
+    tV = UVP[0,1,:,:]
+    tP = UVP[0,2,:,:]
 
-        # interpolate latent spaces
-        zn = self.k[0,:]*z[:,0,:] + (1.0-self.k[0,:])*z[:,1,:]
-        zn = zn[:,tf.newaxis,:]
-        for i in range(M_LAYERS):
-            zs = self.k[i,:]*z[:,2*i,:] + (1.0-self.k[i,:])*z[:,2*i+1,:]
-            zs = zs[:,tf.newaxis,:]
-            zn = tf.concat([zn,zs], axis=1)
+    U_min  = tf.abs(tf.reduce_min(tU))
+    U_max  = tf.abs(tf.reduce_max(tU))
+    U_norm = tf.maximum(U_min, U_max)
 
-        zf = z[:,2*M_LAYERS,:]   # latent space for final layers
-        zf = zf[:,tf.newaxis,:]
-        zn = tf.concat([zn,zf], axis=1)
+    V_min  = tf.abs(tf.reduce_min(tV))
+    V_max  = tf.abs(tf.reduce_max(tV))
+    V_norm = tf.maximum(V_min, V_max)
 
-        # map interpolated latent space z into w
-        w0 = mapping(zn[:,M_LAYERS,:], training=False)
-        wn = mapping(zn[:,0,:], training=False)
-        wn = wn[:,0:1,:]
-        for i in range(1,M_LAYERS):
-            ws = mapping(zn[:,i,:], training=False)
-            ws = ws[:,i:i+1,:]
-            wn = tf.concat([wn,ws], axis=1)
+    P_min  = tf.abs(tf.reduce_min(tV))
+    P_max  = tf.abs(tf.reduce_max(tV))
+    P_norm = tf.maximum(P_min, P_max)
 
-        w0 = w0[:,M_LAYERS:G_LAYERS,:]
-        wn = tf.concat([wn,w0], axis=1)
-        
-        return wn
+    tU = tU[tf.newaxis,tf.newaxis,:,:]/U_norm
+    tV = tV[tf.newaxis,tf.newaxis,:,:]/V_norm
+    tP = tP[tf.newaxis,tf.newaxis,:,:]/P_norm
+
+    UVP = tf.concat([tU, tV, tP], 1)
+
+    return UVP
 
 
+def rescale_max(UVP, UVP_max):
 
-class layer_zlatent_kDNS2(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_zlatent_kDNS2, self).__init__()
+    tU = UVP[0,0,:,:]
+    tV = UVP[0,1,:,:]
+    tP = UVP[0,2,:,:]
+    
+    tU = tU[tf.newaxis,tf.newaxis,:,:]*UVP_max[0]
+    tV = tV[tf.newaxis,tf.newaxis,:,:]*UVP_max[1]
+    tP = tP[tf.newaxis,tf.newaxis,:,:]*UVP_max[2]
 
-    def call(self, mapping, zn):
-
-        # map interpolated latent space z into w
-        w0 = mapping(zn[:,M_LAYERS,:], training=False)
-        wn = mapping(zn[:,0,:], training=False)
-        wn = wn[:,0:1,:]
-        for i in range(1,M_LAYERS):
-            ws = mapping(zn[:,i,:], training=False)
-            ws = ws[:,i:i+1,:]
-            wn = tf.concat([wn,ws], axis=1)
-
-        w0 = w0[:,M_LAYERS:G_LAYERS,:]
-        wn = tf.concat([wn,w0], axis=1)
-        
-        return wn
+    UVP = tf.concat([tU, tV, tP], 1)
+    
+    return UVP
 
 
 
-class layer_wlatent_mLES(layers.Layer):
-    def __init__(self, **kwargs):
-        super(layer_wlatent_mLES, self).__init__()
 
-        m_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
-        self.m = tf.Variable(
-            initial_value=m_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
-            name="wlatent_mDNS"
-        )
-
-    def call(self, w0, w1):
-
-        w_LES = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        w_DNS = w1[:,M_LAYERS:G_LAYERS,:] 
-        w = tf.concat([w_LES,w_DNS], axis=1)
-        
-        return w
-
-
-
-@tf.function
 def find_centred_fields(UVP):
 
         # make sure average of each field is zero
-        U = UVP[0,0,:,:]
-        V = UVP[0,1,:,:]
-        P = UVP[0,2,:,:]
+        tU = UVP[0,0,:,:]
+        tV = UVP[0,1,:,:]
+        tP = UVP[0,2,:,:]
 
-        Um = tf.reduce_mean(U)
-        Vm = tf.reduce_mean(V)
-        Pm = tf.reduce_mean(P)
+        Um = tf.reduce_mean(tU)
+        Vm = tf.reduce_mean(tV)
+        Pm = tf.reduce_mean(tP)
         
-        U = U - Um
-        V = V - Vm
-        P = P - Pm
+        tU = tU - Um
+        tV = tV - Vm
+        tP = tP - Pm
 
-        U = U[tf.newaxis,tf.newaxis,:,:]
-        V = V[tf.newaxis,tf.newaxis,:,:]
-        P = P[tf.newaxis,tf.newaxis,:,:]
+        tU = tU[tf.newaxis,tf.newaxis,:,:]
+        tV = tV[tf.newaxis,tf.newaxis,:,:]
+        tP = tP[tf.newaxis,tf.newaxis,:,:]
 
-        UVP = tf.concat([U, V, P], 1)
+        UVP = tf.concat([tU, tV, tP], 1)
         
         return UVP
 
 
 
 @tf.function
-def find_predictions(synthesis, filter, z):
+def find_predictions(synthesis, filter, z, UVP_max):
 
     # find predictions
     inference = synthesis(z, training=False)
@@ -1061,7 +1017,6 @@ def find_predictions(synthesis, filter, z):
         
     UVP_DNS = predictions[RES_LOG2-2]
     UVP_LES = predictions[RES_LOG2-FIL-2]
-
 
     # adjust DNS fields
     if (TESTCASE=='HIT_2D'):
@@ -1088,49 +1043,16 @@ def find_predictions(synthesis, filter, z):
 
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
 
-        find_centred_fields
-        UVP_DNS = find_centred_fields(UVP_DNS)
-
-
-    # adjust LES fields
-    if (TESTCASE=='HIT_2D'):
-
-        # calculate vorticity 
-        U_LES = UVP_LES[0,0,:,:]
-        V_LES = UVP_LES[0,1,:,:]
-        P_LES = tf_find_vorticity(U_LES, V_LES)
-
-        U_LES = U_LES[tf.newaxis,tf.newaxis,:,:]
-        V_LES = V_LES[tf.newaxis,tf.newaxis,:,:]
-        P_LES = P_LES[tf.newaxis,tf.newaxis,:,:]
-
-        UVP_LES = tf.concat([U_LES, V_LES, P_LES], 1)    
-
-    elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        
         # find_centred_fields
-        UVP_LES = find_centred_fields(UVP_LES)
-
-
+        UVP_DNS = rescale_max(UVP_DNS, UVP_max)
+        UVP_DNS = find_centred_fields(UVP_DNS)
+    
     # find filtered fields
-    fU_DNS = UVP_DNS[:,0,:,:]
-    fU_DNS = fU_DNS[:,tf.newaxis,:,:]
-    fU_DNS = filter(fU_DNS, training = False)
-
-    fV_DNS = UVP_DNS[:,1,:,:]
-    fV_DNS = fV_DNS[:,tf.newaxis,:,:]
-    fV_DNS = filter(fV_DNS, training = False)
-
-    if (TESTCASE=='HIT_2D'):
-        fP_DNS = tf_find_vorticity(fU_DNS[0,0,:,:], fV_DNS[0,0,:,:])
-        fP_DNS = fP_DNS[tf.newaxis,tf.newaxis,:,:]
-    elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        fP_DNS = UVP_DNS[:,2,:,:]
-        fP_DNS = fP_DNS[:,tf.newaxis,:,:]
-        fP_DNS = filter(fP_DNS, training = False)
+    fU_DNS = filter(UVP_DNS[:,0:1,:,:], training = False)
+    fV_DNS = filter(UVP_DNS[:,1:2,:,:], training = False)
+    fP_DNS = filter(UVP_DNS[:,2:3,:,:], training = False)
     
     fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
-
 
     return UVP_DNS, UVP_LES, fUVP_DNS, wn, predictions
 
@@ -1139,27 +1061,40 @@ def find_predictions(synthesis, filter, z):
 @tf.function
 def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
 
-    if (typeRes==0):  # residuals for create_restart
+    if (typeRes==0):
         resDNS   = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS,  tDNS))
         resLES   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
         resREC   = resDNS + resLES
         loss_fil = resLES
-    elif (typeRes==1):  # residuals for create_restart
+    elif (typeRes==1):
         resDNS   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
-        resLES   = 0.0*tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
+        resLES   = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
         resREC   = resDNS + resLES
         loss_fil = resLES        
-
+    elif (typeRes==2):
+        resDNS   = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS, tDNS))
+        resLES   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
+        resREC   = 0.0*resDNS + resLES
+        loss_fil = resLES        
+    elif (typeRes==3):
+        resDNS   = tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS,  tDNS))
+        resLES   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
+        # UVP_DNS  = tf.transpose(UVP_DNS, perm=[0,3,2,1])
+        # tDNS     = tf.transpose(tDNS,    perm=[0,3,2,1])
+        # resREC   = tf.image.ssim(UVP_DNS, tDNS, max_val=2, filter_size=1, filter_sigma=10.0)
+        resREC   = resDNS + 0.0*resLES
+        loss_fil = resLES
+        
     return resREC, resLES, resDNS, loss_fil
 
 
 
 @tf.function
-def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, typeRes):
+def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max, typeRes):
     with tf.GradientTape() as tape_LES:
         
         # find predictions
-        UVP_DNS, UVP_LES, fUVP_DNS, wn, _ = find_predictions(synthesis, filter, z)
+        UVP_DNS, UVP_LES, fUVP_DNS, wn, _ = find_predictions(synthesis, filter, z, UVP_max)
 
         # find residuals        
         resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=typeRes)
@@ -1170,3 +1105,37 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, typeRes)
 
         
     return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn
+
+
+
+#---------------------------------------------- Layers search latent space
+class layer_zlatent_kDNS(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_zlatent_kDNS, self).__init__()
+
+        k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
+        self.k = tf.Variable(
+            initial_value=k_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="zlatent_kDNS"
+        )
+
+    def call(self, mapping, z):
+
+        # interpolate latent spaces
+        zn = z[:,0:1,:]
+        for i in range(G_LAYERS-M_LAYERS):
+            zs = self.k[i,:]*z[:,2*i+1,:] + (1.0-self.k[i,:])*z[:,2*i+2,:]
+            zs = zs[:,tf.newaxis,:]
+            zn = tf.concat([zn,zs], axis=1)
+
+        # map interpolated latent space z into w
+        wn = mapping(zn[:,0,:], training=False)
+        wn = wn[:,0:M_LAYERS,:]
+        for i in range(G_LAYERS-M_LAYERS):
+            ws = mapping(zn[:,i+1,:], training=False)
+            ws = ws[:,M_LAYERS+i:M_LAYERS+i+1,:]
+            wn = tf.concat([wn,ws], axis=1)
+
+        return wn
+

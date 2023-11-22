@@ -76,11 +76,11 @@ def decode_img(img):
     
     return img_out
 
+
 def process_path(file_path):
     img = tf.io.read_file(file_path)
     img = decode_img(img)
     return img
-
 
 
 # functions for processing and decoding numpy arrays
@@ -99,55 +99,56 @@ def StyleGAN_load_fields(file_path):
     P = np.cast[DTYPE](P)
     DIM_DATA, _ = U.shape
 
-    # normalize the data
-    maxU = np.max(U)
-    minU = np.min(U)
-    if (maxU!=minU):
-        U = 2.0*(U - minU)/(maxU - minU) - 1.0
-    else:
-        U = U
-    
-    maxV = np.max(V)
-    minV = np.min(V)
-    if (maxV!=minV):
-        V = 2.0*(V - minV)/(maxV - minV) - 1.0
-    else:
-        V = V
-
-    maxP = np.max(P)
-    minP = np.min(P)
-    if (maxP!=minP):
-        P = 2.0*(P - minP)/(maxP - minP) - 1.0
-    else:
-        P = P
 
     # downscale
     img_out = []
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
         data = np.zeros([3, res, res], dtype=DTYPE)
-        s = res/DIM_DATA
         rs = int(DIM_DATA/res)
-        if (rs==1):
-            data[0,:,:] = U
-            data[1,:,:] = V
-            data[2,:,:] = P
+        if (res==2**(RES_LOG2-FIL)):
+            if (TESTCASE=='mHW'):
+                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
+                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
+                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
+            else:
+                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
+                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
+                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
         else:
-            # if (TESTCASE=='mHW'):
-            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
-            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
-            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
-            # else:
-            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
-            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
-            data[0,:,:] = U[::rs,::rs]
-            data[1,:,:] = V[::rs,::rs]  
-            data[2,:,:] = P[::rs,::rs]  
+            U_DNS_g = np.copy(U)
+            V_DNS_g = np.copy(V)
+            P_DNS_g = np.copy(P)
+                
+        U_DNS_g = U_DNS_g[::rs,::rs]
+        V_DNS_g = V_DNS_g[::rs,::rs]
+        P_DNS_g = P_DNS_g[::rs,::rs]
+
+        # normalize the data
+        # normalize the data
+        maxVal = abs(np.max(U_DNS_g))
+        minVal = abs(np.min(U_DNS_g))
+        absVal = max(minVal, maxVal)
+        U_DNS_g = U_DNS_g/absVal
+        
+        maxVal = abs(np.max(V_DNS_g))
+        minVal = abs(np.min(V_DNS_g))
+        absVal = max(minVal, maxVal)
+        V_DNS_g = V_DNS_g/absVal
+
+        maxVal = abs(np.max(P_DNS_g))
+        minVal = abs(np.min(P_DNS_g))
+        absVal = max(minVal, maxVal)
+        P_DNS_g = P_DNS_g/absVal
+
+        data[0,:,:] = U_DNS_g
+        data[1,:,:] = V_DNS_g
+        data[2,:,:] = P_DNS_g
 
         img_out.append(data)
 
     return img_out
+
 
 def process_path_numpy_arrays(path):
     list = []
@@ -163,7 +164,6 @@ if (READ_NUMPY_ARRAYS):
     labeled_ds = list_ds.map(process_path_numpy_arrays, num_parallel_calls=AUTOTUNE)
 else:
     labeled_ds = list_ds.map(process_path, num_parallel_calls=AUTOTUNE)
-
 
 
 # prepare training dataset
@@ -350,9 +350,9 @@ def check_divergence_staggered(img, res):
     return div, dUdt, dVdt
 
 
-def generate_and_save_images(mapping, synthesis, input, iteration):
-    dlatents    = mapping(input, training=False)
-    predictions = synthesis(dlatents, training=False)
+def generate_and_save_images(mapping, synthesis, input_latent, input_img, iteration):
+    dlatents    = mapping(input_latent, training=False)
+    predictions = synthesis([dlatents, input_img], training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)

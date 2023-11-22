@@ -33,7 +33,7 @@ PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = True
+FIND_MIXMAX = False
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
@@ -63,9 +63,10 @@ if (MODE=='READ_NETCDF'):
     os.chdir(CWD)
     
     # find number of initial time
-    os.chdir(CWD)
-    data = np.load(FILE_DNS_fromGAN)
-    TGAP = np.cast[DTYPE](data['simtime'])
+    # os.chdir(CWD)
+    # data = np.load(FILE_DNS_fromGAN)
+    # TGAP = np.cast[DTYPE](data['simtime'])
+    TGAP = 0.0
     print("starting time ", TGAP)
 
     # find timestep
