@@ -41,9 +41,12 @@ os.chdir('./utilities')
 
 # local parameters
 USE_DLATENTS = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NINTER       = 11
+NINTER       = 21
 NLATS        = 1
 PATH_ANIMAT  = "results_checkStyles/plots/"
+N_DNS        = 2**RES_LOG2
+N_LES        = 2**RES_LOG2-FIL
+RS           = int(2**FIL)
   
 # clean up and prepare folders
 os.system("rm -rf results_checkStyles/plots")
@@ -58,13 +61,47 @@ os.system("mkdir -p results_checkStyles/fields")
 os.system("mkdir -p results_checkStyles/uvw")
 os.system("mkdir -p results_checkStyles/energy")
 
-N_DNS = 2**RES_LOG2
-N_LES = 2**RES_LOG2-FIL
 
 
 # loading StyleGAN checkpoint and filter
 managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
 checkpoint.restore(managerCheckpoint.latest_checkpoint)
+
+
+# create filter model
+x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
+gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+
+
+# load numpy array
+U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_DNS)
+U_DNS = np.cast[DTYPE](U_DNS)
+V_DNS = np.cast[DTYPE](V_DNS)
+P_DNS = np.cast[DTYPE](P_DNS)
+
+# convert to tensor
+U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
+
+# save original DNS
+U_DNS_org = tf.identity(U_DNS)
+V_DNS_org = tf.identity(V_DNS)
+P_DNS_org = tf.identity(P_DNS)
+
+U_DNS_org = U_DNS_org[tf.newaxis,tf.newaxis,:,:]
+V_DNS_org = V_DNS_org[tf.newaxis,tf.newaxis,:,:]
+P_DNS_org = P_DNS_org[tf.newaxis,tf.newaxis,:,:]
+
+imgA = tf.concat([U_DNS_org, V_DNS_org, P_DNS_org], axis=1)
+
+# find filtered field
+fU = gfilter(U_DNS_org)[0,0,:,:]
+fV = gfilter(V_DNS_org)[0,0,:,:]
+fP = gfilter(P_DNS_org)[0,0,:,:]
+
+fimgA = tf.concat([fU[tf.newaxis,tf.newaxis,:,:], fV[tf.newaxis,tf.newaxis,:,:], fP[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
 
 tf.random.set_seed(0)
@@ -86,7 +123,7 @@ for nl in range(NLATS):
         
 
         # inference
-        predictions = synthesis(dlatents, training=False)
+        predictions = synthesis([dlatents, fimgA], training=False)
 
 
         # write fields and energy spectra for each layer

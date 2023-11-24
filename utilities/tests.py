@@ -43,7 +43,7 @@ P_DNS = np.cast[DTYPE](P_DNS)
 # plot DNS spectrum
 DELX  = L/N_DNS
 DELY  = L/N_DNS
-filename = "./tests/energy_spectrum_DNS.png"
+filename = "./results_tests/energy_spectrum_DNS.png"
 gradV = np.sqrt(((cr(V_DNS, 1, 0) - cr(V_DNS, -1, 0))/(2.0*DELX))**2 \
               + ((cr(V_DNS, 0, 1) - cr(V_DNS, 0, -1))/(2.0*DELY))**2)
 plot_spectrum(U_DNS, gradV, L, filename, close=False)
@@ -56,7 +56,7 @@ fP_DNS = P_DNS[::RS, ::RS]
 
 DELX  = L/N_DNS*RS
 DELY  = L/N_DNS*RS
-filename = "./tests/energy_spectrum_th.png"
+filename = "./results_tests/energy_spectrum_th.png"
 
 gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
@@ -75,7 +75,7 @@ fP_DNS = fP_DNS[::RS, ::RS]
 
 DELX  = L/N_DNS*RS
 DELY  = L/N_DNS*RS
-filename = "./tests/energy_spectrum_scg.png"
+filename = "./results_tests/energy_spectrum_scg.png"
 
 gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
@@ -94,7 +94,7 @@ fP_DNS = fP_DNS[::RS, ::RS]
 
 DELX  = L/N_DNS*RS
 DELY  = L/N_DNS*RS
-filename = "./tests/energy_spectrum_scth.png"
+filename = "./results_tests/energy_spectrum_scth.png"
 
 gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
@@ -117,7 +117,7 @@ fP_DNS = fP_DNS[0,0,:,:].numpy()
 
 DELX  = L/N_DNS*RS
 DELY  = L/N_DNS*RS
-filename = "./tests/energy_spectrum_tf.png"
+filename = "./results_tests/energy_spectrum_tf.png"
 
 gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
