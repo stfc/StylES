@@ -36,11 +36,12 @@ tf.random.set_seed(SEED_RESTART)
 
 
 # parameters
-TUNE        = False
+TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 1.e-2
+tollDNS     = 1.e+100
 N_DNS       = 2**RES_LOG2
-N_LES       = 2**RES_LOG2-FIL
+N_LES       = 2**(RES_LOG2-FIL)
+N2L         = int(N_LES/2)
 RS          = int(2**FIL)
 RESTART_WL  = False
 
@@ -88,8 +89,6 @@ else:
 time.sleep(3)
 
 
-
-
 # create variable synthesis model
 layer_kDNS = layer_zlatent_kDNS()
 z_in         = tf.keras.Input(shape=([2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE]), dtype=DTYPE)
@@ -103,7 +102,6 @@ wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
 x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
 out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
 gfilter = tf.keras.Model(inputs=x_in, outputs=out)
-
 
 
 # define checkpoints wl_synthesis and filter
@@ -194,8 +192,6 @@ filename = Z0_DIR_WL + "plots_DNS_orig_restart.png"
 print_fields_3(imgA[0,0,:,:], imgA[0,1,:,:], imgA[0,2,:,:], filename=filename, testcase=TESTCASE)
 
 
-
-
 # find filtered field
 fU = gfilter(U_DNS_org)[0,0,:,:]
 fV = gfilter(V_DNS_org)[0,0,:,:]
@@ -209,21 +205,22 @@ V_max = np.max(fV)
 P_min = np.min(fP)
 P_max = np.max(fP)
 
-fUn = max(np.absolute(U_min), np.absolute(U_max))
-fVn = max(np.absolute(V_min), np.absolute(V_max))
-fPn = max(np.absolute(P_min), np.absolute(P_max))
+fU_amax = max(np.absolute(U_min), np.absolute(U_max))
+fV_amax = max(np.absolute(V_min), np.absolute(V_max))
+fP_amax = max(np.absolute(P_min), np.absolute(P_max))
 
 print("Filtered DNS min/max ", U_min, U_max, V_min, V_max, P_min, P_max)
-print("Normalization values of filtered DNS", fUn, fVn, fPn)
+print("Normalization values of filtered DNS", fU_amax, fV_amax, fP_amax)
 
-fU_norm = fU/fUn
-fV_norm = fV/fVn
-fP_norm = fP/fPn
+fimgA = tf.concat([fU[tf.newaxis,tf.newaxis,:,:], fV[tf.newaxis,tf.newaxis,:,:], fP[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
-filename = Z0_DIR_WL + "plots_fDNS_normalized.png"
-print_fields_3(fU_norm, fV_norm, fP_norm, filename=filename, testcase=TESTCASE)
+nfU = fU/fU_amax
+nfV = fV/fV_amax
+nfP = fP/fP_amax
+
+filename = Z0_DIR_WL + "plots_fDNSn.png"
+print_fields_3(nfU, nfV, nfP, filename=filename, testcase=TESTCASE)
     
-fimgA = tf.concat([fU_norm[tf.newaxis,tf.newaxis,:,:], fU_norm[tf.newaxis,tf.newaxis,:,:], fP_norm[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
 
 
@@ -239,38 +236,42 @@ V_max = np.max(V)
 P_min = np.min(P)
 P_max = np.max(P)
 
-Un = max(np.absolute(U_min), np.absolute(U_max))
-Vn = max(np.absolute(V_min), np.absolute(V_max))
-Pn = max(np.absolute(P_min), np.absolute(P_max))
+nU_amax = max(np.absolute(U_min), np.absolute(U_max))
+nV_amax = max(np.absolute(V_min), np.absolute(V_max))
+nP_amax = max(np.absolute(P_min), np.absolute(P_max))
 
 print("DNS fields min/max", U_min, U_max, V_min, V_max, P_min, P_max)
-print("Normalization values of DNS", Un, Vn, Pn)
+print("Normalization values of DNS", nU_amax, nV_amax, nP_amax)
 
-U_norm = U/Un
-V_norm = V/Vn
-P_norm = P/Pn
+nU = U/nU_amax
+nV = V/nV_amax
+nP = P/nP_amax
 
 
 # find LES
-U_norm_f = gfilter(U_norm)[0,0,:,:]
-V_norm_f = gfilter(V_norm)[0,0,:,:]
-P_norm_f = gfilter(P_norm)[0,0,:,:]
+fnU = gfilter(nU)[0,0,:,:]
+fnV = gfilter(nV)[0,0,:,:]
+fnP = gfilter(nP)[0,0,:,:]
 
-filename = Z0_DIR_WL + "plots_DNS_normalized_filtered.png"
-print_fields_3(U_norm_f, V_norm_f, P_norm_f, filename=filename, testcase=TESTCASE)
+filename = Z0_DIR_WL + "plots_nDNSf.png"
+print_fields_3(fnU, fnV, fnP, filename=filename, testcase=TESTCASE)
 
-kUmax = P_norm_f[15,15]*fU_norm[15,15]/(U_norm_f[15,15]*fP_norm[15,15])*fUn*Pn/fPn
-kVmax = U_norm_f[15,15]*fV_norm[15,15]/(V_norm_f[15,15]*fU_norm[15,15])*fVn*Un/fUn
-kPmax = U_norm_f[15,15]*fP_norm[15,15]/(P_norm_f[15,15]*fU_norm[15,15])*fPn*Un/fUn
+kUmax = ( fnV[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfV[N2L,N2L])*fU_amax*nV_amax/fV_amax
+kVmax = ( fnU[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfU[N2L,N2L])*fV_amax*nU_amax/fU_amax
+kPmax = ( fnU[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfU[N2L,N2L])*fP_amax*nU_amax/fU_amax
 
 #verify multipliers
-if (abs((kUmax-Un) + (kVmax-Vn) + (kPmax-Pn))>1.e-5):
+if (abs((kUmax-nU_amax) + (kVmax-nV_amax) + (kPmax-nP_amax))>1.e-4):
+    print("Diff on kUmax =", kUmax - nP_amax)
+    print("Diff on kUmax =", kVmax - nV_amax)
+    print("Diff on kUmax =", kPmax - nP_amax)
+
     print("Mismatch in the filter properties!!!")
     exit(0)
 else:
-    print("Diff on kUmax =", kUmax - Un)
-    print("Diff on kUmax =", kVmax - Vn)
-    print("Diff on kUmax =", kPmax - Pn)
+    print("Diff on kUmax =", kUmax - nU_amax)
+    print("Diff on kUmax =", kVmax - nV_amax)
+    print("Diff on kUmax =", kPmax - nP_amax)
 
     kUmax = tf.convert_to_tensor(kUmax, dtype=DTYPE)
     kVmax = tf.convert_to_tensor(kVmax, dtype=DTYPE)
@@ -282,7 +283,7 @@ else:
 # find inference
 UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
 resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)
-print("Initial residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
+print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
         .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil.numpy()))
 
 # tune to given tollerance
@@ -294,35 +295,35 @@ if (TUNE):
     while (resREC>tollDNS and it<lr_LES_maxIt):
 
         lr = lr_schedule_DNS(it)
-        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn = \
-            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, typeRes=3)
+        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _ = \
+            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
         # kDNS = layer_kDNS.trainable_variables[0]
         # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
         # layer_kDNS.trainable_variables[0].assign(kDNS)
 
-        valid_zn = True
-        kDNS  = layer_kDNS.trainable_variables[0]
-        kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
-        if (tf.reduce_any((kDNS-kDNSc)>0) or (it%1000==0 and it!=0)):
-            print("reset values")
-            z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-            z0n = z0[:,0:1,:]
-            for i in range(G_LAYERS-M_LAYERS):
-                zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
-                z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
-                z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
-                z0n = tf.concat([z0n,z1s,z2s], axis=1)
-            kDNSn = 0.5*tf.ones_like(kDNS)
-            valid_zn = False
+        # valid_zn = True
+        # kDNS  = layer_kDNS.trainable_variables[0]
+        # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
+        # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%1000==0 and it!=0)):
+        #     print("reset values")
+        #     z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        #     z0n = z0[:,0:1,:]
+        #     for i in range(G_LAYERS-M_LAYERS):
+        #         zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
+        #         z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
+        #         z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
+        #         z0n = tf.concat([z0n,z1s,z2s], axis=1)
+        #     kDNSn = 0.5*tf.ones_like(kDNS)
+        #     valid_zn = False
 
-        if (not valid_zn):
-            z0 = tf.identity(z0n)
-            layer_kDNS.trainable_variables[0].assign(kDNSn)
-            UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA])
-            resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
+        # if (not valid_zn):
+        #     z0 = tf.identity(z0n)
+        #     layer_kDNS.trainable_variables[0].assign(kDNSn)
+        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+        #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
 
-        kDNSo = layer_kDNS.trainable_variables[0]
+        # kDNSo = layer_kDNS.trainable_variables[0]
 
         # print fields
         if (it%100==0):
@@ -340,13 +341,13 @@ if (TUNE):
                 print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename)
 
                 filename = Z0_DIR_WL + "plots_DNSdiff_restart_" + str(0).zfill(4) + ".png"
-                print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True)
-                    # Umin=-U_norm, Umax=U_norm, Vmin=-V_norm, Vmax=V_norm, Pmin=-P_norm, Pmax=P_norm)
+                print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                    Umin=-nU_amax, Umax=nU_amax, Vmin=-nV_amax, Vmax=nV_amax, Pmin=-nP_amax, Pmax=nP_amax)
 
                 filename = Z0_DIR_WL + "plots_LESdiff_restart_" + str(0).zfill(4) + ".png"
                 print_fields_3(fimgA[0,2,:,:], fUVP_DNS[0,2,:,:], fimgA[0,2,:,:]-fUVP_DNS[0,2,:,:], \
-                    filename=filename, testcase=TESTCASE, diff=True) #, \
-                    # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
+                    filename=filename, testcase=TESTCASE, diff=True, \
+                    Umin=-fU_amax, Umax=fU_amax, Vmin=-fV_amax, Vmax=fV_amax, Pmin=-fP_amax, Pmax=fP_amax)
     
         it = it+1
 
@@ -430,10 +431,12 @@ elif(TESTCASE=='HW' or TESTCASE=='mHW'):
     print_fields_3(fU_DNS, fV_DNS, fP_DNS, filename=filename, testcase=TESTCASE)
 
     filename = Z0_DIR_WL + "plots_DNS_diff_DNSfromGAN_restart.png"
-    print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True)
+    print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                   Umin=-nU_amax, Umax=nU_amax, Vmin=-nV_amax, Vmax=nV_amax, Pmin=-nP_amax, Pmax=nP_amax)
 
     filename = Z0_DIR_WL + "plots_fDNS_diff_fDNSfromGAN_restart.png"
-    print_fields_3(fimgA[0,2,:,:], fP_DNS, fimgA[0,2,:,:]-fP_DNS, filename=filename, testcase=TESTCASE, diff=True)
+    print_fields_3(fimgA[0,2,:,:], fP_DNS, fimgA[0,2,:,:]-fP_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                   Umin=-fU_amax, Umax=fU_amax, Vmin=-fV_amax, Vmax=fV_amax, Pmin=-fP_amax, Pmax=fP_amax)
 
     cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
            + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)

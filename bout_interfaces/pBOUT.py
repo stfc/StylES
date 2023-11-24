@@ -60,7 +60,7 @@ CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_LES_maxIt
 pPrintFreq  = 1.0
 INIT_SCAL   = 10.0
-RUN_DNS     = False
+RUN_DNS     = True
 
 
 
@@ -101,7 +101,6 @@ wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
 
 # create filter model
 x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-# out     = x_in[:,:,::RS,::RS]  #top-hat filter
 out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
 gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
