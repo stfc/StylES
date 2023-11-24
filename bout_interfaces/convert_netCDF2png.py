@@ -25,15 +25,15 @@ from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m2/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = False
+FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image

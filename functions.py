@@ -1094,7 +1094,7 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max,
     with tf.GradientTape() as tape_LES:
         
         # find predictions
-        UVP_DNS, UVP_LES, fUVP_DNS, wn, _ = find_predictions(synthesis, filter, z, UVP_max)
+        UVP_DNS, UVP_LES, fUVP_DNS, wn, preds = find_predictions(synthesis, filter, z, UVP_max)
 
         # find residuals        
         resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=typeRes)
@@ -1104,11 +1104,10 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max,
         opt.apply_gradients(zip(gradients_LES, ltv))
 
         
-    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn
+    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn, preds
 
 
 
-#---------------------------------------------- Layers search latent space
 class layer_zlatent_kDNS(layers.Layer):
     def __init__(self, **kwargs):
         super(layer_zlatent_kDNS, self).__init__()
@@ -1139,3 +1138,76 @@ class layer_zlatent_kDNS(layers.Layer):
 
         return wn
 
+
+
+@tf.function
+def find_bracket(F, G, filter, spacingFactor):
+
+    # find pPhiVort_DNS
+    Jpp = (tr(F, 0, 1) - tr(F, 0,-1)) * (tr(G, 1, 0) - tr(G,-1, 0)) \
+        - (tr(F, 1, 0) - tr(F,-1, 0)) * (tr(G, 0, 1) - tr(G, 0,-1))
+    Jpx = (tr(G, 1, 0) * (tr(F, 1, 1) - tr(F, 1,-1)) - tr(G,-1, 0) * (tr(F,-1, 1) - tr(F,-1,-1)) \
+         - tr(G, 0, 1) * (tr(F, 1, 1) - tr(F,-1, 1)) + tr(G, 0,-1) * (tr(F, 1,-1) - tr(F,-1,-1)))
+    Jxp = (tr(G, 1, 1) * (tr(F, 0, 1) - tr(F, 1, 0)) - tr(G,-1,-1) * (tr(F,-1, 0) - tr(F, 0,-1)) \
+         - tr(G,-1, 1) * (tr(F, 0, 1) - tr(F,-1, 0)) + tr(G, 1,-1) * (tr(F, 1, 0) - tr(F, 0,-1)))
+
+    pPhi_DNS = (Jpp + Jpx + Jxp)
+
+    # filter
+    fpPhi_DNS = filter(pPhi_DNS[tf.newaxis,tf.newaxis,:,:], training=False)
+    fpPhi_DNS = fpPhi_DNS[0,0,:,:]*spacingFactor
+
+    return fpPhi_DNS
+
+
+
+def find_scaling(U, V, P, gfilter):
+    
+        # find filter of normalized fields
+        U_min = np.min(U)
+        U_max = np.max(U)
+        V_min = np.min(V)
+        V_max = np.max(V)
+        P_min = np.min(P)
+        P_max = np.max(P)
+
+        nU_amax = max(np.absolute(U_min), np.absolute(U_max))
+        nV_amax = max(np.absolute(V_min), np.absolute(V_max))
+        nP_amax = max(np.absolute(P_min), np.absolute(P_max))
+
+        nU = U/nU_amax
+        nV = V/nV_amax
+        nP = P/nP_amax
+
+        fnU = gfilter(nU[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+        fnV = gfilter(nV[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+        fnP = gfilter(nP[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+
+
+        # find normalized filtered field
+        fU = gfilter(U[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+        fV = gfilter(V[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+        fP = gfilter(P[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+
+        U_min = np.min(fU)
+        U_max = np.max(fU)
+        V_min = np.min(fV)
+        V_max = np.max(fV)
+        P_min = np.min(fP)
+        P_max = np.max(fP)
+
+        fU_amax = max(np.absolute(U_min), np.absolute(U_max))
+        fV_amax = max(np.absolute(V_min), np.absolute(V_max))
+        fP_amax = max(np.absolute(P_min), np.absolute(P_max))
+
+        nfU = fU/fU_amax
+        nfV = fV/fV_amax
+        nfP = fP/fP_amax
+        
+        # concatenate all values
+        fnUVP     = [fnU, fnV, fnP]
+        nfUVP     = [nfU, nfV, nfP]
+        fUVP_amax = [fU_amax, fV_amax, fP_amax]
+        nUVP_amax = [nU_amax, nV_amax, nP_amax]
+        
+        return fnUVP, nfUVP, fUVP_amax, nUVP_amax
