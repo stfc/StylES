@@ -332,53 +332,25 @@ for tv, tollLES in enumerate(tollLESValues):
         # find multiplier for DNS field
         if (k==0):
 
-            # find filter of normalized fields
-            U = tf.identity(U_DNS_org)
-            V = tf.identity(V_DNS_org)
-            P = tf.identity(P_DNS_org)
+            fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(U_DNS_org, V_DNS_org, P_DNS_org, gfilter)
 
-            U_min = np.min(U)
-            U_max = np.max(U)
-            V_min = np.min(V)
-            V_max = np.max(V)
-            P_min = np.min(P)
-            P_max = np.max(P)
+            fnUo = fnUVP[0]
+            fnVo = fnUVP[1]
+            fnPo = fnUVP[2]
 
-            nU_amaxo = max(np.absolute(U_min), np.absolute(U_max))
-            nV_amaxo = max(np.absolute(V_min), np.absolute(V_max))
-            nP_amaxo = max(np.absolute(P_min), np.absolute(P_max))
+            nfUo = nfUVP[0]
+            nfVo = nfUVP[1]
+            nfPo = nfUVP[2]
 
-            nU = U/nU_amaxo
-            nV = V/nV_amaxo
-            nP = P/nP_amaxo
+            fU_amaxo = fUVP_amax[0]
+            fV_amaxo = fUVP_amax[1]
+            fP_amaxo = fUVP_amax[2]
 
-            fnUo = gfilter(nU[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnVo = gfilter(nV[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnPo = gfilter(nP[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-
-
-            # find normalized filtered field
-            fU = gfilter(U_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fV = gfilter(V_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fP = gfilter(P_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-
-            U_min = np.min(fU)
-            U_max = np.max(fU)
-            V_min = np.min(fV)
-            V_max = np.max(fV)
-            P_min = np.min(fP)
-            P_max = np.max(fP)
-
-            fU_amaxo = max(np.absolute(U_min), np.absolute(U_max))
-            fV_amaxo = max(np.absolute(V_min), np.absolute(V_max))
-            fP_amaxo = max(np.absolute(P_min), np.absolute(P_max))
-
-            nfUo = fU/fU_amaxo
-            nfVo = fV/fV_amaxo
-            nfPo = fP/fP_amaxo
-
-
-            # find coefficients
+            nU_amaxo = nUVP_amax[0]
+            nV_amaxo = nUVP_amax[1]
+            nP_amaxo = nUVP_amax[2]
+            
+            # find scaling coefficients
             kUmax = nU_amaxo
             kVmax = nV_amaxo
             kPmax = nP_amaxo
@@ -390,57 +362,28 @@ for tv, tollLES in enumerate(tollLESValues):
 
         else:
 
-            # find filter of normalized fields
-            U = tf.identity(U_DNS_org)
-            V = tf.identity(V_DNS_org)
-            P = tf.identity(P_DNS_org)
+            fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(U_DNS_org, V_DNS_org, P_DNS_org, gfilter)
 
-            U_min = np.min(U)
-            U_max = np.max(U)
-            V_min = np.min(V)
-            V_max = np.max(V)
-            P_min = np.min(P)
-            P_max = np.max(P)
+            fnU = fnUVP[0]
+            fnV = fnUVP[1]
+            fnP = fnUVP[2]
 
-            nU_amax = max(np.absolute(U_min), np.absolute(U_max))
-            nV_amax = max(np.absolute(V_min), np.absolute(V_max))
-            nP_amax = max(np.absolute(P_min), np.absolute(P_max))
+            nfU = nfUVP[0]
+            nfV = nfUVP[1]
+            nfP = nfUVP[2]
 
-            nU = U/nU_amax
-            nV = V/nV_amax
-            nP = P/nP_amax
+            fU_amax = fUVP_amax[0]
+            fV_amax = fUVP_amax[1]
+            fP_amax = fUVP_amax[2]
 
-            fnU = gfilter(nU[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnV = gfilter(nV[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnP = gfilter(nP[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+            nU_amax = nUVP_amax[0]
+            nV_amax = nUVP_amax[1]
+            nP_amax = nUVP_amax[2]
 
-
-            # find normalized filtered field
-            fU = gfilter(U_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fV = gfilter(V_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fP = gfilter(P_DNS_org[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-
-            U_min = np.min(fU)
-            U_max = np.max(fU)
-            V_min = np.min(fV)
-            V_max = np.max(fV)
-            P_min = np.min(fP)
-            P_max = np.max(fP)
-
-            fU_amax = max(np.absolute(U_min), np.absolute(U_max))
-            fV_amax = max(np.absolute(V_min), np.absolute(V_max))
-            fP_amax = max(np.absolute(P_min), np.absolute(P_max))
-
-            nfU = fU/fU_amax
-            nfV = fV/fV_amax
-            nfP = fP/fP_amax
-
-
-            # find coefficients
+            # find scaling coefficients
             kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
             kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
-            kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo                        
-
+            kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
 
             # save old values
             fnUo = fnU
@@ -459,11 +402,8 @@ for tv, tollLES in enumerate(tollLESValues):
             nV_amaxo = nV_amax
             nP_amaxo = nP_amax
 
-        kUmax = tf.convert_to_tensor(kUmax, dtype=DTYPE)
-        kVmax = tf.convert_to_tensor(kVmax, dtype=DTYPE)
-        kPmax = tf.convert_to_tensor(kPmax, dtype=DTYPE)
-        
-        UVP_max = tf.concat([kUmax, kVmax, kPmax], axis=0)
+
+        UVP_max = [kUmax, kVmax, kPmax]
 
 
         # print LES resolution
@@ -514,7 +454,7 @@ for tv, tollLES in enumerate(tollLESValues):
             while (resREC>tollLES and it<lr_LES_maxIt):
 
                 lr = lr_schedule_DNS(it)
-                UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _ = \
+                UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
                     step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
                 # kDNS  = layer_kDNS.trainable_variables[0]

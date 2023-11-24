@@ -273,11 +273,7 @@ else:
     print("Diff on kUmax =", kVmax - nV_amax)
     print("Diff on kUmax =", kPmax - nP_amax)
 
-    kUmax = tf.convert_to_tensor(kUmax, dtype=DTYPE)
-    kVmax = tf.convert_to_tensor(kVmax, dtype=DTYPE)
-    kPmax = tf.convert_to_tensor(kPmax, dtype=DTYPE)
-    
-    UVP_max = tf.concat([kUmax, kVmax, kPmax], axis=0)
+    UVP_max = [kUmax, kVmax, kPmax]
 
         
 # find inference
@@ -295,7 +291,7 @@ if (TUNE):
     while (resREC>tollDNS and it<lr_LES_maxIt):
 
         lr = lr_schedule_DNS(it)
-        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _ = \
+        UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
         # kDNS = layer_kDNS.trainable_variables[0]
