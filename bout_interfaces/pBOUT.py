@@ -62,11 +62,11 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollDNS     = 2.5e-1
+tollDNS     = 2.5e+10
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_LES_maxIt
-pPrintFreq  = 0.01
+pPrintFreq  = 1.0
 INIT_SCAL   = 10.0
 RUN_DNS     = False
 RESTART_WL  = True
@@ -421,26 +421,26 @@ def findLESTerms(pLES):
         pStepo   = pStep
         UVP_max  = [nU_amaxo, nV_amaxo, nP_amaxo]
 
-    else:
+    # else:
 
-        maxit    = LES_pass
-        delt     = (simtime - simtimeo)/(pStep - pStepo)
-        simtimeo = simtime
-        pStepo   = pStep
+    #     maxit    = LES_pass
+    #     delt     = (simtime - simtimeo)/(pStep - pStepo)
+    #     simtimeo = simtime
+    #     pStepo   = pStep
         
-        UVP_DNS, UVP_LES, fUVP_DNS, _, preds = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
-        U = preds[RES_LOG2-2][0,0,:,:]
-        V = preds[RES_LOG2-2][0,1,:,:]
-        P = preds[RES_LOG2-2][0,2,:,:]
+    #     UVP_DNS, UVP_LES, fUVP_DNS, _, preds = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+    #     U = preds[RES_LOG2-2][0,0,:,:]
+    #     V = preds[RES_LOG2-2][0,1,:,:]
+    #     P = preds[RES_LOG2-2][0,2,:,:]
         
-        fnU = gfilter(U[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-        fnV = gfilter(V[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-        fnP = gfilter(P[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-        fnUVP = [fnU, fnV, fnP]
-        kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
-        kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
-        kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
-        UVP_max = [kUmax, kVmax, kPmax]
+    #     fnU = gfilter(U[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+    #     fnV = gfilter(V[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+    #     fnP = gfilter(P[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+    #     fnUVP = [fnU, fnV, fnP]
+    #     kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
+    #     kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
+    #     kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
+    #     UVP_max = [kUmax, kVmax, kPmax]
 
 
 
@@ -485,24 +485,24 @@ def findLESTerms(pLES):
 
             # kDNSo = layer_kDNS.trainable_variables[0]
 
-            # fixscaling: note as this is lagging behind of 1 iteration
-            U = preds[RES_LOG2-2][0,0,:,:]
-            V = preds[RES_LOG2-2][0,1,:,:]
-            P = preds[RES_LOG2-2][0,2,:,:]
-            fnU = gfilter(U[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnV = gfilter(V[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
-            fnP = gfilter(P[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+            # # fixscaling: note as this is lagging behind of 1 iteration
+            # U = preds[RES_LOG2-2][0,0,:,:]
+            # V = preds[RES_LOG2-2][0,1,:,:]
+            # P = preds[RES_LOG2-2][0,2,:,:]
+            # fnU = gfilter(U[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+            # fnV = gfilter(V[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
+            # fnP = gfilter(P[tf.newaxis,tf.newaxis,:,:])[0,0,:,:]
 
-            kUmax = UVP_max[0]*nfUo[N2L,N2L]/nfU[N2L,N2L]
-            kVmax = UVP_max[1]*nfVo[N2L,N2L]/nfV[N2L,N2L]
-            kPmax = UVP_max[2]*nfPo[N2L,N2L]/nfP[N2L,N2L]
+            # kUmax = UVP_max[0]*nfUo[N2L,N2L]/nfU[N2L,N2L]
+            # kVmax = UVP_max[1]*nfVo[N2L,N2L]/nfV[N2L,N2L]
+            # kPmax = UVP_max[2]*nfPo[N2L,N2L]/nfP[N2L,N2L]
 
-            UVP_max = [kUmax, kVmax, kPmax]
+            # UVP_max = [kUmax, kVmax, kPmax]
             
-            # set old values
-            fnUo = fnU
-            fnVo = fnV
-            fnPo = fnP
+            # # set old values
+            # fnUo = fnU
+            # fnVo = fnV
+            # fnPo = fnP
 
             # if (it%1==0):
             if (it!=0 and it%1000==0):
@@ -628,6 +628,47 @@ def findLESTerms(pLES):
     return rLES
 
 
+
+
+def writePoissonDNS(pLES):
+
+    global pPrint, rLES, z0
+
+    #------------------------------------- pass values from BOUT++
+    pLES = pLES.astype(DTYPE)
+    
+    pStep      = int(pLES[0])
+    pStepStart = int(pLES[1])
+
+    delx_LES = pLES[2]
+    dely_LES = delx_LES
+    simtime  = pLES[3]
+    L = (delx_LES + dely_LES)/2.0*N_LES
+
+    delx = delx_LES*N_LES/N_DNS
+    dely = dely_LES*N_LES/N_DNS
+ 
+    # print("L, delx and delx_LES are: ", L, delx, delx_LES, N_DNS, N_LES)
+
+    BOUT_U_LES = pLES[4+0*N_DNS*N_DNS:4+1*N_DNS*N_DNS]
+    BOUT_V_LES = pLES[4+1*N_DNS*N_DNS:4+2*N_DNS*N_DNS]
+    BOUT_P_LES = pLES[4+2*N_DNS*N_DNS:4+3*N_DNS*N_DNS]
+    BOUT_N_LES = pLES[4+3*N_DNS*N_DNS:4+4*N_DNS*N_DNS]
+    BOUT_F_LES = pLES[4+4*N_DNS*N_DNS:4+5*N_DNS*N_DNS]        
+
+    U_LES = np.reshape(BOUT_U_LES, (N_DNS, N_DNS))
+    V_LES = np.reshape(BOUT_V_LES, (N_DNS, N_DNS))
+    P_LES = np.reshape(BOUT_P_LES, (N_DNS, N_DNS))
+    fpPhiVort_DNS = np.reshape(BOUT_N_LES, (N_DNS, N_DNS))
+    fpPhiN_DNS    = np.reshape(BOUT_F_LES, (N_DNS, N_DNS))
+
+    filename = "./results_StylES/fields/fields_PoissonDNS_" + str(pStep).zfill(7)
+    np.savez(filename, pStep=pStep, simtime=simtime, U=fpPhiVort_DNS, V=fpPhiN_DNS, P=fpPhiN_DNS)
+
+    return fpPhiVort_DNS
+
+
+
 # test
 if (RUN_TEST):
     dummy=np.array([0.2, 0.2])
@@ -638,48 +679,6 @@ if (RUN_TEST):
 
 
 # #------------------------------------------- Extra pieces....
-
-# def writePoissonDNS(pLES):
-
-#     global pPrint, rLES, z0
-
-#     #------------------------------------- pass values from BOUT++
-#     pLES = pLES.astype(DTYPE)
-    
-#     pStep      = int(pLES[0])
-#     pStepStart = int(pLES[1])
-
-#     delx_LES = pLES[2]
-#     dely_LES = delx_LES
-#     simtime  = pLES[3]
-#     L = (delx_LES + dely_LES)/2.0*N_LES
-
-#     delx = delx_LES*N_LES/N_DNS
-#     dely = dely_LES*N_LES/N_DNS
- 
-#     # print("L, delx and delx_LES are: ", L, delx, delx_LES, N_DNS, N_LES)
-
-#     BOUT_U_LES = pLES[4+0*N_DNS*N_DNS:4+1*N_DNS*N_DNS]
-#     BOUT_V_LES = pLES[4+1*N_DNS*N_DNS:4+2*N_DNS*N_DNS]
-#     BOUT_P_LES = pLES[4+2*N_DNS*N_DNS:4+3*N_DNS*N_DNS]
-#     BOUT_N_LES = pLES[4+3*N_DNS*N_DNS:4+4*N_DNS*N_DNS]
-#     BOUT_F_LES = pLES[4+4*N_DNS*N_DNS:4+5*N_DNS*N_DNS]        
-
-#     U_LES = np.reshape(BOUT_U_LES, (N_DNS, N_DNS))
-#     V_LES = np.reshape(BOUT_V_LES, (N_DNS, N_DNS))
-#     P_LES = np.reshape(BOUT_P_LES, (N_DNS, N_DNS))
-#     fpPhiVort_DNS = np.reshape(BOUT_N_LES, (N_DNS, N_DNS))
-#     fpPhiN_DNS    = np.reshape(BOUT_F_LES, (N_DNS, N_DNS))
-
-#     filename = "./results_StylES/fields/fields_PoissonDNS_" + str(pStep).zfill(7)
-#     np.savez(filename, pStep=pStep, simtime=simtime, U=fpPhiVort_DNS, V=fpPhiN_DNS, P=fpPhiN_DNS)
-
-#     return fpPhiVort_DNS
-
-
-
-
-
 
 
     # fpPhiVort_DNS = tf.zeros([N_LES,N_LES], dtype=DTYPE)

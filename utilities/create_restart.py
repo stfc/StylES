@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 1.e+100
+tollDNS     = 1.e+10
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**(RES_LOG2-FIL)
 N2L         = int(N_LES/2)
