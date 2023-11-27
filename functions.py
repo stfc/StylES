@@ -1115,9 +1115,17 @@ class layer_zlatent_kDNS(layers.Layer):
         k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
         self.k = tf.Variable(
             initial_value=k_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
+            trainable=False,
             name="zlatent_kDNS"
         )
+        
+        w_init = tf.random_normal_initializer(mean=1.0, stddev=0.0)
+        self.m = tf.Variable(
+            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="latent_mLES"
+        )        
+        
 
     def call(self, mapping, z):
 
@@ -1136,8 +1144,37 @@ class layer_zlatent_kDNS(layers.Layer):
             ws = ws[:,M_LAYERS+i:M_LAYERS+i+1,:]
             wn = tf.concat([wn,ws], axis=1)
 
-        return wn
+        w0 = tf.identity(wn)
+        w1 = tf.identity(-wn)
+        w  = self.m*w0 + (1.0-self.m)* w1
 
+        # wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
+        # wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+        # wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        # wa = wa[:,0:M_LAYERS,:]
+        # w  = tf.concat([wa,wb], axis=1)
+
+        return w
+
+
+class layer_wlatent_mLES(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_wlatent_mLES, self).__init__()
+
+        w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
+        self.m = tf.Variable(
+            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="latent_mLES"
+        )        
+
+    def call(self, w0, w1):
+        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
+        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        wa = wa[:,0:M_LAYERS,:]
+        w  = tf.concat([wa,wb], axis=1)
+        return w
 
 
 @tf.function
