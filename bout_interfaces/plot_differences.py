@@ -232,6 +232,7 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], Energy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
+plt.xlim(0,10)
 plt.legend(fontsize="10", frameon=False)
 plt.savefig('./results_comparison/energy_vs_time.png')
 plt.close()
@@ -282,6 +283,7 @@ for nf in range(3):
     plt.legend(fontsize="10", frameon=False)
     plt.xlabel("time units [$\omega^{-1}_i$]")
     plt.ylabel("fields")
+    plt.xlim(0,10)    
     if (nf==0):
         plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=200)
     elif (nf==1):

@@ -37,7 +37,7 @@ FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 100  # skip between STIME, FTIME, ITIME
+ITIME       = 1  # skip between STIME, FTIME, ITIME
 
 useLogSca = True
 xLogLim   = [1.0e-2, 100]   # to do: to make nmore general

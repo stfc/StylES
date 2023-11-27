@@ -198,8 +198,8 @@ def make_synthesis_model():
         x_G = gaussian_filter(x[0,1,:,:], rs=1)
         x_B = gaussian_filter(x[0,2,:,:], rs=1)
         x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = normalize_max(x)
         x = find_centred_fields(x)
+        x = normalize_max(x)
         return x
 
     # Finally, arrange the computations for the layers

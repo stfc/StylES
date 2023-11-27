@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 1.e+10
+tollDNS     = 2.5e+10
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**(RES_LOG2-FIL)
 N2L         = int(N_LES/2)
@@ -294,9 +294,9 @@ if (TUNE):
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
-        # kDNS = layer_kDNS.trainable_variables[0]
-        # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
-        # layer_kDNS.trainable_variables[0].assign(kDNS)
+        kDNS = layer_kDNS.trainable_variables[0]
+        kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
+        layer_kDNS.trainable_variables[0].assign(kDNS)
 
         # valid_zn = True
         # kDNS  = layer_kDNS.trainable_variables[0]
