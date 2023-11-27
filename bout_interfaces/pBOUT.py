@@ -62,10 +62,10 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollDNS     = 2.5e-1
+tollDNS     = 1.0e+10
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
-LES_pass    = lr_LES_maxIt
+LES_pass    = lr_DNS_maxIt
 pPrintFreq  = 1.0
 INIT_SCAL   = 10.0
 RUN_DNS     = False
@@ -211,37 +211,89 @@ P_DNS_org = P_DNS_org[tf.newaxis,tf.newaxis,:,:]
 imgA = tf.concat([U_DNS_org, V_DNS_org, P_DNS_org], axis=1)
 
 
-# find scaling coefficients
-fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(U_DNS_org[0,0,:,:], V_DNS_org[0,0,:,:], P_DNS_org[0,0,:,:], gfilter)
+# find filtered field
+fU = gfilter(U_DNS_org)[0,0,:,:]
+fV = gfilter(V_DNS_org)[0,0,:,:]
+fP = gfilter(P_DNS_org)[0,0,:,:]
 
-# set input LES image
-nfU = nfUVP[0]
-nfV = nfUVP[1]
-nfP = nfUVP[2]
+fimgA = tf.concat([fU[tf.newaxis,tf.newaxis,:,:], fV[tf.newaxis,tf.newaxis,:,:], fP[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
-fimgA = tf.concat([nfU[tf.newaxis,tf.newaxis,:,:], nfV[tf.newaxis,tf.newaxis,:,:], nfP[tf.newaxis,tf.newaxis,:,:]], axis=1)
+
+# normalize
+U_min = np.min(fU)
+U_max = np.max(fU)
+V_min = np.min(fV)
+V_max = np.max(fV)
+P_min = np.min(fP)
+P_max = np.max(fP)
+
+fU_amax = max(np.absolute(U_min), np.absolute(U_max))
+fV_amax = max(np.absolute(V_min), np.absolute(V_max))
+fP_amax = max(np.absolute(P_min), np.absolute(P_max))
+
+print("Filtered DNS min/max ", U_min, U_max, V_min, V_max, P_min, P_max)
+print("Normalization values of filtered DNS", fU_amax, fV_amax, fP_amax)
+
+nfU = fU/fU_amax
+nfV = fV/fV_amax
+nfP = fP/fP_amax
+
+nfimgA = tf.concat([nfU[tf.newaxis,tf.newaxis,:,:], nfV[tf.newaxis,tf.newaxis,:,:], nfP[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
 
 #---------------------------  set scaling coefficients
-fnUo = fnUVP[0]
-fnVo = fnUVP[1]
-fnPo = fnUVP[2]
 
-nfUo = nfUVP[0]
-nfVo = nfUVP[1]
-nfPo = nfUVP[2]
 
-fU_amaxo = fUVP_amax[0]
-fV_amaxo = fUVP_amax[1]
-fP_amaxo = fUVP_amax[2]
 
-nU_amaxo = nUVP_amax[0]
-nV_amaxo = nUVP_amax[1]
-nP_amaxo = nUVP_amax[2]
+# find multiplier for DNS field
+U = tf.identity(U_DNS_org)
+V = tf.identity(V_DNS_org)
+P = tf.identity(P_DNS_org)
 
-UVP_max  = [nU_amaxo, nV_amaxo, nP_amaxo]
+U_min = np.min(U)
+U_max = np.max(U)
+V_min = np.min(V)
+V_max = np.max(V)
+P_min = np.min(P)
+P_max = np.max(P)
 
-print("old scaling values ", UVP_max[0], UVP_max[1], UVP_max[2])
+nU_amax = max(np.absolute(U_min), np.absolute(U_max))
+nV_amax = max(np.absolute(V_min), np.absolute(V_max))
+nP_amax = max(np.absolute(P_min), np.absolute(P_max))
+
+print("DNS fields min/max", U_min, U_max, V_min, V_max, P_min, P_max)
+print("Normalization values of DNS", nU_amax, nV_amax, nP_amax)
+
+nU = U/nU_amax
+nV = V/nV_amax
+nP = P/nP_amax
+
+
+# find LES
+fnU = gfilter(nU)[0,0,:,:]
+fnV = gfilter(nV)[0,0,:,:]
+fnP = gfilter(nP)[0,0,:,:]
+
+kUmax = ( fnV[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfV[N2L,N2L])*fU_amax*nV_amax/fV_amax
+kVmax = ( fnU[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfU[N2L,N2L])*fV_amax*nU_amax/fU_amax
+kPmax = ( fnU[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfU[N2L,N2L])*fP_amax*nU_amax/fU_amax
+
+#verify multipliers
+if (abs((kUmax-nU_amax) + (kVmax-nV_amax) + (kPmax-nP_amax))>1.e-4):
+    print("Diff on kUmax =", kUmax - nP_amax)
+    print("Diff on kUmax =", kVmax - nV_amax)
+    print("Diff on kUmax =", kPmax - nP_amax)
+
+    print("Mismatch in the filter properties!!!")
+    exit(0)
+else:
+    print("Diff on kUmax =", kUmax - nU_amax)
+    print("Diff on kUmax =", kVmax - nV_amax)
+    print("Diff on kUmax =", kPmax - nP_amax)
+
+    UVP_max = [kUmax, kVmax, kPmax]
+
+    print("old scaling values ", UVP_max[0], UVP_max[1], UVP_max[2])
 
 
 
@@ -270,30 +322,15 @@ def initFlow(npv):
 
     else:
 
-        UVP_max = [nU_amaxo, nV_amaxo, nP_amaxo]
-        UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+        UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
         resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)
         print("Starting residuals:  resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
             .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
         # find fields
-        U_DNS = (imgA[0, 0, :, :]).numpy()
-        V_DNS = (imgA[0, 1, :, :]).numpy()
-        P_DNS = (imgA[0, 2, :, :]).numpy()
-
-        U_DNS = U_DNS[tf.newaxis, tf.newaxis, :, :]
-        V_DNS = V_DNS[tf.newaxis, tf.newaxis, :, :]
-        P_DNS = P_DNS[tf.newaxis, tf.newaxis, :, :]
-
-        fU_DNS = gfilter(U_DNS, training = False)
-        fV_DNS = gfilter(V_DNS, training = False)
-        fP_DNS = gfilter(P_DNS, training = False)
-
-        fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
-
-        U_LES = fUVP_DNS[0, 0, :, :].numpy()
-        V_LES = fUVP_DNS[0, 1, :, :].numpy()
-        P_LES = fUVP_DNS[0, 2, :, :].numpy()
+        U_LES = fimgA[0, 0, :, :].numpy()
+        V_LES = fimgA[0, 1, :, :].numpy()
+        P_LES = fimgA[0, 2, :, :].numpy()
 
 
     # pass values back
@@ -329,7 +366,7 @@ def findLESTerms(pLES):
     tstart2 = time.time()
 
     global pPrint, rLES, z0, simtimeo, pStepo
-    global UVP_max
+    global UVP_max, tollDNS
     global nfUo, nfVo, nfPo
     global fnUo, fnVo, fnPo
     global nU_amaxo, nV_amaxo, nP_amaxo
@@ -386,12 +423,30 @@ def findLESTerms(pLES):
     nfV = tf.convert_to_tensor(nfV, dtype=DTYPE)
     nfP = tf.convert_to_tensor(nfP, dtype=DTYPE)
     
-    fimgA = tf.concat([nfU[tf.newaxis, tf.newaxis, :, :], nfV[tf.newaxis, tf.newaxis, :, :], nfP[tf.newaxis, tf.newaxis, :, :]], axis=1)
+    nfimgA = tf.concat([nfU[tf.newaxis, tf.newaxis, :, :], nfV[tf.newaxis, tf.newaxis, :, :], nfP[tf.newaxis, tf.newaxis, :, :]], axis=1)
 
 
 
     #------------------------------------- find reconstructed field
-    UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+    UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
+    resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=2)
+    # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
+    #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
+
+    if (pStep==pStepStart):
+        tollDNS = resREC.numpy()
+        pPrint   = simtime
+        maxit    = lr_DNS_maxIt
+        simtimeo = simtime
+        delt     = 0.0
+        pStepo   = pStep
+    else:
+        maxit    = LES_pass
+        delt     = (simtime - simtimeo)/(pStep - pStepo)
+        simtimeo = simtime
+        pStepo   = pStep
+
+
 
     # # find new scaling coefficients
     # fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(UVP_DNS[0,0,:,:], UVP_DNS[0,1,:,:], UVP_DNS[0,2,:,:], gfilter)
@@ -440,129 +495,114 @@ def findLESTerms(pLES):
     # UVP_max = [kUmax, kVmax, kPmax]
     
 
-    # iterate to given tollerance
-    if (pStep==pStepStart):
+    # # iterate to given tollerance
+    # if (pStep>=pStepStart):
 
-        # set first time values
-        it       = 0
-        pPrint   = simtime
-        maxit    = lr_LES_maxIt
-        simtimeo = simtime
-        delt     = 0.0
-        pStepo   = pStep
+    #     # iterate
+    #     it = 0
+    #     lr = lr_schedule_DNS(it)
+    #     tstart = time.time()
+    #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=2)
+    #     # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e} lr {6:3e}" \
+    #     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+    #     while (resREC>tollDNS and it<maxit):
 
-        # # iterate
-        # lr = lr_schedule_DNS(it)
-        # tstart = time.time()
-        # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)
-        # # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e} lr {6:3e}" \
-        # #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
-        # while (resREC>tollDNS and it<maxit):
-
-        #     UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, preds = \
-        #         step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
+    #         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, preds = \
+    #             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, nfimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=2)
             
             
-        #     # adjust interpolation factors
+    #         # adjust interpolation factors
             
-        #     kDNS = layer_kDNS.trainable_variables[0]
-        #     kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
-        #     layer_kDNS.trainable_variables[0].assign(kDNS)
+    #         # kDNS = layer_kDNS.trainable_variables[0]
+    #         # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
+    #         # layer_kDNS.trainable_variables[0].assign(kDNS)
             
-        #     # valid_zn = True
-        #     # kDNS  = layer_kDNS.trainable_variables[0]
-        #     # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
-        #     # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%1000==0 and it!=0)):
-        #     #     print("reset values")
-        #     #     z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        #     #     z0n = z0[:,0:1,:]
-        #     #     for i in range(G_LAYERS-M_LAYERS):
-        #     #         zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
-        #     #         z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
-        #     #         z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
-        #     #         z0n = tf.concat([z0n,z1s,z2s], axis=1)
-        #     #     kDNSn = 0.5*tf.ones_like(kDNS)
-        #     #     valid_zn = False
+    #         # valid_zn = True
+    #         # kDNS  = layer_kDNS.trainable_variables[0]
+    #         # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
+    #         # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%1000==0 and it!=0)):
+    #         #     print("reset values")
+    #         #     z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    #         #     z0n = z0[:,0:1,:]
+    #         #     for i in range(G_LAYERS-M_LAYERS):
+    #         #         zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
+    #         #         z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
+    #         #         z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
+    #         #         z0n = tf.concat([z0n,z1s,z2s], axis=1)
+    #         #     kDNSn = 0.5*tf.ones_like(kDNS)
+    #         #     valid_zn = False
 
-        #     # if (not valid_zn):
-        #     #     z0 = tf.identity(z0n)
-        #     #     layer_kDNS.trainable_variables[0].assign(kDNSn)
-        #     #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
-        #     #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
+    #         # if (not valid_zn):
+    #         #     z0 = tf.identity(z0n)
+    #         #     layer_kDNS.trainable_variables[0].assign(kDNSn)
+    #         #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
+    #         #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
 
-        #     # kDNSo = layer_kDNS.trainable_variables[0]
+    #         # kDNSo = layer_kDNS.trainable_variables[0]
 
 
-        #     # # find new scaling coefficients
-        #     # fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(UVP_DNS[0,0,:,:], UVP_DNS[0,1,:,:], UVP_DNS[0,2,:,:], gfilter)
+    #         # # find new scaling coefficients
+    #         # fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(UVP_DNS[0,0,:,:], UVP_DNS[0,1,:,:], UVP_DNS[0,2,:,:], gfilter)
 
-        #     # fnU = fnUVP[0]
-        #     # fnV = fnUVP[1]
-        #     # fnP = fnUVP[2]
+    #         # fnU = fnUVP[0]
+    #         # fnV = fnUVP[1]
+    #         # fnP = fnUVP[2]
 
-        #     # nfU = nfUVP[0]
-        #     # nfV = nfUVP[1]
-        #     # nfP = nfUVP[2]
+    #         # nfU = nfUVP[0]
+    #         # nfV = nfUVP[1]
+    #         # nfP = nfUVP[2]
             
-        #     # fU_amax = fUVP_amax[0]
-        #     # fV_amax = fUVP_amax[1]
-        #     # fP_amax = fUVP_amax[2]
+    #         # fU_amax = fUVP_amax[0]
+    #         # fV_amax = fUVP_amax[1]
+    #         # fP_amax = fUVP_amax[2]
             
-        #     # kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
-        #     # kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
-        #     # kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
+    #         # kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
+    #         # kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
+    #         # kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
 
-        #     # # print("new scaling values ", kUmax, kVmax, kPmax)
+    #         # # print("new scaling values ", kUmax, kVmax, kPmax)
 
 
-        #     # # adjust DNS fields according to new scaling
-        #     # U_DNS = UVP_DNS[0,0,:,:]/UVP_max[0]*kUmax
-        #     # V_DNS = UVP_DNS[0,1,:,:]/UVP_max[1]*kVmax
-        #     # P_DNS = UVP_DNS[0,2,:,:]/UVP_max[2]*kPmax
+    #         # # adjust DNS fields according to new scaling
+    #         # U_DNS = UVP_DNS[0,0,:,:]/UVP_max[0]*kUmax
+    #         # V_DNS = UVP_DNS[0,1,:,:]/UVP_max[1]*kVmax
+    #         # P_DNS = UVP_DNS[0,2,:,:]/UVP_max[2]*kPmax
             
-        #     # U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
-        #     # V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
-        #     # P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
             
-        #     # UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+    #         # UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
-        #     # fU_DNS = fUVP_DNS[0,0,:,:]/UVP_max[0]*kUmax
-        #     # fV_DNS = fUVP_DNS[0,1,:,:]/UVP_max[1]*kVmax
-        #     # fP_DNS = fUVP_DNS[0,2,:,:]/UVP_max[2]*kPmax
+    #         # fU_DNS = fUVP_DNS[0,0,:,:]/UVP_max[0]*kUmax
+    #         # fV_DNS = fUVP_DNS[0,1,:,:]/UVP_max[1]*kVmax
+    #         # fP_DNS = fUVP_DNS[0,2,:,:]/UVP_max[2]*kPmax
             
-        #     # fU_DNS = fU_DNS[tf.newaxis,tf.newaxis,:,:]
-        #     # fV_DNS = fV_DNS[tf.newaxis,tf.newaxis,:,:]
-        #     # fP_DNS = fP_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # fU_DNS = fU_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # fV_DNS = fV_DNS[tf.newaxis,tf.newaxis,:,:]
+    #         # fP_DNS = fP_DNS[tf.newaxis,tf.newaxis,:,:]
             
-        #     # fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+    #         # fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-        #     # UVP_max = [kUmax, kVmax, kPmax]
+    #         # UVP_max = [kUmax, kVmax, kPmax]
 
 
-        #     # print residuals            
-        #     # if (it%1==0):
-        #     if (it!=0 and it%100==0):
-        #         tend = time.time()
-        #         lr = lr_schedule_DNS(it)
-        #         print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fil {6:3e} lr {7:3e}" \
-        #             .format(tend-tstart, pStep, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+    #         # print residuals            
+    #         # if (it%1==0):
+    #         if (it!=0 and it%100==0):
+    #             tend = time.time()
+    #             lr = lr_schedule_DNS(it)
+    #             print("LES iterations:  time {0:3e}   step {1:6d}   it {2:6d}  residuals {3:3e} resLES {4:3e} resDNS {5:3e} loss_fil {6:3e} lr {7:3e}" \
+    #                 .format(tend-tstart, pStep, it, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
-        #     it = it+1
+    #         it = it+1
 
-        # # print final residuals
-        # tend = time.time()
-        # # print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
-        # #     .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+    #     # print final residuals
+    #     tend = time.time()
+    #     # print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
+    #     #     .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
-    else:
-
-        it       = 0
-        maxit    = LES_pass
-        delt     = (simtime - simtimeo)/(pStep - pStepo)
-        simtimeo = simtime
-        pStepo   = pStep
         
-
 
     #------------------------------------- find poisson terms
     spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
@@ -590,42 +630,8 @@ def findLESTerms(pLES):
     fpPhiVort_DNS = fpPhiVort_DNS.numpy()
     fpPhiN_DNS    = fpPhiN_DNS.numpy()
 
-
-    if (it==LES_pass):
-
-        # print("Reset LES fields")
-
-        # find LES fields to pass back
-        U_LES = fUVP_DNS[0,0,:,:]
-        V_LES = fUVP_DNS[0,1,:,:]
-        P_LES = fUVP_DNS[0,2,:,:]
-
-        # rescale
-        U_LES = U_LES
-        V_LES = V_LES
-        P_LES = P_LES
-
-        # reshape, cast and pass to CPU (numpy arrays)
-        U_LES = tf.reshape(U_LES, [-1])
-        V_LES = tf.reshape(V_LES, [-1])
-        P_LES = tf.reshape(P_LES, [-1])
-        
-        U_LES = tf.cast(U_LES, dtype="float64")
-        V_LES = tf.cast(V_LES, dtype="float64")
-        P_LES = tf.cast(P_LES, dtype="float64")
-        
-        U_LES = U_LES.numpy()
-        V_LES = V_LES.numpy()
-        P_LES = P_LES.numpy()
-
-        # concatenate to pass it back
-        LES_it = np.asarray([-1], dtype="float64")
-        rLES = np.concatenate((LES_it, fpPhiVort_DNS, fpPhiN_DNS, U_LES, V_LES, P_LES), axis=0)
-
-    else:
-
-        LES_it = np.asarray([it], dtype="float64")
-        rLES = np.concatenate((LES_it, fpPhiVort_DNS, fpPhiN_DNS), axis=0)    
+    LES_it = np.asarray([0], dtype="float64")
+    rLES = np.concatenate((LES_it, fpPhiVort_DNS, fpPhiN_DNS), axis=0)    
         
     # print("concatenate ", time.time() - tstart2)
 

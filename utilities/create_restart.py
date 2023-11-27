@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 2.5e+10
+tollDNS     = 1.0e+10
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**(RES_LOG2-FIL)
 N2L         = int(N_LES/2)
@@ -77,6 +77,8 @@ if (lr_DNS_POLICY=="EXPONENTIAL"):
 elif (lr_DNS_POLICY=="PIECEWISE"):
     lr_schedule_DNS = tf.keras.optimizers.schedules.PiecewiseConstantDecay(lr_DNS_BOUNDS, lr_DNS_VALUES)
 opt_kDNS = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_DNS)
+
+train_summary_writer = tf.summary.create_file_writer(Z0_DIR_WL)
 
 
 # loading StyleGAN checkpoint and filter
@@ -218,13 +220,14 @@ nfU = fU/fU_amax
 nfV = fV/fV_amax
 nfP = fP/fP_amax
 
+nfimgA = tf.concat([nfU[tf.newaxis,tf.newaxis,:,:], nfV[tf.newaxis,tf.newaxis,:,:], nfP[tf.newaxis,tf.newaxis,:,:]], axis=1)
+
 filename = Z0_DIR_WL + "plots_fDNSn.png"
 print_fields_3(nfU, nfV, nfP, filename=filename, testcase=TESTCASE)
     
 
 
-
-# find multiplier for DNS field
+#--------------  find multiplier for DNS field
 U = tf.identity(U_DNS_org)
 V = tf.identity(V_DNS_org)
 P = tf.identity(P_DNS_org)
@@ -275,9 +278,12 @@ else:
 
     UVP_max = [kUmax, kVmax, kPmax]
 
-        
+    print("UVP_max are :", UVP_max[0].numpy(), UVP_max[1].numpy(), UVP_max[2].numpy())
+
+
+
 # find inference
-UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
 resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)
 print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
         .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil.numpy()))
@@ -288,20 +294,21 @@ if (TUNE):
     it     = 0
     kDNSo = layer_kDNS.trainable_variables[0]
     tstart = time.time()
-    while (resREC>tollDNS and it<lr_LES_maxIt):
+    while (resREC>tollDNS and it<lr_DNS_maxIt):
 
         lr = lr_schedule_DNS(it)
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
-            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, fimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
+            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, nfimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
-        kDNS = layer_kDNS.trainable_variables[0]
-        kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
-        layer_kDNS.trainable_variables[0].assign(kDNS)
+        # adjust variables
+        # kDNS = layer_kDNS.trainable_variables[0]
+        # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
+        # layer_kDNS.trainable_variables[0].assign(kDNS)
 
         # valid_zn = True
         # kDNS  = layer_kDNS.trainable_variables[0]
         # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
-        # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%1000==0 and it!=0)):
+        # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%10000==0 and it!=0)):
         #     print("reset values")
         #     z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
         #     z0n = z0[:,0:1,:]
@@ -316,10 +323,18 @@ if (TUNE):
         # if (not valid_zn):
         #     z0 = tf.identity(z0n)
         #     layer_kDNS.trainable_variables[0].assign(kDNSn)
-        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
         #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
 
         # kDNSo = layer_kDNS.trainable_variables[0]
+
+        # write losses to tensorboard
+        with train_summary_writer.as_default():
+            tf.summary.scalar('resREC',   resREC,   step=it)
+            tf.summary.scalar('resLES',   resLES,   step=it)
+            tf.summary.scalar('resDNS',   resDNS,   step=it)
+            tf.summary.scalar('loss_fil', loss_fil, step=it)
+            tf.summary.scalar('lr',       lr,       step=it)
 
         # print fields
         if (it%100==0):
@@ -332,15 +347,14 @@ if (TUNE):
                 V_DNS = UVP_DNS[0, 1, :, :].numpy()
                 P_DNS = UVP_DNS[0, 2, :, :].numpy()
     
-                # filename =  Z0_DIR_WL + "plots_restart.png"
-                filename =  Z0_DIR_WL + "plots_restart_" + str(0).zfill(4) + ".png"
+                filename =  Z0_DIR_WL + "plots_restart_" + str(it).zfill(4) + ".png"
                 print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename)
 
-                filename = Z0_DIR_WL + "plots_DNSdiff_restart_" + str(0).zfill(4) + ".png"
+                filename = Z0_DIR_WL + "plots_DNSdiff_restart_" + str(it).zfill(4) + ".png"
                 print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True, \
                     Umin=-nU_amax, Umax=nU_amax, Vmin=-nV_amax, Vmax=nV_amax, Pmin=-nP_amax, Pmax=nP_amax)
 
-                filename = Z0_DIR_WL + "plots_LESdiff_restart_" + str(0).zfill(4) + ".png"
+                filename = Z0_DIR_WL + "plots_LESdiff_restart_" + str(it).zfill(4) + ".png"
                 print_fields_3(fimgA[0,2,:,:], fUVP_DNS[0,2,:,:], fimgA[0,2,:,:]-fUVP_DNS[0,2,:,:], \
                     filename=filename, testcase=TESTCASE, diff=True, \
                     Umin=-fU_amax, Umax=fU_amax, Vmin=-fV_amax, Vmax=fV_amax, Pmin=-fP_amax, Pmax=fP_amax)
