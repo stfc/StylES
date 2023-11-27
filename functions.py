@@ -1044,8 +1044,8 @@ def find_predictions(synthesis, filter, z, UVP_max):
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
 
         # find_centred_fields
-        UVP_DNS = rescale_max(UVP_DNS, UVP_max)
         UVP_DNS = find_centred_fields(UVP_DNS)
+        UVP_DNS = rescale_max(UVP_DNS, UVP_max)
     
     # find filtered fields
     fU_DNS = filter(UVP_DNS[:,0:1,:,:], training = False)
@@ -1082,7 +1082,7 @@ def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
         # UVP_DNS  = tf.transpose(UVP_DNS, perm=[0,3,2,1])
         # tDNS     = tf.transpose(tDNS,    perm=[0,3,2,1])
         # resREC   = tf.image.ssim(UVP_DNS, tDNS, max_val=2, filter_size=1, filter_sigma=10.0)
-        resREC   = resDNS + 0.0*resLES
+        resREC   = resDNS + resLES
         loss_fil = resLES
         
     return resREC, resLES, resDNS, loss_fil
