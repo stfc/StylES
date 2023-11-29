@@ -1046,6 +1046,7 @@ def find_predictions(synthesis, filter, z, UVP_max):
         # find_centred_fields
         UVP_DNS = find_centred_fields(UVP_DNS)
         UVP_DNS = rescale_max(UVP_DNS, UVP_max)
+        UVP_LES = rescale_max(UVP_LES, UVP_max)
     
     # find filtered fields
     fU_DNS = filter(UVP_DNS[:,0:1,:,:], training = False)
@@ -1114,45 +1115,52 @@ class layer_zlatent_kDNS(layers.Layer):
 
         k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
         self.k = tf.Variable(
-            initial_value=k_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
+            initial_value=k_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=False,
             name="zlatent_kDNS"
         )
         
         w_init = tf.random_normal_initializer(mean=1.0, stddev=0.0)
         self.m = tf.Variable(
-            initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=False,
+            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
             name="latent_mLES"
         )        
-        
 
     def call(self, mapping, z):
 
         # interpolate latent spaces
-        zn = z[:,0:1,:]
-        for i in range(G_LAYERS-M_LAYERS):
-            zs = self.k[i,:]*z[:,2*i+1,:] + (1.0-self.k[i,:])*z[:,2*i+2,:]
+        zn = self.k[0,:]*z[:,0,:] + (1.0-self.k[0,:])*z[:,1,:]
+        zn = zn[:,tf.newaxis,:]
+        for i in range(M_LAYERS):
+            zs = self.k[i,:]*z[:,2*i,:] + (1.0-self.k[i,:])*z[:,2*i+1,:]
             zs = zs[:,tf.newaxis,:]
             zn = tf.concat([zn,zs], axis=1)
 
+        zf = z[:,2*M_LAYERS,:]   # latent space for final layers
+        zf = zf[:,tf.newaxis,:]
+        zn = tf.concat([zn,zf], axis=1)
+
         # map interpolated latent space z into w
+        w0 = mapping(zn[:,M_LAYERS,:], training=False)
         wn = mapping(zn[:,0,:], training=False)
-        wn = wn[:,0:M_LAYERS,:]
-        for i in range(G_LAYERS-M_LAYERS):
-            ws = mapping(zn[:,i+1,:], training=False)
-            ws = ws[:,M_LAYERS+i:M_LAYERS+i+1,:]
+        wn = wn[:,0:1,:]
+        for i in range(1,M_LAYERS):
+            ws = mapping(zn[:,i,:], training=False)
+            ws = ws[:,i:i+1,:]
             wn = tf.concat([wn,ws], axis=1)
+
+        w0 = w0[:,M_LAYERS:G_LAYERS,:]
+        wn = tf.concat([wn,w0], axis=1)
 
         w0 = tf.identity(wn)
         w1 = tf.identity(-wn)
-        w  = self.m*w0 + (1.0-self.m)* w1
 
-        # wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        # wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        # wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
-        # wa = wa[:,0:M_LAYERS,:]
-        # w  = tf.concat([wa,wb], axis=1)
+        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
+        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
+        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
+        wa = wa[:,0:M_LAYERS,:]
+        w  = tf.concat([wa,wb], axis=1)
 
         return w
 
@@ -1166,7 +1174,7 @@ class layer_wlatent_mLES(layers.Layer):
             initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
             trainable=True,
             name="latent_mLES"
-        )        
+        )
 
     def call(self, w0, w1):
         wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
