@@ -93,18 +93,19 @@ time.sleep(3)
 
 # create variable synthesis model
 layer_kDNS = layer_zlatent_kDNS()
-z_in         = tf.keras.Input(shape=([2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE]), dtype=DTYPE)
-img_in       = tf.keras.Input(shape=([NUM_CHANNELS, 2**(RES_LOG2-FIL), 2**(RES_LOG2-FIL)]), dtype=DTYPE)
+z_in         = tf.keras.Input(shape=([2*M_LAYERS+1, LATENT_SIZE]), dtype=DTYPE)
 w            = layer_kDNS(mapping, z_in)
-outputs      = synthesis([w,img_in], training=False)
-wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
+outputs      = synthesis(w, training=False)
+wl_synthesis = tf.keras.Model(inputs=z_in, outputs=[outputs, w])
 
 
 # create filter model
-x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
-gfilter = tf.keras.Model(inputs=x_in, outputs=out)
-
+if (GAUSSIAN_FILTER):
+    x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
+    gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+else:
+    gfilter = filters[IFIL]
 
 # define checkpoints wl_synthesis and filter
 checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
@@ -163,21 +164,17 @@ if (RESTART_WL):
 else:
 
     # set z
-    z0 = tf.random.uniform(shape=[BATCH_SIZE, 2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    z0 = tf.random.uniform(shape=[BATCH_SIZE, 2*M_LAYERS+1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
 
 
 #-------------- load DNS field
-# load numpy array
-U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_DNS)
-U_DNS = np.cast[DTYPE](U_DNS)
-V_DNS = np.cast[DTYPE](V_DNS)
-P_DNS = np.cast[DTYPE](P_DNS)
+UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
+UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0, UVP_max)
 
-# convert to tensor
-U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
-V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
-P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
+U_DNS = UVP_DNS[0,0,:,:]
+V_DNS = UVP_DNS[0,1,:,:]
+P_DNS = UVP_DNS[0,2,:,:]
 
 # save original DNS
 U_DNS_org = tf.identity(U_DNS)
@@ -270,21 +267,21 @@ if (abs((kUmax-nU_amax) + (kVmax-nV_amax) + (kPmax-nP_amax))>1.e-4):
     print("Diff on kUmax =", kPmax - nP_amax)
 
     print("Mismatch in the filter properties!!!")
-    exit(0)
+    # exit(0)
+
 else:
     print("Diff on kUmax =", kUmax - nU_amax)
     print("Diff on kUmax =", kVmax - nV_amax)
     print("Diff on kUmax =", kPmax - nP_amax)
 
-    UVP_max = [kUmax, kVmax, kPmax]
-
-    print("UVP_max are :", UVP_max[0].numpy(), UVP_max[1].numpy(), UVP_max[2].numpy())
+UVP_max = [kUmax, kVmax, kPmax]
+print("UVP_max are :", UVP_max[0].numpy(), UVP_max[1].numpy(), UVP_max[2].numpy())
 
 
 
 # find inference
-UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
-resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)
+UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0, UVP_max)
+resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=1)
 print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
         .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil.numpy()))
 
@@ -298,35 +295,35 @@ if (TUNE):
 
         lr = lr_schedule_DNS(it)
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
-            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, nfimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
+            step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, imgA, fimgA, ltv_DNS, UVP_max, typeRes=1)
 
         # # adjust variables
         # kDNS = layer_kDNS.trainable_variables[0]
         # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
         # layer_kDNS.trainable_variables[0].assign(kDNS)
 
-        valid_zn = True
-        kDNS  = layer_kDNS.trainable_variables[0]
-        kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
-        if (tf.reduce_any((kDNS-kDNSc)>0) or (it%10000==0 and it!=0)):
-            print("reset values")
-            z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-            z0n = z0[:,0:1,:]
-            for i in range(G_LAYERS-M_LAYERS):
-                zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
-                z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
-                z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
-                z0n = tf.concat([z0n,z1s,z2s], axis=1)
-            kDNSn = 0.5*tf.ones_like(kDNS)
-            valid_zn = False
+        # valid_zn = True
+        # kDNS  = layer_kDNS.trainable_variables[0]
+        # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
+        # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%10000==0 and it!=0)):
+        #     print("reset values")
+        #     z0p = tf.random.uniform(shape=[BATCH_SIZE, M_LAYERS, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        #     z0n = z0[:,0:1,:]
+        #     for i in range(G_LAYERS-M_LAYERS):
+        #         zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
+        #         z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
+        #         z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
+        #         z0n = tf.concat([z0n,z1s,z2s], axis=1)
+        #     kDNSn = 0.5*tf.ones_like(kDNS)
+        #     valid_zn = False
 
-        if (not valid_zn):
-            z0 = tf.identity(z0n)
-            layer_kDNS.trainable_variables[0].assign(kDNSn)
-            UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
-            resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
+        # if (not valid_zn):
+        #     z0 = tf.identity(z0n)
+        #     layer_kDNS.trainable_variables[0].assign(kDNSn)
+        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0, UVP_max)
+        #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=1)        
 
-        kDNSo = layer_kDNS.trainable_variables[0]
+        # kDNSo = layer_kDNS.trainable_variables[0]
 
         # write losses to tensorboard
         with train_summary_writer.as_default():
