@@ -450,3 +450,96 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
 
 
 
+
+
+
+def print_fields_3new(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, labels=None):
+
+    if (labels==None):
+        if (testcase=='HIT_2D'):
+            if (diff):
+                labelR = r'$A$'
+                labelG = r'$B$'
+                labelB = r'$diff$'
+            else:
+                labelR = r'$u$'
+                labelG = r'$v$'
+                labelB = r'$\omega$'
+
+        if (testcase=='HW' or testcase=='mHW'):
+            if (diff):
+                labelR = r'$A$'
+                labelG = r'$B$'
+                labelB = r'$diff$'
+            else:
+                labelR = r'$n$'
+                labelG = r'$\phi$'
+                labelB = r'$\zeta$'
+    else:
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
+        
+    #---------------------------------- convert to numpy arrays
+    U = convert(U_)
+    V = convert(V_)
+    P = convert(P_)
+
+    N = len(U[0,:])
+
+    #---------------------------------- plot surfaces
+    fig, axs = plt.subplots(1, 3, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
+
+    ax1 = axs[0]
+    ax3 = axs[1]
+    ax5 = axs[2]
+
+    cmap1 = 'Blues'
+    cmap2 = 'Reds_r'
+    cmap3 = 'hot'
+    
+    if (diff):
+        cmap1 = 'hot'
+        cmap2 = 'hot'
+        cmap3 = 'jet'
+
+    if (geomR is not None):
+        velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    else:
+        velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+        
+    cbar1 = fig.colorbar(velx, ax=ax1, fraction=0.046)
+    cbar1.ax.tick_params(labelsize=26)
+    ax1.set_title(labelR, fontsize=30)
+    ax1.set_aspect(1)
+
+    if (geomR is not None):
+        vely = ax3.pcolormesh(geomR, geomZ, V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    else:
+        vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+        
+    cbar3 = fig.colorbar(vely, ax=ax3, fraction=0.046)
+    cbar3.ax.tick_params(labelsize=26)
+    ax3.set_title(labelG, fontsize=30)
+    ax3.set_aspect(1)
+
+    if (geomR is not None):
+        pres = ax5.pcolormesh(geomR, geomZ, P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    else:
+        pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    
+    cbar5 = fig.colorbar(pres, ax=ax5, fraction=0.046)
+    cbar5.ax.tick_params(labelsize=26)
+    ax5.set_title(labelB, fontsize=30)
+    ax5.set_aspect(1)
+
+
+    ax1.set_axis_off()
+    ax3.set_axis_off()
+    ax5.set_axis_off()
+
+    # save images
+    plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+    plt.close()

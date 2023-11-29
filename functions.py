@@ -1115,14 +1115,14 @@ class layer_zlatent_kDNS(layers.Layer):
         k_init = tf.random_normal_initializer(mean=0.6, stddev=0.0)
         self.k = tf.Variable(
             initial_value=k_init(shape=[G_LAYERS-M_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=False,
+            trainable=True,
             name="zlatent_kDNS"
         )
         
         w_init = tf.random_normal_initializer(mean=1.0, stddev=0.0)
         self.m = tf.Variable(
             initial_value=w_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
-            trainable=True,
+            trainable=False,
             name="latent_mLES"
         )        
         
