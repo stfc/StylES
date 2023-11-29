@@ -32,16 +32,18 @@ FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 L           = 50.176 
+N_DNS       = 2**(RES_LOG2)
 N_DNS2      = 2**(RES_LOG2-FIL)
-delx        = L/N
-dely        = L/N
-listRUN     = ["DNS", 1]
+N1          = N_DNS-1
+DELX_DNS    = L/N
+DELY_DNS    = L/N
+listRUN     = ["DNS",1, 2, 3, 4]
 PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
 
 #----------------------------- initiliaze
-os.system("rm -rf results_comparison")
+#os.system("rm -rf results_comparison")
 os.system("mkdir results_comparison")
 
 cst = []
@@ -50,8 +52,16 @@ cst.append(0)
 time_DNS    = []
 time_StylES = []
 
-Energy_DNS    = []
-Energy_StylES = []
+gradV_DNS        = []
+gradV_StylES     = []
+Energy_DNS       = []
+Energy_StylES    = []
+rflux_DNS        = []
+pflux_DNS        = []
+rflux_StylES     = []
+pflux_StylES     = []
+enstrophy_DNS    = []
+enstrophy_StylES = []
 
 n_cDNS    = []
 n_cStylES = []
@@ -67,6 +77,17 @@ p_tStylES = []
 v_tDNS    = []
 v_tStylES = []
 
+cl = ['r', 'b', 'g', 'y']
+ls = ['solid', 'dotted', 'dashed', 'dashdot']
+
+# to use mathcal:
+plt.rcParams['mathtext.default'] = 'regular'
+#..or
+# ax1 = plt.gca()
+# ax1.draw = wrap_rcparams(ax1.draw, {"mathtext.default":'regular'})
+
+plt.matplotlib.rcParams.update({'font.size': 16})
+plt.matplotlib.rcParams.update({'figure.autolayout': True})
 
 #----------------------------- functions
 def cr(phi, i, j):
@@ -74,6 +95,14 @@ def cr(phi, i, j):
 
 def save_fields(totTime, U, V, P, filename="restart.npz"):
     np.savez(filename, t=totTime, U=U, V=V, P=P)
+
+def wrap_rcparams(f, params):
+    def _f(*args, **kw):
+        backup = {key:plt.rcParams[key] for key in params}
+        plt.rcParams.update(params)
+        f(*args, **kw)
+        plt.rcParams.update(backup)
+    return _f
 
 
 
@@ -142,16 +171,30 @@ for lrun in listRUN:
             p_tDNS.append(p_DNS)
             v_tDNS.append(v_DNS)
             
-            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*delx))**2 \
-                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*dely))**2)
-
-            time_DNS.append(simtime)
-            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)
+            # find energy spectra
+            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*DELX_DNS))**2 \
+                                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY_DNS))**2)
+            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)*DELX_DNS*DELY_DNS
+            gradV_DNS.append(gradV_p_DNS)
             Energy_DNS.append(E)
+
+            # find enstrophy
+            e_DNS = 0.5*np.sum((n_DNS - v_DNS)**2)*DELX_DNS*DELY_DNS
+            enstrophy_DNS.append(e_DNS)
+                
+            # find flux
+            gradVy_DNS = ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY_DNS))
+            rflux = -np.sum(n_DNS[N1,:]*gradVy_DNS[N1,:])/L
+            pflux = -np.sum(n_DNS[:,N1]*gradVy_DNS[:,N1])/L
+            rflux_DNS.append(rflux)
+            pflux_DNS.append(pflux)
+
+            # find time
+            time_DNS.append(simtime)
 
             cont_DNS = cont_DNS+1
 
-            print ("done for file time step ", str(t))
+            # print ("done for file time step ", str(t))
                         
         os.chdir("../../../../../StylES/bout_interfaces/")
         
@@ -182,19 +225,26 @@ for lrun in listRUN:
                 v_tStylES.append(v_StylES)
 
                 # find energy spectra
-                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*delx))**2 \
-                    + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*dely))**2)
-
-                time_StylES.append(simtime)
-                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)
+                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*DELX_DNS))**2 \
+                                       + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY_DNS))**2)
+                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)*DELX_DNS*DELY_DNS
+                gradV_StylES.append(gradV_p_StylES)
                 Energy_StylES.append(E)
-                
-                # # find flux
-                # flux = ((cr(gradV_p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*delx))**2 \
-                    
-                #     cr(n x gradV_p_StylES
-                
-                # cflux.append(flux[N_DNS2, N_DNS2])
+
+                # find enstrophy
+                e_StylES = 0.5*np.sum((n_StylES - v_StylES)**2)*DELX_DNS*DELY_DNS
+                enstrophy_StylES.append(e_StylES)
+
+                # find flux
+                gradVy_StylES = ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY_DNS))
+                rflux = -np.sum(n_StylES[N1,:]*gradVy_StylES[N1,:])/L
+                pflux = -np.sum(n_StylES[:,N1]*gradVy_StylES[:,N1])/L
+
+                rflux_StylES.append(rflux)
+                pflux_StylES.append(pflux)
+
+                # find time
+                time_StylES.append(simtime)
                 
                 cont_StylES = cont_StylES+1
 
@@ -206,214 +256,449 @@ for lrun in listRUN:
 
 
 #--------------------------------------------------------  plots
-cl = ['r', 'b', 'g', 'y']
-ls = ['solid', 'dotted', 'dashed', 'dashdot']
+
+print("plot comparison")
+# full fields
+k = cst[len(listRUN)-2]
+
+minv = np.min(n_tDNS[0])
+maxv = np.max(n_tDNS[0])
+filename = "./results_comparison/ndiff_t0.png"
+labels = [r'$n_{DNS}$', r'$n_{StylES}$', r'$n_{DNS}$ - $n_{StylES}$']
+print_fields_3new(n_tDNS[0], n_tStylES[k], n_tDNS[0]-n_tStylES[k], filename=filename, diff=True, labels=labels, \
+    Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
+
+minv = np.min(p_tDNS[0])
+maxv = np.max(p_tDNS[0])
+filename = "./results_comparison/pdiff_t0.png"
+labels = [r'$\phi_{DNS}$', r'$\phi_{StylES}$', r'$\phi_{DNS}$ - $\phi_{StylES}$']
+print_fields_3new(p_tDNS[0], p_tStylES[k], p_tDNS[0]-p_tStylES[k], filename=filename, diff=True, labels=labels, \
+    Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
+
+minv = np.min(v_tDNS[0])
+maxv = np.max(v_tDNS[0])
+filename = "./results_comparison/vdiff_t0.png"
+labels = [r'$\zeta_{DNS}$', r'$\zeta_{StylES}$', r'$\zeta_{DNS}$ - $\zeta_{StylES}$']
+print_fields_3new(v_tDNS[0], v_tStylES[k], v_tDNS[0]-v_tStylES[k], filename=filename, diff=True, labels=labels, \
+    Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
+
+
+
+# spectra
+print("plot spectra")
+
+t = FTIME-1
+listtk = [(0, cst[len(listRUN)-2]),(FTIME-1, cst[len(listRUN)-1]-1)]
+
+for t,k in listtk:
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tDNS[t], gradV_DNS[t], L, L, True)
+    plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(t))
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tStylES[k], gradV_StylES[k], L, L, True)
+    plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(t))
+
+    plt.yscale("log")
+    plt.xscale("log")
+    plt.xlabel(r'k [$\rho_i^{-1}$]')
+    plt.ylabel(r'$\mathcal{F}(E)$')
+    plt.legend(frameon=False)
+    plt.savefig("./results_comparison/energy_t" + str(t) + ".png", dpi=300)
+    plt.close()
+
+    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d((n_tDNS[t]-v_DNS[t]), (n_tDNS[t]-v_DNS[t]), L, L, True)
+    # plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(t))
+    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d((n_tStylES[k]-v_tStylES[k]), (n_tStylES[k]-v_tStylES[k]), L, L, True)
+    # plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(t))
+
+    # plt.yscale("log")
+    # plt.xscale("log")
+    # plt.xlabel(r'k [$\rho_i^{-1}$]')
+    # plt.ylabel(r'$\mathcal{F}(E)$')
+    # plt.legend(frameon=False)
+    # plt.savefig("./results_comparison/enstrophy_t" + str(t) + ".png", dpi=300)
+    # plt.close()
+
 
 
 # energy vs time
+print("plot evergy vs time")
 i = 0
 for lrun in listRUN:
     if (lrun=='DNS'):
         label = r"DNS"
     elif (lrun==1):
-        label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+        #label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+        label = r"StylES with $\epsilon_{REC}$=1"
     elif (lrun==2):
-        label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        #label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        label = r"StylES with $\epsilon_{REC}$=0.5"
     elif (lrun==3):
-        label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        # label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        label = r"StylES with $\epsilon_{REC}$=0.25"
     elif (lrun==4):
-        label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-4}$"
+        # label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-4}$"
+        label = r"StylES with $\epsilon_{REC}$=0.125"
 
     if (lrun=='DNS'):
         plt.plot(time_DNS, Energy_DNS, color='k', linewidth=0.5, linestyle='solid', label=label)
     else:
-        i1 = cst[i]
-        i2 = cst[i+1]
-        plt.plot(time_StylES[i1:i2], Energy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
-        i=i+1
-
-plt.xlim(0,100)
-plt.legend(fontsize="10", frameon=False)
-plt.savefig('./results_comparison/energy_vs_time.png')
-plt.close()
-   
-    
-# fields
-for nf in range(3):
-    i = 0
-    for lrun in listRUN:
-        if (lrun=='DNS'):
-            if (nf==0):
-                plt.plot(time_DNS, n_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$n$ DNS")
-            elif (nf==1):
-                plt.plot(time_DNS, p_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
-            else:
-                plt.plot(time_DNS, v_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\omega$ DNS")
-        else:
-            tail = str(lrun)
+        if (lrun==1):
+            pass
+        else:        
             i1 = cst[i]
             i2 = cst[i+1]
-            
-            if (lrun==1):
-                n_label = r"$n$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
-                p_label = r"$\phi$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
-                v_label = r"$\omega$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
-            elif (lrun==2):
-                n_label = r"$n$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
-                p_label = r"$\phi$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
-                v_label = r"$\omega$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
-            elif (lrun==3):
-                n_label = r"$n$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
-                p_label = r"$\phi$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
-                v_label = r"$\omega$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
-            elif (lrun==4):
-                n_label = r"$n$ StylES  with $\epsilon_{REC}=$" + r"$10^{-4}$"
-                p_label = r"$\phi$ StylES  with $\epsilon_{REC}=$" + r"$10^{-4}$"
-                v_label = r"$\omega$ StylES with $\epsilon_{REC}=$" + r"$10^{-4}$"
+            plt.plot(time_StylES[i1:i2], Energy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
+            i=i+1
 
-            if (nf==0):                        
-                plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=n_label)
-            elif (nf==1):
-                plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=p_label)
-            else:
-                plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=v_label)
-
-            i = i+1
-
-    plt.legend(fontsize="10", frameon=False)
-    plt.xlabel("time units [$\omega^{-1}_i$]")
-    plt.ylabel("fields")
-    plt.xlim(0,100)    
-    if (nf==0):
-        plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=200)
-    elif (nf==1):
-        plt.savefig('./results_comparison/DNS_vs_StylES_phi.png', dpi=200)
-    elif (nf==2):
-        plt.savefig('./results_comparison/DNS_vs_StylES_vort.png', dpi=200)
-    plt.close()
-
-exit(0)
+plt.ylim(1e6,1e8)
+plt.xlim(0,100)
+plt.yscale("log")
+plt.xlabel("time [$\omega^{-1}_{ci}$]")
+plt.ylabel("energy")
+plt.legend(fontsize="10", frameon=False)
+plt.savefig('./results_comparison/energy_vs_time.png', dpi=300)
+plt.close()
+   
 
 
-# fields
-colDNS = np.linspace(0,1,num=len(time_DNS))
-for f in range(3):
+# enstrophy vs time
+print("plot enstrophy vs time")
 
-    if (f==0):
-        fDNS    = n_cDNS
-        fStylES = n_cStylES
-        cmap    = 'jet'
-        label   = r"$n$"
-    elif (f==1):
-        fDNS    = p_cDNS
-        fStylES = p_cStylES
-        cmap    = 'jet'
-        label   = r"$\phi$"
-    elif (f==2):
-        fDNS    = v_cDNS
-        fStylES = v_cStylES
-        cmap    = 'jet'
-        label   = r"$\omega$"
+i = 0
+for lrun in listRUN:
+    if (lrun=='DNS'):
+        label = r"DNS"
+    elif (lrun==1):
+        #label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+        label = r"StylES with $\epsilon_{REC}$=1"
+    elif (lrun==2):
+        #label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+        label = r"StylES with $\epsilon_{REC}$=0.5"
+    elif (lrun==3):
+        # label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-3}$"
+        label = r"StylES with $\epsilon_{REC}$=0.25"
+    elif (lrun==4):
+#        label = r"StylES with $\epsilon_{REC}=$" + r"$10^{-4}$"
+        label = r"StylES with $\epsilon_{REC}$=0.125"
 
-    i = 0
-    for lrun in listRUN:
-            
-        if (lrun=='DNS'):
-            marker  = '^'
-            plt.scatter(time_DNS, fDNS, c=colDNS, vmax=2, cmap=cmap, marker=marker, s=5, label=label + " DNS")
-        else:
-            tail = str(lrun)
+    if (lrun=='DNS'):
+        plt.plot(time_DNS, enstrophy_DNS, color='k', linewidth=0.5, linestyle='solid', label=label)
+    else:
+        if (lrun==1):
+            pass
+        else:        
             i1 = cst[i]
-            i2 = cst[i]+cst[i+1]
-            
-            if (tail=="2"):
-                marker  = 'o'
-                n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-                p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-                v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-                colStylES = np.linspace(0,0.5,num=len(time_StylES[i1:i2]))
-                vmax      = 1.5
-            else:
-                marker  = '*'
-                n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-                p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-                v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-                colStylES = np.linspace(0,1,num=len(time_StylES[i1:i2]))
-                vmax      = 1
-            
-            plt.scatter(time_StylES[i1:i2], fStylES[i1:i2], c=colStylES, vmax=vmax, cmap=cmap, marker=marker, s=5, label=label + " StylES")
-                    
-            i = i+1
+            i2 = cst[i+1]
+            plt.plot(time_StylES[i1:i2], enstrophy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
+            i=i+1
 
-    plt.legend(fontsize="10", loc ="lower left", frameon=False)
-    plt.xlabel("time units [$\omega^{-1}_i$]")
-    plt.ylabel(label)
-    plt.savefig('./results_comparison/DNS_vs_StylES_UVP_' + str(f) + '.png', dpi=200)
-    plt.close()
-
-
-
-
-
-
-# MSE on images
-sumcst = 0
-cst.append(0)
-for j in range(len(listRUN)-1):
-
-    id = 0
-    MSE_n = []
-    MSE_p = []
-    MSE_v = []
-    for i in range (cst[j+1]):
-        ii = sumcst + i
-        if (time_StylES[ii]>=time_DNS[id]):
-            MSE_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
-            MSE_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
-            MSE_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
-
-            id = id+1
-
-    sumcst = sumcst + cst[j+1]
-
-    if (j==0):
-        # n_label = r"$n$ with $\epsilon_{REC}=0.01$"
-        # p_label = r"$\phi$ with $\epsilon_{REC}=0.01$"
-        # v_label = r"$\omega$ with $\epsilon_{REC}=0.01$"
-        n_label = r"$n$"
-        p_label = r"$\phi$"
-        v_label = r"$\omega$"
-    elif (j==1):
-        n_label = r"$n$ with $\epsilon_{REC}=0.0075$"
-        p_label = r"$\phi$ with $\epsilon_{REC}=0.0075$"
-        v_label = r"$\omega$ with $\epsilon_{REC}=0.0075$"
-    elif (j==2):
-        n_label = r"$n$ with $\epsilon_{REC}=0.005$"
-        p_label = r"$\phi$ with $\epsilon_{REC}=0.005$"
-        v_label = r"$\omega$ with $\epsilon_{REC}=0.005$"
-    
-    if (j==0):
-        plt.plot(time_DNS[0:id], MSE_n, color='k', linewidth=0.5, linestyle=ls[j], label=n_label)
-        plt.plot(time_DNS[0:id], MSE_p, color='r', linewidth=0.5, linestyle=ls[j], label=p_label)
-        plt.plot(time_DNS[0:id], MSE_v, color='b', linewidth=0.5, linestyle=ls[j], label=v_label)
-    elif (j==1):
-        plt.plot(time_DNS[0:id], MSE_n, color='k', linewidth=0.5, linestyle=ls[j])
-        plt.plot(time_DNS[0:id], MSE_p, color='r', linewidth=0.5, linestyle=ls[j])
-        plt.plot(time_DNS[0:id], MSE_v, color='b', linewidth=0.5, linestyle=ls[j])
-    elif (j==2):
-        plt.plot(time_DNS[0:id], MSE_n, color='k', linewidth=0.5, linestyle=ls[j], dashes=(5,10))
-        plt.plot(time_DNS[0:id], MSE_p, color='r', linewidth=0.5, linestyle=ls[j], dashes=(5,10))
-        plt.plot(time_DNS[0:id], MSE_v, color='b', linewidth=0.5, linestyle=ls[j], dashes=(5,10))
-        
-
-plt.legend(fontsize="10", loc ="upper left", frameon=False)
-plt.xlabel("time units [$\omega^{-1}_i$]")
-plt.ylabel("MSE")
-plt.savefig('./results_comparison/MSE_images.png')
+plt.ylim(1e3,1e5)
+plt.xlim(0,100)
+plt.yscale("log")
+plt.xlabel("time [$\omega^{-1}_{ci}$]")
+plt.ylabel("enstrophy")
+plt.legend(fontsize="10", frameon=False)
+plt.savefig('./results_comparison/enstrophy_vs_time.png', dpi=300)
 plt.close()
 
-exit()
 
+
+# radial flux vs time
+print("plot radial flux vs time")
+
+i = 0
+for lrun in listRUN:
+    if (lrun=='DNS'):
+        label = r"DNS"
+    elif (lrun==1):
+        label = r"StylES with $\epsilon_{REC}$=1"
+    elif (lrun==2):
+        label = r"StylES with $\epsilon_{REC}$=0.5"
+    elif (lrun==3):
+        label = r"StylES with $\epsilon_{REC}$=0.25"
+    elif (lrun==4):
+        label = r"StylES with $\epsilon_{REC}$=0.125"
+
+    if (lrun=='DNS'):
+        plt.plot(time_DNS, rflux_DNS, color='k', linewidth=0.5, linestyle='solid', label=label)
+    else:
+        if (lrun==1):
+            pass
+        else:
+            i1 = cst[i]
+            i2 = cst[i+1]
+            plt.plot(time_StylES[i1:i2], rflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
+            i=i+1
+
+plt.ylim(0,3)
+plt.xlim(0,100)
+plt.xlabel("time [$\omega^{-1}_{ci}$]")
+plt.ylabel("radial flux")
+plt.legend(fontsize="10", frameon=False)
+plt.savefig('./results_comparison/radialFlux_vs_time.png', dpi=300)
+plt.close()
+
+
+
+
+
+# poloidal flux vs time
+print("plot poloidal flux vs time")
+
+i = 0
+for lrun in listRUN:
+    if (lrun=='DNS'):
+        label = r"DNS"
+    elif (lrun==1):
+        label = r"StylES with $\epsilon_{REC}$=1"
+    elif (lrun==2):
+        label = r"StylES with $\epsilon_{REC}$=0.5"
+    elif (lrun==3):
+        label = r"StylES with $\epsilon_{REC}$=0.25"
+    elif (lrun==4):
+        label = r"StylES with $\epsilon_{REC}$=0.125"
+
+    if (lrun=='DNS'):
+        plt.plot(time_DNS, pflux_DNS, color='k', linewidth=0.5, linestyle='solid', label=label)
+    else:
+        if (lrun==1):
+            pass
+        else:        
+            i1 = cst[i]
+            i2 = cst[i+1]
+            plt.plot(time_StylES[i1:i2], pflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
+            i=i+1
+
+plt.ylim(-5,5)
+plt.xlim(0,100)
+plt.xlabel("time [$\omega^{-1}_{ci}$]")
+plt.ylabel("poloidal flux")
+plt.legend(fontsize="10", frameon=False)
+plt.savefig('./results_comparison/poloidalFlux_vs_time.png', dpi=300)
+plt.close()
+
+
+
+# # fields
+# for nf in range(3):
+#     i = 0
+#     for lrun in listRUN:
+#         if (lrun=='DNS'):
+#             if (nf==0):
+#                 plt.plot(time_DNS, n_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$n$ DNS")
+#             elif (nf==1):
+#                 plt.plot(time_DNS, p_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
+#             else:
+#                 plt.plot(time_DNS, v_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\zeta$ DNS")
+#         else:
+#             tail = str(lrun)
+#             i1 = cst[i]
+#             i2 = cst[i+1]
+            
+#             if (lrun==1):
+#                 # n_label = r"$n$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+#                 # p_label = r"$\phi$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+#                 # v_label = r"$\psi$ StylES with $\epsilon_{REC}=$" + r"$10^{-1}$"
+#                 n_label = r"$n$ StylES with $\epsilon_{REC}=$1"
+#                 p_label = r"$\phi$ StylES with $\epsilon_{REC}=$1"
+#                 v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$1"
+#             elif (lrun==2):
+#                 # n_label = r"$n$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 # p_label = r"$\phi$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 # v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 n_label = r"$n$ StylES with $\epsilon_{REC}=$0.5"
+#                 p_label = r"$\phi$ StylES with $\epsilon_{REC}=$0.5"
+#                 v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$0.5"
+#             elif (lrun==3):
+#                 # n_label = r"$n$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 # p_label = r"$\phi$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 # v_label = r"$\zeta$ StylES  with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 n_label = r"$n$ StylES with $\epsilon_{REC}=$0.25"
+#                 p_label = r"$\phi$ StylES with $\epsilon_{REC}=$0.25"
+#                 v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$0.25"
+#             elif (lrun==4):
+#                 # n_label = r"$n$ StylES  with $\epsilon_{REC}=$" + r"$10^{-4}$"
+#                 # p_label = r"$\phi$ StylES  with $\epsilon_{REC}=$" + r"$10^{-4}$"
+#                 # v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$" + r"$10^{-4}$"
+#                 n_label = r"$n$ StylES with $\epsilon_{REC}=$0.125"
+#                 p_label = r"$\phi$ StylES with $\epsilon_{REC}=$0.125"
+#                 v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$0.125"
+
+#             if (nf==0):                        
+#                 plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=n_label)
+#                 plt.ylabel("$n$")
+#             elif (nf==1):
+#                 plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=p_label)
+#                 plt.ylabel("$\phi$")
+#             else:
+#                 plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=v_label)
+#                 plt.ylabel("$\zeta$")
+
+#             i = i+1
+
+#     plt.legend(fontsize="10", frameon=False)
+#     plt.xlabel("time [$\omega^{-1}_{ci}$]")
+#     plt.xlim(0,100)    
+#     if (nf==0):
+#         plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=300)
+#     elif (nf==1):
+#         plt.savefig('./results_comparison/DNS_vs_StylES_phi.png', dpi=300)
+#     elif (nf==2):
+#         plt.savefig('./results_comparison/DNS_vs_StylES_vort.png', dpi=300)
+#     plt.close()
+
+
+
+
+
+
+
+#----------------------------------- MSE on images
+for nplot in range(3):
+    sumcst = 0
+    cst.append(0)
+    for j in range(len(listRUN)-1):
+
+        id = 0
+        MSE_n = []
+        MSE_p = []
+        MSE_v = []
+        for i in range (cst[j+1]-cst[j]):
+            ii = sumcst + i
+            if (time_StylES[ii]>=time_DNS[id]):
+                MSE_n.append(np.mean((n_tDNS[id] - n_tStylES[ii])**2))
+                MSE_p.append(np.mean((p_tDNS[id] - p_tStylES[ii])**2))
+                MSE_v.append(np.mean((v_tDNS[id] - v_tStylES[ii])**2))
+
+                id = id+1
+
+        sumcst = sumcst + (cst[j+1]-cst[j])
+
+        if (j==0):
+            if (nplot==0):
+                n_label = r"$n$ with $\epsilon_{REC}=1$"
+            elif (nplot==1):
+                p_label = r"$\phi$ with $\epsilon_{REC}=1$"
+            elif (nplot==2):
+                v_label = r"$\zeta$ with $\epsilon_{REC}=1$"
+        elif (j==1):
+            if (nplot==0):
+                n_label = r"$n$ with $\epsilon_{REC}=0.5$"
+            elif (nplot==1):
+                p_label = r"$\phi$ with $\epsilon_{REC}=0.5$"
+            elif (nplot==2):
+                v_label = r"$\zeta$ with $\epsilon_{REC}=0.5$"
+        elif (j==2):
+            if (nplot==0):
+                n_label = r"$n$ with $\epsilon_{REC}=0.25$"
+            elif (nplot==1):
+                p_label = r"$\phi$ with $\epsilon_{REC}=0.25$"
+            elif (nplot==2):
+                v_label = r"$\zeta$ with $\epsilon_{REC}=0.25$"
+        elif (j==3):
+            if (nplot==0):
+                n_label = r"$n$ with $\epsilon_{REC}=0.125$"
+            elif (nplot==1):
+                p_label = r"$\phi$ with $\epsilon_{REC}=0.125$"
+            elif (nplot==2):
+                v_label = r"$\zeta$ with $\epsilon_{REC}=0.125$"
+        
+        if (j==0):
+            if (nplot==0):
+                plt.scatter(time_DNS[0:id], MSE_n, color='k', marker='.', s=20, label=n_label)
+            elif (nplot==1):
+                plt.scatter(time_DNS[0:id], MSE_p, color='k', marker='.', s=20, label=p_label)
+            elif (nplot==2):
+                plt.scatter(time_DNS[0:id], MSE_v, color='k', marker='.', s=20, label=v_label)
+        elif (j==1):
+            if (nplot==0):
+                plt.scatter(time_DNS[0:id], MSE_n, color='k', marker='v', s=20, label=n_label)
+            elif (nplot==1):
+                plt.scatter(time_DNS[0:id], MSE_p, color='k', marker='v', s=20, label=p_label)
+            elif (nplot==2):
+                plt.scatter(time_DNS[0:id], MSE_v, color='k', marker='v', s=20, label=v_label)
+        elif (j==2):
+            if (nplot==0):
+                plt.scatter(time_DNS[0:id], MSE_n, color='k', marker='^', s=20, label=n_label)
+            elif (nplot==1):
+                plt.scatter(time_DNS[0:id], MSE_p, color='k', marker='^', s=20, label=p_label)
+            elif (nplot==2):
+                plt.scatter(time_DNS[0:id], MSE_v, color='k', marker='^', s=20, label=v_label)
+        elif (j==3):
+            if (nplot==0):
+                plt.scatter(time_DNS[0:id], MSE_n, color='k', marker='x', s=20, label=n_label)
+            elif (nplot==1):
+                plt.scatter(time_DNS[0:id], MSE_p, color='k', marker='x', s=20, label=p_label)
+            elif (nplot==2):
+                plt.scatter(time_DNS[0:id], MSE_v, color='k', marker='x', s=20, label=v_label)
+            
+
+    plt.xlim(0,10)
+    plt.legend(fontsize="10", loc ="upper left", frameon=False)
+    plt.xlabel("time [$\omega^{-1}_{ci}$]")
+    plt.ylabel("MSE")
+    plt.savefig('./results_comparison/MSE_fields_' + str(nplot) + '.png', dpi=300)
+    plt.close()
+
+
+
+
+
+
+# # fields
+# colDNS = np.linspace(0,1,num=len(time_DNS))
+# for f in range(3):
+
+#     if (f==0):
+#         fDNS    = n_cDNS
+#         fStylES = n_cStylES
+#         cmap    = 'jet'
+#         label   = r"$n$"
+#     elif (f==1):
+#         fDNS    = p_cDNS
+#         fStylES = p_cStylES
+#         cmap    = 'jet'
+#         label   = r"$\phi$"
+#     elif (f==2):
+#         fDNS    = v_cDNS
+#         fStylES = v_cStylES
+#         cmap    = 'jet'
+#         label   = r"$\zeta$"
+
+#     i = 0
+#     for lrun in listRUN:
+            
+#         if (lrun=='DNS'):
+#             marker  = '^'
+#             plt.scatter(time_DNS, fDNS, c=colDNS, vmax=2, cmap=cmap, marker=marker, s=5, label=label + " DNS")
+#         else:
+#             tail = str(lrun)
+#             i1 = cst[i]
+#             i2 = cst[i]+cst[i+1]
+            
+#             if (tail=="2"):
+#                 marker  = 'o'
+#                 n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 v_label   = r"$\zeta$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#                 colStylES = np.linspace(0,0.5,num=len(time_StylES[i1:i2]))
+#                 vmax      = 1.5
+#             else:
+#                 marker  = '*'
+#                 n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 v_label   = r"$\zeta$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#                 colStylES = np.linspace(0,1,num=len(time_StylES[i1:i2]))
+#                 vmax      = 1
+            
+#             plt.scatter(time_StylES[i1:i2], fStylES[i1:i2], c=colStylES, vmax=vmax, cmap=cmap, marker=marker, s=5, label=label + " StylES")
+                    
+#             i = i+1
+
+#     plt.legend(fontsize="10", loc ="lower left", frameon=False)
+#     plt.xlabel("time [$\omega^{-1}_{ci}$]")
+#     plt.ylabel(label)
+#     plt.savefig('./results_comparison/DNS_vs_StylES_UVP_' + str(f) + '.png', dpi=300)
+#     plt.close()
 
 
 
@@ -441,13 +726,13 @@ exit()
 #     if (j==0):
 #         n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
 #         p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
-#         v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
+#         v_label   = r"$\zeta$ with $\epsilon_{REC}=$" + r"$10^{-2}$"
 #         colStylES = np.linspace(0,0.5,num=len(MSE_n))
 #         vmax      = 1.5        
 #     else:
 #         n_label   = r"$n$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
 #         p_label   = r"$\phi$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
-#         v_label   = r"$\omega$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
+#         v_label   = r"$\zeta$ with $\epsilon_{REC}=$" + r"$10^{-3}$"
 #         colStylES = np.linspace(0,1,num=len(MSE_n))
 #         vmax      = 1        
 
@@ -456,7 +741,7 @@ exit()
 #     plt.scatter(time_DNS[0:id], MSE_v, c=colStylES, vmax=vmax, cmap=cmap, marker='*', s=5, label=v_label)
             
 # plt.legend(fontsize="10", loc ="upper right", frameon=False)
-# plt.xlabel("time units [$\omega^{-1}_i$]")
+# plt.xlabel("time [$\omega^{-1}_{ci}$]")
 # plt.ylabel("MSE")
-# plt.savefig('./results_comparison/MSE_images.png')
+# plt.savefig('./results_comparison/MSE_fields.png', dpi=300)
 # plt.close()

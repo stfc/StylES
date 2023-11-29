@@ -3,8 +3,6 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 import time
 
-
-#--------------------------- compare filters
 import os
 import sys
 import scipy as sc
@@ -23,107 +21,123 @@ tf.random.set_seed(SEED_RESTART)
 
 
 
-N_DNS = 256
-L     = 50.176
-RS    = int(2**FIL)
-FILE_REAL = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run21_time501.npz"
-
 os.system("rm -rf tests")
 os.system("mkdir tests")
 
 
 
-# load numpy array
-U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_REAL)
-U_DNS = np.cast[DTYPE](U_DNS)
-V_DNS = np.cast[DTYPE](V_DNS)
-P_DNS = np.cast[DTYPE](P_DNS)
 
-
-# plot DNS spectrum
-DELX  = L/N_DNS
-DELY  = L/N_DNS
-filename = "./results_tests/energy_spectrum_DNS.png"
-gradV = np.sqrt(((cr(V_DNS, 1, 0) - cr(V_DNS, -1, 0))/(2.0*DELX))**2 \
-              + ((cr(V_DNS, 0, 1) - cr(V_DNS, 0, -1))/(2.0*DELY))**2)
-plot_spectrum(U_DNS, gradV, L, filename, close=False)
-
-
-# plot filtered fields using top-hat filter
-fU_DNS = U_DNS[::RS, ::RS]
-fV_DNS = V_DNS[::RS, ::RS]
-fP_DNS = P_DNS[::RS, ::RS]
-
-DELX  = L/N_DNS*RS
-DELY  = L/N_DNS*RS
-filename = "./results_tests/energy_spectrum_th.png"
-
-gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
-              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
-plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+#---------------------- verify orientation plots
+A = np.asarray([[0, 1, 2], [3, 4, 1]]) 
+print(A.shape)
+print(A[:,2])
+plt.pcolormesh(A)
+plt.show()
+plt.savefig("tests/pcolormesh.png")
+exit()
 
 
 
-# plot filtered fields using scipy gaussian
-fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='grid-wrap')
-fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='grid-wrap')
-fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='grid-wrap')
 
-fU_DNS = fU_DNS[::RS, ::RS]
-fV_DNS = fV_DNS[::RS, ::RS]
-fP_DNS = fP_DNS[::RS, ::RS]
+#--------------------------- compare filters
 
-DELX  = L/N_DNS*RS
-DELY  = L/N_DNS*RS
-filename = "./results_tests/energy_spectrum_scg.png"
-
-gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
-              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
-plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+# N_DNS = 256
+# L     = 50.176
+# RS    = int(2**FIL)
+# FILE_REAL = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run21_time501.npz"
 
 
-
-# plot filtered fields using scipy top-hat
-fU_DNS = sc.ndimage.white_tophat(U_DNS, RS, mode='grid-wrap')
-fV_DNS = sc.ndimage.white_tophat(V_DNS, RS, mode='grid-wrap')
-fP_DNS = sc.ndimage.white_tophat(P_DNS, RS, mode='grid-wrap')
-
-fU_DNS = fU_DNS[::RS, ::RS]
-fV_DNS = fV_DNS[::RS, ::RS]
-fP_DNS = fP_DNS[::RS, ::RS]
-
-DELX  = L/N_DNS*RS
-DELY  = L/N_DNS*RS
-filename = "./results_tests/energy_spectrum_scth.png"
-
-gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
-              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
-plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+# # load numpy array
+# U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_REAL)
+# U_DNS = np.cast[DTYPE](U_DNS)
+# V_DNS = np.cast[DTYPE](V_DNS)
+# P_DNS = np.cast[DTYPE](P_DNS)
 
 
+# # plot DNS spectrum
+# DELX  = L/N_DNS
+# DELY  = L/N_DNS
+# filename = "./results_tests/energy_spectrum_DNS.png"
+# gradV = np.sqrt(((cr(V_DNS, 1, 0) - cr(V_DNS, -1, 0))/(2.0*DELX))**2 \
+#               + ((cr(V_DNS, 0, 1) - cr(V_DNS, 0, -1))/(2.0*DELY))**2)
+# plot_spectrum(U_DNS, gradV, L, filename, close=False)
 
-# plot filtered fields using tf
-U_DNS = tf.convert_to_tensor(U_DNS)
-V_DNS = tf.convert_to_tensor(V_DNS)
-P_DNS = tf.convert_to_tensor(P_DNS)
 
-fU_DNS = gaussian_filter(U_DNS, rs=RS, rsca=RS)
-fV_DNS = gaussian_filter(V_DNS, rs=RS, rsca=RS)
-fP_DNS = gaussian_filter(P_DNS, rs=RS, rsca=RS)
+# # plot filtered fields using top-hat filter
+# fU_DNS = U_DNS[::RS, ::RS]
+# fV_DNS = V_DNS[::RS, ::RS]
+# fP_DNS = P_DNS[::RS, ::RS]
 
-fU_DNS = fU_DNS[0,0,:,:].numpy()
-fV_DNS = fV_DNS[0,0,:,:].numpy()
-fP_DNS = fP_DNS[0,0,:,:].numpy()
+# DELX  = L/N_DNS*RS
+# DELY  = L/N_DNS*RS
+# filename = "./results_tests/energy_spectrum_th.png"
 
-DELX  = L/N_DNS*RS
-DELY  = L/N_DNS*RS
-filename = "./results_tests/energy_spectrum_tf.png"
+# gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+#               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+# plot_spectrum(fU_DNS, gradV, L, filename, close=False)
 
-gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
-              + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
-plot_spectrum(fU_DNS, gradV, L, filename, close=True)
 
-exit(0)
+
+# # plot filtered fields using scipy gaussian
+# fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='grid-wrap')
+# fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='grid-wrap')
+# fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='grid-wrap')
+
+# fU_DNS = fU_DNS[::RS, ::RS]
+# fV_DNS = fV_DNS[::RS, ::RS]
+# fP_DNS = fP_DNS[::RS, ::RS]
+
+# DELX  = L/N_DNS*RS
+# DELY  = L/N_DNS*RS
+# filename = "./results_tests/energy_spectrum_scg.png"
+
+# gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+#               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+# plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+
+
+
+# # plot filtered fields using scipy top-hat
+# fU_DNS = sc.ndimage.white_tophat(U_DNS, RS, mode='grid-wrap')
+# fV_DNS = sc.ndimage.white_tophat(V_DNS, RS, mode='grid-wrap')
+# fP_DNS = sc.ndimage.white_tophat(P_DNS, RS, mode='grid-wrap')
+
+# fU_DNS = fU_DNS[::RS, ::RS]
+# fV_DNS = fV_DNS[::RS, ::RS]
+# fP_DNS = fP_DNS[::RS, ::RS]
+
+# DELX  = L/N_DNS*RS
+# DELY  = L/N_DNS*RS
+# filename = "./results_tests/energy_spectrum_scth.png"
+
+# gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+#               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+# plot_spectrum(fU_DNS, gradV, L, filename, close=False)
+
+
+
+# # plot filtered fields using tf
+# U_DNS = tf.convert_to_tensor(U_DNS)
+# V_DNS = tf.convert_to_tensor(V_DNS)
+# P_DNS = tf.convert_to_tensor(P_DNS)
+
+# fU_DNS = gaussian_filter(U_DNS, rs=RS, rsca=RS)
+# fV_DNS = gaussian_filter(V_DNS, rs=RS, rsca=RS)
+# fP_DNS = gaussian_filter(P_DNS, rs=RS, rsca=RS)
+
+# fU_DNS = fU_DNS[0,0,:,:].numpy()
+# fV_DNS = fV_DNS[0,0,:,:].numpy()
+# fP_DNS = fP_DNS[0,0,:,:].numpy()
+
+# DELX  = L/N_DNS*RS
+# DELY  = L/N_DNS*RS
+# filename = "./results_tests/energy_spectrum_tf.png"
+
+# gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*DELX))**2 \
+#               + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*DELY))**2)
+# plot_spectrum(fU_DNS, gradV, L, filename, close=True)
+
+# exit(0)
 
 
 

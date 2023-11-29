@@ -322,7 +322,7 @@ elif (MODE=='READ_NUMPY'):
             
             if (i%1==0 and i!=nfiles-1):
                 filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
-                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
+                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)
 
             if (i+ITIME>nfiles-1):
                 closePlot=True

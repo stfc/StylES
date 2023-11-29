@@ -38,7 +38,7 @@ tf.random.set_seed(SEED_RESTART)
 # parameters
 TUNE        = True
 TUNE_NOISE  = False
-tollDNS     = 1.0e+10
+tollDNS     = 1.0e-1
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**(RES_LOG2-FIL)
 N2L         = int(N_LES/2)
@@ -300,33 +300,33 @@ if (TUNE):
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, nfimgA], imgA, fimgA, ltv_DNS, UVP_max, typeRes=3)
 
-        # adjust variables
+        # # adjust variables
         # kDNS = layer_kDNS.trainable_variables[0]
         # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
         # layer_kDNS.trainable_variables[0].assign(kDNS)
 
-        # valid_zn = True
-        # kDNS  = layer_kDNS.trainable_variables[0]
-        # kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
-        # if (tf.reduce_any((kDNS-kDNSc)>0) or (it%10000==0 and it!=0)):
-        #     print("reset values")
-        #     z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        #     z0n = z0[:,0:1,:]
-        #     for i in range(G_LAYERS-M_LAYERS):
-        #         zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
-        #         z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
-        #         z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
-        #         z0n = tf.concat([z0n,z1s,z2s], axis=1)
-        #     kDNSn = 0.5*tf.ones_like(kDNS)
-        #     valid_zn = False
+        valid_zn = True
+        kDNS  = layer_kDNS.trainable_variables[0]
+        kDNSc = tf.clip_by_value(kDNS, 0.0, 1.0)
+        if (tf.reduce_any((kDNS-kDNSc)>0) or (it%10000==0 and it!=0)):
+            print("reset values")
+            z0p = tf.random.uniform(shape=[BATCH_SIZE, (G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+            z0n = z0[:,0:1,:]
+            for i in range(G_LAYERS-M_LAYERS):
+                zs = kDNSo[i,:]*z0[:,2*i+1,:] + (1.0-kDNSo[i,:])*z0[:,2*i+2,:]
+                z1s = zs[:,tf.newaxis,:] + z0p[:,i:i+1,:]
+                z2s = zs[:,tf.newaxis,:] - z0p[:,i:i+1,:]
+                z0n = tf.concat([z0n,z1s,z2s], axis=1)
+            kDNSn = 0.5*tf.ones_like(kDNS)
+            valid_zn = False
 
-        # if (not valid_zn):
-        #     z0 = tf.identity(z0n)
-        #     layer_kDNS.trainable_variables[0].assign(kDNSn)
-        #     UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
-        #     resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
+        if (not valid_zn):
+            z0 = tf.identity(z0n)
+            layer_kDNS.trainable_variables[0].assign(kDNSn)
+            UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, nfimgA], UVP_max)
+            resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=3)        
 
-        # kDNSo = layer_kDNS.trainable_variables[0]
+        kDNSo = layer_kDNS.trainable_variables[0]
 
         # write losses to tensorboard
         with train_summary_writer.as_default():
@@ -347,14 +347,14 @@ if (TUNE):
                 V_DNS = UVP_DNS[0, 1, :, :].numpy()
                 P_DNS = UVP_DNS[0, 2, :, :].numpy()
     
-                filename =  Z0_DIR_WL + "plots_restart_" + str(it).zfill(4) + ".png"
+                filename =  Z0_DIR_WL + "plots_restart_" + str(0).zfill(4) + ".png"
                 print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename)
 
-                filename = Z0_DIR_WL + "plots_DNSdiff_restart_" + str(it).zfill(4) + ".png"
+                filename = Z0_DIR_WL + "plots_DNSdiff_restart_" + str(0).zfill(4) + ".png"
                 print_fields_3(P_DNS_org[0,0,:,:], P_DNS, P_DNS_org[0,0,:,:]-P_DNS, filename=filename, testcase=TESTCASE, diff=True, \
                     Umin=-nU_amax, Umax=nU_amax, Vmin=-nV_amax, Vmax=nV_amax, Pmin=-nP_amax, Pmax=nP_amax)
 
-                filename = Z0_DIR_WL + "plots_LESdiff_restart_" + str(it).zfill(4) + ".png"
+                filename = Z0_DIR_WL + "plots_LESdiff_restart_" + str(0).zfill(4) + ".png"
                 print_fields_3(fimgA[0,2,:,:], fUVP_DNS[0,2,:,:], fimgA[0,2,:,:]-fUVP_DNS[0,2,:,:], \
                     filename=filename, testcase=TESTCASE, diff=True, \
                     Umin=-fU_amax, Umax=fU_amax, Vmin=-fV_amax, Vmax=fV_amax, Pmin=-fP_amax, Pmax=fP_amax)
