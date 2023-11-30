@@ -63,7 +63,8 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollDNS     = 1.0e-1
+tollLES_IN  = 1.0e+0
+tollLES     = 2.5e-1
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_DNS_maxIt
@@ -440,13 +441,14 @@ def findLESTerms(pLES):
     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
     if (pStep==pStepStart):
-        tollDNS = resREC.numpy()
+        tollDNS  = tollLES_IN
         pPrint   = simtime
         maxit    = lr_DNS_maxIt
         simtimeo = simtime
         delt     = 0.0
         pStepo   = pStep
     else:
+        tollDNS  = tollLES
         maxit    = LES_pass
         delt     = (simtime - simtimeo)/(pStep - pStepo)
         simtimeo = simtime
@@ -604,9 +606,9 @@ def findLESTerms(pLES):
 
         # print final residuals
         tend = time.time()
-        if (it>0):
-            print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
-                .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
+        # if (it>0):
+        #     print("Finishing residuals: step {0:6d} it {1:4d} simtime {2:3e} delt {3:3e} resREC {4:3e} resLES {5:3e} resDNS {6:3e} loss_fil {7:3e} lr {8:3e}" \
+        #         .format(pStep, it, simtime, delt, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil, lr))
 
         
 
