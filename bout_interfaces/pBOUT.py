@@ -63,8 +63,7 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollLES_IN  = 1.0e+0
-tollLES     = 2.5e-1
+tollLES     = 5.0e-2
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_DNS_maxIt
@@ -441,14 +440,14 @@ def findLESTerms(pLES):
     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
     if (pStep==pStepStart):
-        tollDNS  = tollLES_IN
+        tollDNS  = resREC.numpy()
         pPrint   = simtime
         maxit    = lr_DNS_maxIt
         simtimeo = simtime
         delt     = 0.0
         pStepo   = pStep
     else:
-        tollDNS  = tollLES
+        #tollDNS  = tollLES
         maxit    = LES_pass
         delt     = (simtime - simtimeo)/(pStep - pStepo)
         simtimeo = simtime
@@ -520,9 +519,9 @@ def findLESTerms(pLES):
             
             
             # # adjust interpolation factors
-            # kDNS = layer_kDNS.trainable_variables[0]
+            # kDNS = layer_kDNS.trainable_variables[1]
             # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
-            # layer_kDNS.trainable_variables[0].assign(kDNS)
+            # layer_kDNS.trainable_variables[1].assign(kDNS)
             
             # valid_zn = True
             # kDNS  = layer_kDNS.trainable_variables[0]
