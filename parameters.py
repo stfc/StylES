@@ -128,7 +128,7 @@ BETA2_DIS        = 0.99
 
 
 # Reconstruction hyper-parameters
-INIT_SCA        = 10
+INIT_SCA        = 1
 GAUSSIAN_FILTER = False
 # FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run10_time801.npz"
 FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_time00200.npz"

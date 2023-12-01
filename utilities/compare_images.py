@@ -50,9 +50,9 @@ os.chdir('./utilities')
 #-------------------------------- local variables, initialization and functions
 N_DNS = 2**RES_LOG2
 
-FILE_PATH  = "/archive/jcastagna/Fields/HW/fields_N1024_1image/"
-FILE_REAL  = FILE_PATH + "fields_run1_time1000.npz"
-FILE_STYLE = "./results_latentSpace/fields/fields_lat0_res1024.npz"
+FILE_PATH  = "../bout_interfaces/results_DNS/fields/"
+FILE_REAL  = FILE_PATH + "fields_time00001.npz"
+FILE_STYLE = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m3/fields/fields_DNS_0003011.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
@@ -64,7 +64,7 @@ if (TESTCASE=='HIT_2D'):
 
 if (TESTCASE=='HW' or TESTCASE=='mHW'):
     labelR = r'$n$'
-    labelG = r'$\nabla |\phi|$'
+    labelG = r'$\phi$'
     labelB = r'$\zeta$'
 
 
@@ -94,7 +94,7 @@ def compare_images(imageA, imageB, title):
         s = ssim(imageA, imageB, multichannel=False)
     else:
         s = ssim(imageA, imageB, multichannel=True, channel_axis=2, data_range=2)
-
+    print("mean and SSIM are ", m, s)
 
     # check divergence for DNS image
     U = imageA[:,:,0]
@@ -141,9 +141,9 @@ def compare_images(imageA, imageB, title):
 
     imageD = imageA - imageB
     print(np.min(imageD), np.max(imageD))
-    imageD[:,:,0] = imageD[:,:,0]/(np.max(imageD[:,:,0]) - np.min(imageD[:,:,0]))*100
-    imageD[:,:,1] = imageD[:,:,1]/(np.max(imageD[:,:,1]) - np.min(imageD[:,:,1]))*100
-    imageD[:,:,2] = imageD[:,:,2]/(np.max(imageD[:,:,2]) - np.min(imageD[:,:,2]))*100
+    # imageD[:,:,0] = imageD[:,:,0]/(np.max(imageD[:,:,0]) - np.min(imageD[:,:,0]))*100
+    # imageD[:,:,1] = imageD[:,:,1]/(np.max(imageD[:,:,1]) - np.min(imageD[:,:,1]))*100
+    # imageD[:,:,2] = imageD[:,:,2]/(np.max(imageD[:,:,2]) - np.min(imageD[:,:,2]))*100
     print(np.min(imageD), np.max(imageD))
 
     # setup figures
@@ -154,7 +154,7 @@ def compare_images(imageA, imageB, title):
     im = sub.imshow(imageA[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
     sub.set_title("DNS "+ labelR)
-    plt.colorbar(im, ax=sub)
+    plt.colorbar(im, ax=sub, fraction=0.02)
 
     sub = ax[1,0]
     im = sub.imshow(imageA[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
@@ -253,18 +253,18 @@ def load_images(file_real, file_Style):
         orig[:,:,2] = img_in[-1][2,:,:]
         orig = np.cast[DTYPE](orig)
 
-        # normalize
-        orig[:,:,0] = (orig[:,:,0] - np.min(orig[:,:,0]))/(np.max(orig[:,:,0]) - np.min(orig[:,:,0]))
-        orig[:,:,1] = (orig[:,:,1] - np.min(orig[:,:,1]))/(np.max(orig[:,:,1]) - np.min(orig[:,:,1]))
-        orig[:,:,2] = (orig[:,:,2] - np.min(orig[:,:,2]))/(np.max(orig[:,:,2]) - np.min(orig[:,:,2]))
+        # # normalize
+        # orig[:,:,0] = (orig[:,:,0] - np.min(orig[:,:,0]))/(np.max(orig[:,:,0]) - np.min(orig[:,:,0]))
+        # orig[:,:,1] = (orig[:,:,1] - np.min(orig[:,:,1]))/(np.max(orig[:,:,1]) - np.min(orig[:,:,1]))
+        # orig[:,:,2] = (orig[:,:,2] - np.min(orig[:,:,2]))/(np.max(orig[:,:,2]) - np.min(orig[:,:,2]))
         
-        # calc grad phi
-        V_DNS_org = orig[:,:,1]
+        # # calc grad phi
+        # V_DNS_org = orig[:,:,1]
                 
-        DELX = 50.176/1024
-        DELY = 50.176/1024
-        orig[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
-                    + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+        # DELX = 50.176/1024
+        # DELY = 50.176/1024
+        # orig[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+        #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 
     elif (file_real.endswith('.png')):
 
@@ -296,18 +296,18 @@ def load_images(file_real, file_Style):
         style[:,:,2] = img_in[-1][2,:,:]
         style = np.cast[DTYPE](style)
         
-        # normalize
-        style[:,:,0] = (style[:,:,0] - np.min(style[:,:,0]))/(np.max(style[:,:,0]) - np.min(style[:,:,0]))
-        style[:,:,1] = (style[:,:,1] - np.min(style[:,:,1]))/(np.max(style[:,:,1]) - np.min(style[:,:,1]))
-        style[:,:,2] = (style[:,:,2] - np.min(style[:,:,2]))/(np.max(style[:,:,2]) - np.min(style[:,:,2]))
+        # # normalize
+        # style[:,:,0] = (style[:,:,0] - np.min(style[:,:,0]))/(np.max(style[:,:,0]) - np.min(style[:,:,0]))
+        # style[:,:,1] = (style[:,:,1] - np.min(style[:,:,1]))/(np.max(style[:,:,1]) - np.min(style[:,:,1]))
+        # style[:,:,2] = (style[:,:,2] - np.min(style[:,:,2]))/(np.max(style[:,:,2]) - np.min(style[:,:,2]))
         
-        # calc grad phi
-        V_DNS_org = style[:,:,1]
+        # # calc grad phi
+        # V_DNS_org = style[:,:,1]
                 
-        DELX = 50.176/1024
-        DELY = 50.176/1024
-        style[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
-                    + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+        # DELX = 50.176/1024
+        # DELY = 50.176/1024
+        # style[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+        #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 
     else:
 

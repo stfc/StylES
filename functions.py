@@ -1068,8 +1068,12 @@ def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
         resREC   = resDNS + resLES
         loss_fil = resLES
     elif (typeRes==1):
-        resDNS   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
-        resLES   = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
+        resDNS1  = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS[0,0,:,:], tLES[0,0,:,:]))
+        resLES1  = tf.math.reduce_mean(tf.math.squared_difference( UVP_LES[0,0,:,:], tLES[0,0,:,:]))
+        resDNS2  = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS[0,2,:,:], tLES[0,2,:,:]))
+        resLES2  = tf.math.reduce_mean(tf.math.squared_difference( UVP_LES[0,2,:,:], tLES[0,2,:,:]))
+        resDNS   = resDNS1 + resDNS2
+        resLES   = resLES1 + resLES2
         resREC   = resDNS + resLES
         loss_fil = resLES        
     elif (typeRes==2):
@@ -1142,7 +1146,7 @@ class layer_zlatent_kDNS(layers.Layer):
         zn = tf.concat([zn,zf], axis=1)
 
         # map interpolated latent space z into w
-        w0 = mapping(zn[:,M_LAYERS,:], training=False)
+        w0p = mapping(zn[:,M_LAYERS,:], training=False)
         wn = mapping(zn[:,0,:], training=False)
         wn = wn[:,0:1,:]
         for i in range(1,M_LAYERS):
@@ -1150,11 +1154,11 @@ class layer_zlatent_kDNS(layers.Layer):
             ws = ws[:,i:i+1,:]
             wn = tf.concat([wn,ws], axis=1)
 
-        w0 = w0[:,M_LAYERS:G_LAYERS,:]
+        w0 = w0p[:,M_LAYERS:G_LAYERS,:]
         wn = tf.concat([wn,w0], axis=1)
 
         w0 = tf.identity(wn)
-        w1 = tf.identity(-wn)
+        w1 = tf.identity(w0p)
 
         wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
         wb = wa[:,M_LAYERS-1:M_LAYERS,:]
