@@ -8,6 +8,9 @@ from LES_functions  import *
 
 from testcases.HIT_2D.HIT_2D import *
 
+plt.matplotlib.rcParams.update({'font.size': 16})
+plt.matplotlib.rcParams.update({'figure.autolayout': True})
+
 
 def print_fields(U_, V_, P_, W_, N, filename, \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
@@ -186,7 +189,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
-def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
+def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False):
 
     if (testcase=='HIT_2D'):
