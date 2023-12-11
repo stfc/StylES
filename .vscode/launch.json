@@ -14,7 +14,7 @@
             // "cwd": "${workspaceFolder}/LES_Solvers/",
             // "program": "check_reconstruction.py",
             // "cwd": "${workspaceFolder}/utilities/",
-             "program": "plot_differences.py",
+             "program": "all_plots.py",
              "cwd": "${workspaceFolder}/bout_interfaces/",
             "console": "integratedTerminal"
         }

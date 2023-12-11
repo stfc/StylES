@@ -37,7 +37,7 @@ N_DNS2      = 2**(RES_LOG2-FIL)
 N1          = N_DNS-1
 DELX_DNS    = L/N
 DELY_DNS    = L/N
-listRUN     = ["DNS",1,2,3]
+listRUN     = ["DNS",3]
 PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
@@ -347,8 +347,10 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], Energy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
+        np.savez("./results_comparison/energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
+
 #plt.ylim(1e6,1e8)
-plt.xlim(0,10)
+plt.xlim(0,2)
 plt.yscale("log")
 #plt.xlabel("time steps [-]")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
@@ -356,7 +358,7 @@ plt.ylabel("energy")
 plt.legend(fontsize="10", frameon=False)
 plt.savefig('./results_comparison/energy_vs_time.png', dpi=300)
 plt.close()
-   
+
 
 
 # enstrophy vs time
@@ -387,8 +389,10 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], enstrophy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
+        np.savez("./results_comparison/enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
+        
 #plt.ylim(1e3,1e5)
-plt.xlim(0,10)
+plt.xlim(0,2)
 plt.yscale("log")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("enstrophy")
@@ -421,9 +425,11 @@ for lrun in listRUN:
         i2 = cst[i+1]
         plt.plot(time_StylES[i1:i2], rflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
+        
+        np.savez("./results_comparison/radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
 
 #plt.ylim(0,3)
-plt.xlim(0,10)
+plt.xlim(0,2)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("radial flux")
 plt.legend(fontsize="10", frameon=False)
@@ -458,8 +464,10 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], pflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
+        np.savez("./results_comparison/poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
+
 #plt.ylim(-5,5)
-plt.xlim(0,10)
+plt.xlim(0,2)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("poloidal flux")
 plt.legend(fontsize="10", frameon=False)
@@ -528,7 +536,7 @@ for nf in range(3):
 
     plt.legend(fontsize="10", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
-    plt.xlim(0,10)    
+    plt.xlim(0,2)    
     if (nf==0):
         plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=300)
     elif (nf==1):
@@ -640,7 +648,7 @@ for nplot in range(3):
         plt.ylim(0,2.0)
     else:
         plt.ylim(0,0.1)
-    plt.xlim(0,10)
+    plt.xlim(0,2)
     plt.legend(fontsize="10", loc ="upper left", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
     plt.ylabel("MSE")
