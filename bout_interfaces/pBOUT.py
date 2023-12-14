@@ -63,7 +63,7 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollLES     = 2.5e-1
+tollLES     = 1.0e+0
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_DNS_maxIt
@@ -397,14 +397,14 @@ def findLESTerms(pLES):
     BOUT_fU = pLES[4+0*N_LES*N_LES:4+1*N_LES*N_LES]
     BOUT_fV = pLES[4+1*N_LES*N_LES:4+2*N_LES*N_LES]
     BOUT_fP = pLES[4+2*N_LES*N_LES:4+3*N_LES*N_LES]
-    BOUT_F_LES = pLES[4+3*N_LES*N_LES:4+4*N_LES*N_LES]
-    BOUT_G_LES = pLES[4+4*N_LES*N_LES:4+5*N_LES*N_LES]
+    BOUT_pV = pLES[4+3*N_LES*N_LES:4+4*N_LES*N_LES]
+    BOUT_pN = pLES[4+4*N_LES*N_LES:4+5*N_LES*N_LES]
 
     fU = np.reshape(BOUT_fU, (N_LES, N_LES))
     fV = np.reshape(BOUT_fV, (N_LES, N_LES))
     fP = np.reshape(BOUT_fP, (N_LES, N_LES))
-    F_LES = np.reshape(BOUT_F_LES, (N_LES, N_LES))
-    G_LES = np.reshape(BOUT_G_LES, (N_LES, N_LES))        
+    pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, N_LES))
+    pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, N_LES))        
 
 
 
@@ -619,26 +619,23 @@ def findLESTerms(pLES):
     G = UVP_DNS[0, 0, :, :]
     fpPhiN_DNS = find_bracket(F, G, gfilter, spacingFactor)
 
-    # print("derivatives ", time.time() - tstart2)
-
-    # maxPhiVort = tf.reduce_max(fpPhiVort_DNS)
-    # maxPhiN    = tf.reduce_max(fpPhiN_DNS)
-    # print(maxPhiVort, maxPhiN)
+    tauPhiVort = - (fpPhiVort_DNS - pPhiVort_LES)
+    tauPhiN    = - (fpPhiN_DNS    - pPhiN_LES)
 
 
     
     #------------------------------------- pass back diffusion terms
-    fpPhiVort_DNS = tf.reshape(fpPhiVort_DNS, [-1])
-    fpPhiN_DNS    = tf.reshape(fpPhiN_DNS,    [-1])
+    tauPhiVort = tf.reshape(tauPhiVort, [-1])
+    tauPhiN    = tf.reshape(tauPhiN,    [-1])
     
-    fpPhiVort_DNS = tf.cast(fpPhiVort_DNS, dtype="float64")
-    fpPhiN_DNS    = tf.cast(fpPhiN_DNS, dtype="float64")
+    tauPhiVort = tf.cast(tauPhiVort, dtype="float64")
+    tauPhiN    = tf.cast(tauPhiN, dtype="float64")
 
-    fpPhiVort_DNS = fpPhiVort_DNS.numpy()
-    fpPhiN_DNS    = fpPhiN_DNS.numpy()
+    tauPhiVort = tauPhiVort.numpy()
+    tauPhiN    = tauPhiN.numpy()
 
     LES_it = np.asarray([0], dtype="float64")
-    rLES = np.concatenate((LES_it, fpPhiVort_DNS, fpPhiN_DNS), axis=0)    
+    rLES = np.concatenate((LES_it, tauPhiVort, tauPhiN), axis=0)    
         
     # print("concatenate ", time.time() - tstart2)
 
