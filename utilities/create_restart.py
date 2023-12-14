@@ -297,10 +297,10 @@ if (TUNE):
         UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
             step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, imgA, fimgA, ltv_DNS, UVP_max, typeRes=1)
 
-        # # adjust variables
-        # kDNS = layer_kDNS.trainable_variables[1]
-        # kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
-        # layer_kDNS.trainable_variables[1].assign(kDNS)
+        # adjust variables
+        kDNS = layer_kDNS.trainable_variables[1]
+        kDNS = tf.clip_by_value(kDNS, 0.0, 1.0)
+        layer_kDNS.trainable_variables[1].assign(kDNS)
 
         # valid_zn = True
         # kDNS  = layer_kDNS.trainable_variables[0]
