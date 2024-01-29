@@ -28,12 +28,20 @@ os.system("mkdir tests")
 
 
 #---------------------- verify orientation plots
-A = np.asarray([[0, 1, 2], [3, 4, 1]]) 
+def cr(phi, i, j):
+    return np.roll(phi, (-i, -j), axis=(0,1))
+
+A = np.asarray([[0, 1, 2], [3, 4, 1]])
+#A = np.asarray([[[0, 1, 2], [3, 4, 1]], [[5, 6, 7], [8, 9, 6]], [[5, 6, 7], [8, 9, 6]], [[5, 6, 7], [8, 9, 6]]])
+
 print(A.shape)
-print(A[:,2])
+print(A)
+print(A[1,0])
 plt.pcolormesh(A)
 plt.show()
 plt.savefig("tests/pcolormesh.png")
+B = cr(A, 0, 1)
+print(B)
 exit()
 
 

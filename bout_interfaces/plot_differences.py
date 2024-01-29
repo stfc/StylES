@@ -37,14 +37,14 @@ N_DNS2      = 2**(RES_LOG2-FIL)
 N1          = N_DNS-1
 DELX_DNS    = L/N
 DELY_DNS    = L/N
-listRUN     = ["DNS",3]
+listRUN     = ["DNS",1,2,3]
 PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
 
 #----------------------------- initiliaze
 # os.system("rm -rf results_comparison")
-# os.system("mkdir results_comparison")
+os.system("mkdir results_comparison")
 
 cst = []
 cst.append(0)
@@ -183,9 +183,10 @@ for lrun in listRUN:
             enstrophy_DNS.append(e_DNS)
                 
             # find flux
-            gradVy_DNS = ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY_DNS))
-            rflux = -np.sum(n_DNS[N1,:]*gradVy_DNS[N1,:])/L
-            pflux = -np.sum(n_DNS[:,N1]*gradVy_DNS[:,N1])/L
+            Vx_DNS = -((cr(p_DNS, 0, 1) - cr(p_DNS, 0,-1))/(2.0*DELY_DNS))  # vx = -dpdy
+            Vy_DNS =  ((cr(p_DNS, 1, 0) - cr(p_DNS,-1, 0))/(2.0*DELX_DNS))  # vy =  dpdx
+            rflux = np.sum(n_DNS[N1,:]*Vx_DNS[N1,:])/L
+            pflux = np.sum(n_DNS[:,N1]*Vy_DNS[:,N1])/L
             rflux_DNS.append(rflux)
             pflux_DNS.append(pflux)
 
@@ -236,9 +237,10 @@ for lrun in listRUN:
                 enstrophy_StylES.append(e_StylES)
 
                 # find flux
-                gradVy_StylES = ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY_DNS))
-                rflux = -np.sum(n_StylES[N1,:]*gradVy_StylES[N1,:])/L
-                pflux = -np.sum(n_StylES[:,N1]*gradVy_StylES[:,N1])/L
+                Vx_StylES = -((cr(p_StylES, 0, 1) - cr(p_StylES, 0,-1))/(2.0*DELY_DNS))  # vx = -dpdy
+                Vy_StylES =  ((cr(p_StylES, 1, 0) - cr(p_StylES,-1, 0))/(2.0*DELX_DNS))  # vy =  dpdx
+                rflux = np.sum(n_StylES[N1,:]*Vx_StylES[N1,:])/L
+                pflux = np.sum(n_StylES[:,N1]*Vy_StylES[:,N1])/L
 
                 rflux_StylES.append(rflux)
                 pflux_StylES.append(pflux)
@@ -350,7 +352,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
 
 #plt.ylim(1e6,1e8)
-plt.xlim(0,2)
+plt.xlim(0,10)
 plt.yscale("log")
 #plt.xlabel("time steps [-]")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
@@ -392,7 +394,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
         
 #plt.ylim(1e3,1e5)
-plt.xlim(0,2)
+plt.xlim(0,10)
 plt.yscale("log")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("enstrophy")
@@ -429,7 +431,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
 
 #plt.ylim(0,3)
-plt.xlim(0,2)
+plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("radial flux")
 plt.legend(fontsize="10", frameon=False)
@@ -467,7 +469,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
 
 #plt.ylim(-5,5)
-plt.xlim(0,2)
+plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("poloidal flux")
 plt.legend(fontsize="10", frameon=False)
@@ -483,11 +485,11 @@ for nf in range(3):
     for lrun in listRUN:
         if (lrun=='DNS'):
             if (nf==0):
-                plt.plot(time_DNS, n_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$n$ DNS")
+                plt.plot(time_DNS, n_cDNS, color='k', linewidth=1.0, linestyle='solid', label=r"$n$ DNS")
             elif (nf==1):
-                plt.plot(time_DNS, p_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\phi$ DNS")
+                plt.plot(time_DNS, p_cDNS, color='k', linewidth=1.0, linestyle='solid', label=r"$\phi$ DNS")
             else:
-                plt.plot(time_DNS, v_cDNS, color='k', linewidth=0.5, linestyle='solid', label=r"$\zeta$ DNS")
+                plt.plot(time_DNS, v_cDNS, color='k', linewidth=1.0, linestyle='solid', label=r"$\zeta$ DNS")
         else:
             tail = str(lrun)
             i1 = cst[i]
@@ -523,20 +525,20 @@ for nf in range(3):
                 v_label = r"$\zeta$ StylES with $\epsilon_{REC}=$0.125"
 
             if (nf==0):                        
-                plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=n_label)
+                plt.plot(time_StylES[i1:i2], n_cStylES[i1:i2], color=cl[i], linewidth=1.0, linestyle='dashed', label=n_label)
                 plt.ylabel("$n$")
             elif (nf==1):
-                plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=p_label)
+                plt.plot(time_StylES[i1:i2], p_cStylES[i1:i2], color=cl[i], linewidth=1.0, linestyle='dashed', label=p_label)
                 plt.ylabel("$\phi$")
             else:
-                plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=v_label)
+                plt.plot(time_StylES[i1:i2], v_cStylES[i1:i2], color=cl[i], linewidth=1.0, linestyle='dashed', label=v_label)
                 plt.ylabel("$\zeta$")
 
             i = i+1
 
     plt.legend(fontsize="10", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
-    plt.xlim(0,2)    
+    plt.xlim(0,10)    
     if (nf==0):
         plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=300)
     elif (nf==1):
@@ -644,11 +646,11 @@ for nplot in range(3):
                 plt.plot(     time_DNS[0:id], MSE_v, color='k', linestyle='dashdot', label=v_label)
             
 
-    if (nplot==1):
-        plt.ylim(0,2.0)
-    else:
-        plt.ylim(0,0.1)
-    plt.xlim(0,2)
+    # if (nplot==1):
+    #     plt.ylim(0,2.0)
+    # else:
+    #     plt.ylim(0,0.1)
+    plt.xlim(0,10)
     plt.legend(fontsize="10", loc ="upper left", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
     plt.ylabel("MSE")

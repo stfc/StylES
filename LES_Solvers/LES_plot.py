@@ -190,7 +190,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False):
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, transpose=False):
 
     if (testcase=='HIT_2D'):
         if (diff):
@@ -216,6 +216,12 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
     U = convert(U_)
     V = convert(V_)
     P = convert(P_)
+    
+    # Transpose to match i=x and j=y
+    if (transpose):
+        U = np.transpose(U)
+        V = np.transpose(V)
+        P = np.transpose(P)
 
     N = len(U[0,:])
 
@@ -445,7 +451,7 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
         ax1.title.set_text(r'\omega')
         plt.suptitle(filename)
     else:
-            ax1.axis("off")
+        ax1.axis("off")
 
     # save images
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
