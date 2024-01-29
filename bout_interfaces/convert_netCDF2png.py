@@ -24,10 +24,10 @@ from tkespec import compute_tke_spectrum2d
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
@@ -232,10 +232,10 @@ if (MODE=='READ_NETCDF'):
         if (t%1==0):
             filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=True, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False)
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=True)
                     # Umin=-10.0, Umax=10.0, Vmin=-10.0, Vmax=10.0, Pmin=-10.0, Pmax=10.0)
 
         gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
@@ -307,10 +307,10 @@ elif (MODE=='READ_NUMPY'):
             file_dest = file.replace(".npz",".png")
             filename  = "./results/plots/" + file_dest
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=True, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False) #, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=True) #, \
                     #Umin=-5.0, Umax=5.0, Vmin=-5.0, Vmax=5.0, Pmin=-5.0, Pmax=5.0)
 
             gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \

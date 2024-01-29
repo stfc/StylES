@@ -274,7 +274,7 @@ for tv, tollLES in enumerate(tollLESValues):
         if (tv==-1):
             filename = "results_reconstruction/plots_org/Plots_DNS_org_" + str(k).zfill(4) +".png"
             print_fields_3(U_DNS_org, V_DNS_org, P_DNS_org, N=N_DNS, filename=filename) #, \
-                #Umin=-INIT_SCAL, Umax=INIT_SCAL, Vmin=-INIT_SCAL, Vmax=INIT_SCAL, Pmin=-INIT_SCAL, Pmax=INIT_SCAL)
+                #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
 
         #-------------- save centerline for DNS values

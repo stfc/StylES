@@ -63,12 +63,11 @@ delx        = 1.0
 dely        = 1.0
 delx_LES    = 1.0
 dely_LES    = 1.0
-tollLES     = 2.5e-1
+tollLES     = 0.25
 CHKP_DIR    = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass    = lr_DNS_maxIt
-pPrintFreq  = 0.01
-INIT_SCAL   = 10.0
+pPrintFreq  = 0.1
 RUN_DNS     = False
 RESTART_WL  = True
 
