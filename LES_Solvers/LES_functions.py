@@ -75,8 +75,8 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], y
     # xLinLim    = [0.0e0, 600]
     # yLinLim    = [0.0e0, 0.1]
 
-    plt.xlim(xlim)
-    plt.ylim(ylim) 
+    # plt.xlim(xlim)
+    # plt.ylim(ylim) 
 
     if (label is not None):
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
@@ -86,10 +86,12 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], y
    
 
     if (close):
-        plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+        #plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+        plt.savefig(filename, pad_inches=0)
         plt.close()
 
     filename = filename.replace(".png",".txt")
+    print("knyquist for " + filename + " is:  " + str(knyquist))
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
 
 

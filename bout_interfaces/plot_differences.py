@@ -26,19 +26,21 @@ from isoturb import generate_isotropic_turbulence_2d
 
 
 #----------------------------- parameters
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
-PATH_ANIMAT = "./results_comparison/plots/"
-FIND_MIXMAX = True
-DTYPE       = 'float32'
-DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
-L           = 50.176 
-N_DNS       = 2**(RES_LOG2)
-N_DNS2      = 2**(RES_LOG2-FIL)
-N1          = N_DNS-1
-DELX_DNS    = L/N
-DELY_DNS    = L/N
-listRUN     = ["DNS",1,2,3]
-PATH_BOUTHW = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
+PATH_NETCDF  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+PATH_ANIMAT  = "./results_comparison/plots/"
+FIND_MIXMAX  = True
+DTYPE        = 'float32'
+DIR          = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
+L            = 50.176 
+N_DNS        = 2**(RES_LOG2)
+N_DNS2       = 2**(RES_LOG2-FIL)
+N1           = N_DNS-1
+DELX_DNS     = L/N
+DELY_DNS     = L/N
+listRUN      = ["DNS",1]
+ITIME_DNS    = 1
+ITIME_StylES = 10
+PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 
 
 
@@ -114,13 +116,13 @@ for lrun in listRUN:
     if (lrun=='DNS'):
         MODE        = 'READ_NETCDF'
         STIME       = 0    # starting time to take as first image
-        ITIME       = 1    # skip between STIME, FTIME, ITIME
+        ITIME       = ITIME_DNS    # skip between STIME, FTIME, ITIME
 
         # find number of timesteps
         CWD = os.getcwd()
         os.chdir(PATH_NETCDF)
         n = collect("n",    xguards=False, info=False)
-        FTIME = len(n)
+        FTIME = int(len(n)/ITIME_DNS)
         os.chdir(CWD)
 
         # find number of initial time
@@ -143,8 +145,8 @@ for lrun in listRUN:
         PATH_FILES  = PATH_BOUTHW + "results_StylES_m" + tail +"/fields/"
         files       = os.listdir(PATH_FILES)
         STIME       = 0   # starting time to take as first image
-        FTIME       = len(files)
-        ITIME       = 1   # skip between time steps when reading NUMPY arrays
+        FTIME       = int(len(files)/ITIME_StylES)
+        ITIME       = ITIME_StylES   # skip between time steps when reading NUMPY arrays
 
     #------------ read data
     if (lrun=='DNS'):
@@ -293,6 +295,9 @@ print("plot spectra")
 t = FTIME-1
 listtk = [(kd, cst[len(listRUN)-2]),(FTIME-1, cst[len(listRUN)-1]-1)]
 
+# verify DNS and StylES have same amount of data
+print(t, listtk, len(n_tDNS), len(gradV_DNS))
+
 for t,k in listtk:
     _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tDNS[t], gradV_DNS[t], L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(int(time_DNS[t])))
@@ -352,8 +357,8 @@ for lrun in listRUN:
         np.savez("./results_comparison/energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
 
 #plt.ylim(1e6,1e8)
-plt.xlim(0,10)
-plt.yscale("log")
+#plt.xlim(0,10)
+#plt.yscale("log")
 #plt.xlabel("time steps [-]")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("energy")
@@ -394,8 +399,8 @@ for lrun in listRUN:
         np.savez("./results_comparison/enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
         
 #plt.ylim(1e3,1e5)
-plt.xlim(0,10)
-plt.yscale("log")
+#plt.xlim(0,10)
+#plt.yscale("log")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("enstrophy")
 plt.legend(fontsize="10", frameon=False)
@@ -431,7 +436,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
 
 #plt.ylim(0,3)
-plt.xlim(0,10)
+#plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("radial flux")
 plt.legend(fontsize="10", frameon=False)
@@ -469,7 +474,7 @@ for lrun in listRUN:
         np.savez("./results_comparison/poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
 
 #plt.ylim(-5,5)
-plt.xlim(0,10)
+#plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("poloidal flux")
 plt.legend(fontsize="10", frameon=False)
@@ -538,7 +543,7 @@ for nf in range(3):
 
     plt.legend(fontsize="10", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
-    plt.xlim(0,10)    
+    #plt.xlim(0,10)    
     if (nf==0):
         plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=300)
     elif (nf==1):
@@ -650,7 +655,7 @@ for nplot in range(3):
     #     plt.ylim(0,2.0)
     # else:
     #     plt.ylim(0,0.1)
-    plt.xlim(0,10)
+    #plt.xlim(0,10)
     plt.legend(fontsize="10", loc ="upper left", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
     plt.ylabel("MSE")
@@ -689,7 +694,7 @@ plt.plot(n_DNS, B[:,5], label="StylES",  color='r', linewidth=0.5, linestyle='so
 plt.plot(n_DNS, B[:,6], label="$N^2$",   color='k', linewidth=0.5, linestyle='dashed')
 plt.plot(n_DNS, B[:,7], label="$NlogN$", color='r', linewidth=0.5, linestyle='dashed')
 
-plt.xlim(256,4096)
+#plt.xlim(256,4096)
 xrange=[512,1024,2048,4096]
 plt.xticks(xrange)
 plt.xlabel("N")

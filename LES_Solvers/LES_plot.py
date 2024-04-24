@@ -327,7 +327,8 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
 
     # save images
     plt.suptitle(filename)
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
+    #plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+    plt.savefig(filename, pad_inches=0)
     plt.close()
 
 

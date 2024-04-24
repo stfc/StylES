@@ -37,7 +37,6 @@ from PIL import Image
 U = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 V = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
-W = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 
 
 # define data augmentation
@@ -88,11 +87,7 @@ def StyleGAN_load_fields(file_path):
     data = np.load(file_path)
     U = data['U']
     V = data['V']
-
-    if (TESTCASE=='HIT_2D'):
-        P = tf_find_vorticity(U, V)
-    else:
-        P = data['P']
+    P = data['P']
 
     U = np.cast[DTYPE](U)
     V = np.cast[DTYPE](V)
@@ -102,24 +97,30 @@ def StyleGAN_load_fields(file_path):
     # normalize the data
     maxU = np.max(U)
     minU = np.min(U)
-    if (maxU!=minU):
-        U = 2.0*(U - minU)/(maxU - minU) - 1.0
+    amaxU = max(abs(maxU), abs(minU))
+    if (amaxU<SMALL):
+        print("-----------Attention: invalid field!!!")
+        return
     else:
-        U = U
+        U = U / amaxU
     
     maxV = np.max(V)
     minV = np.min(V)
-    if (maxV!=minV):
-        V = 2.0*(V - minV)/(maxV - minV) - 1.0
+    amaxV = max(abs(maxV), abs(minV))
+    if (amaxV<SMALL):
+        print("-----------Attention: invalid field!!!")
+        return
     else:
-        V = V
+        V = V / amaxV
 
     maxP = np.max(P)
     minP = np.min(P)
-    if (maxP!=minP):
-        P = 2.0*(P - minP)/(maxP - minP) - 1.0
+    amaxP = max(abs(maxP), abs(minP))
+    if (amaxP<SMALL):
+        print("-----------Attention: invalid field!!!")
+        return
     else:
-        P = P
+        P = P / amaxP
 
     # downscale
     img_out = []
@@ -352,7 +353,8 @@ def check_divergence_staggered(img, res):
 
 def generate_and_save_images(mapping, synthesis, input, iteration):
     dlatents    = mapping(input, training=False)
-    predictions = synthesis(dlatents, training=False)
+    predictions = pre_synthesis(dlatents, training=False)
+    predictions = synthesis([dlatents, predictions], training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)

@@ -23,6 +23,7 @@ import sys
 import scipy as sc
 import imageio
 import glob
+import matplotlib.pyplot as plt
 
 sys.path.insert(0, './')
 sys.path.insert(0, '../')
@@ -41,14 +42,16 @@ os.chdir('./utilities')
 
 # local parameters
 USE_DLATENTS = True   # "LATENTS" consider also mapping, DLATENTS only synthesis
-NINTER       = 5
-NLATS        = 1
+NINTER       = 1
+NLATS        = 100
 PATH_ANIMAT  = "results_checkStyles/plots/"
 N_DNS        = 2**RES_LOG2
 N_LES        = 2**RES_LOG2-FIL
 RS           = int(2**FIL)
   
 # clean up and prepare folders
+tf.random.set_seed(0)
+
 os.system("rm -rf results_checkStyles/plots")
 os.system("rm -rf results_checkStyles/fields")
 os.system("rm -rf results_checkStyles/uvw")
@@ -104,27 +107,29 @@ fP = gfilter(P_DNS_org)[0,0,:,:]
 fimgA = tf.concat([fU[tf.newaxis,tf.newaxis,:,:], fV[tf.newaxis,tf.newaxis,:,:], fP[tf.newaxis,tf.newaxis,:,:]], axis=1)
 
 
-tf.random.set_seed(0)
-zlatents_1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-zlatents_2 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
-
-dlatents_1 = mapping( zlatents_1, training=False)
-dlatents_2 = mapping(-zlatents_1, training=False)
-
+# loop on NLATS
+totImgs = []
 for nl in range(NLATS):
     
-    tf.random.set_seed(nl+1)
+    zlatents_1 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+    zlatents_2 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+
+    dlatents_1 = mapping( zlatents_1, training=False)
+    dlatents_2 = mapping(-zlatents_1, training=False)
 
     # average all styles
     for ninter in range(NINTER):
-        w2 = ninter/(NINTER-1)
-        w1 = 1.0-w2
+        if (NINTER==1):
+            w1 = 1.0
+            w2 = 0.0
+        else:
+            w2 = ninter/(NINTER-1)
+            w1 = 1.0-w2
         dlatents = w1*dlatents_1 + w2*dlatents_2
-        
 
         # inference
-        predictions = synthesis(dlatents, training=False)
-
+        fpre_w      = pre_synthesis(dlatents)
+        predictions = synthesis([dlatents, fpre_w], training=False)
 
         # write fields and energy spectra for each layer
         for kk in range(RES_LOG2, RES_LOG2+1):
@@ -134,96 +139,99 @@ for nl in range(NLATS):
             den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
             phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
             vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+            totImgs.append(UVP_DNS)
             
-            filename = "results_checkStyles/plots/plots_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3) + ".png"
-            print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N=res, filename=filename, \
-                Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
+            if (NINTER>1):
+                filename = "results_checkStyles/plots/plots_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3) + ".png"
+                print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N=res, filename=filename, \
+                    Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
-            # filename = "results_checkStyles/plots/vort_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3) + ".png"
-            # print_fields_1(vor_DNS_t, filename)
+                # filename = "results_checkStyles/plots/vort_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3) + ".png"
+                # print_fields_1(vor_DNS_t, filename)
 
-            filename = "results_checkStyles/fields/fields_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3)
-            save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
+                # filename = "results_checkStyles/fields/fields_" + str(nl).zfill(3) + "_inter_" + str(ninter).zfill(3) + "_res_" + str(res).zfill(3)
+                # save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
 
-            print("Interpolation step " + str(ninter+1) + " of " + str(NINTER))
+                print("Interpolation step " + str(ninter+1) + " of " + str(NINTER))
 
             
-    # average single styles
-    cont = 0
-    listInterp = ["0coarse", "1medium", "2fine"]
-    for glayer in listInterp:
-        for ninter in range(NINTER):
+    # # average single styles
+    # cont = 0
+    # listInterp = ["0coarse", "1medium", "2fine"]
+    # for glayer in listInterp:
+    #     for ninter in range(NINTER):
 
-            # linear
-            w2 = ninter/(NINTER-1)
+    #         # linear
+    #         w2 = ninter/(NINTER-1)
 
-            # linear, but random for each point
-            # w2 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
+    #         # linear, but random for each point
+    #         # w2 = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
 
-            # # only 1 point at the time
-            # wa = tf.zeros([ninter])
-            # wb = tf.ones([1])
-            # wc = tf.zeros([LATENT_SIZE-ninter-1])
-            # w2 = tf.concat([wa, wb, wc],0)
+    #         # # only 1 point at the time
+    #         # wa = tf.zeros([ninter])
+    #         # wb = tf.ones([1])
+    #         # wc = tf.zeros([LATENT_SIZE-ninter-1])
+    #         # w2 = tf.concat([wa, wb, wc],0)
 
-            # find w1                        
-            w1 = 1.0 - w2
+    #         # find w1                        
+    #         w1 = 1.0 - w2
             
-            # for layer in synthesis.layers:
-            #     if "layer_noise_constants" in layer.name:
-            #         lname = layer.name
-            #         ldx = int(lname.replace("layer_noise_constants",""))
-            #         for variable in layer.trainable_variables:
-            #             noise_DNS = layer.trainable_variables[0]*100.0
-            #             layer.trainable_variables[0].assign(noise_DNS)
+    #         # for layer in synthesis.layers:
+    #         #     if "layer_noise_constants" in layer.name:
+    #         #         lname = layer.name
+    #         #         ldx = int(lname.replace("layer_noise_constants",""))
+    #         #         for variable in layer.trainable_variables:
+    #         #             noise_DNS = layer.trainable_variables[0]*100.0
+    #         #             layer.trainable_variables[0].assign(noise_DNS)
                             
-            if (USE_DLATENTS):
-                if (glayer=="0coarse"):
-                    subdl1 = dlatents_1[:,0:C_LAYERS,:]
-                    subdl2 = dlatents_2[:,0:C_LAYERS,:]
-                    extdl1 = dlatents_1[:,C_LAYERS:G_LAYERS,:]
-                    subdl  = subdl1*w1 + subdl2*w2
-                    dlatents = tf.concat([subdl, extdl1], axis=1)
-                elif (glayer=="1medium"):
-                    subdl1 = dlatents_1[:,C_LAYERS:M_LAYERS,:]
-                    subdl2 = dlatents_2[:,C_LAYERS:M_LAYERS,:]
-                    extdl1 = dlatents_1[:,0:C_LAYERS,:]
-                    extdl2 = dlatents_1[:,M_LAYERS:G_LAYERS,:]
-                    subdl  = subdl1*w1 + subdl2*w2
-                    dlatents = tf.concat([extdl1, subdl, extdl2], axis=1)
-                elif (glayer=="2fine"):
-                    subdl1 = dlatents_1[:,M_LAYERS:G_LAYERS,:]
-                    subdl2 = dlatents_2[:,M_LAYERS:G_LAYERS,:]
-                    extdl1 = dlatents_1[:,0:M_LAYERS,:]
-                    subdl  = subdl1*w1 + subdl2*w2
-                    dlatents = tf.concat([extdl1, subdl], axis=1)                
-            else:
-                print("Cannot interpolate on z styles!")
-                exit()
+    #         if (USE_DLATENTS):
+    #             if (glayer=="0coarse"):
+    #                 subdl1 = dlatents_1[:,0:C_LAYERS,:]
+    #                 subdl2 = dlatents_2[:,0:C_LAYERS,:]
+    #                 extdl1 = dlatents_1[:,C_LAYERS:G_LAYERS,:]
+    #                 subdl  = subdl1*w1 + subdl2*w2
+    #                 dlatents = tf.concat([subdl, extdl1], axis=1)
+    #             elif (glayer=="1medium"):
+    #                 subdl1 = dlatents_1[:,C_LAYERS:M_LAYERS,:]
+    #                 subdl2 = dlatents_2[:,C_LAYERS:M_LAYERS,:]
+    #                 extdl1 = dlatents_1[:,0:C_LAYERS,:]
+    #                 extdl2 = dlatents_1[:,M_LAYERS:G_LAYERS,:]
+    #                 subdl  = subdl1*w1 + subdl2*w2
+    #                 dlatents = tf.concat([extdl1, subdl, extdl2], axis=1)
+    #             elif (glayer=="2fine"):
+    #                 subdl1 = dlatents_1[:,M_LAYERS:G_LAYERS,:]
+    #                 subdl2 = dlatents_2[:,M_LAYERS:G_LAYERS,:]
+    #                 extdl1 = dlatents_1[:,0:M_LAYERS,:]
+    #                 subdl  = subdl1*w1 + subdl2*w2
+    #                 dlatents = tf.concat([extdl1, subdl], axis=1)                
+    #         else:
+    #             print("Cannot interpolate on z styles!")
+    #             exit()
 
 
-            # inference
-            predictions = synthesis(dlatents, training=False)
+    #         # inference
+    #         fpre_w      = pre_synthesis(dlatents)
+    #         predictions = synthesis([dlatents, fpre_w], training=False)            
 
 
-            # write fields and energy spectra for each layer
-            UVP_DNS = predictions[RES_LOG2-2]
+    #         # write fields and energy spectra for each layer
+    #         UVP_DNS = predictions[RES_LOG2-2]
 
-            den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
-            phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
-            vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
+    #         den_DNS_t = UVP_DNS[0, 0, :, :].numpy()
+    #         phi_DNS_t = UVP_DNS[0, 1, :, :].numpy()
+    #         vor_DNS_t = UVP_DNS[0, 2, :, :].numpy()
                 
-            # filename = "results_checkStyles/plots/fields_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3) + ".png"
-            # print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N=N_DNS, filename=filename)
+    #         # filename = "results_checkStyles/plots/fields_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3) + ".png"
+    #         # print_fields_3(den_DNS_t, phi_DNS_t, vor_DNS_t, N=N_DNS, filename=filename)
 
-            filename = "results_checkStyles/plots/vort_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3) + ".png"
-            print_fields_1(vor_DNS_t, filename, Wmin=-1.0, Wmax=1.0, legend=False)
+    #         filename = "results_checkStyles/plots/vort_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3) + ".png"
+    #         print_fields_1(vor_DNS_t, filename, Wmin=-1.0, Wmax=1.0, legend=False)
 
-            filename = "results_checkStyles/fields/fields_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3)
-            save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
+    #         filename = "results_checkStyles/fields/fields_" + str(nl).zfill(2) + "_" + str(glayer) + "_inter_" + str(ninter).zfill(3)
+    #         save_fields(0, den_DNS_t, phi_DNS_t, vor_DNS_t, filename=filename)
 
-            print("Interpolation step " + str(ninter+1) + " of " + str(NINTER) + " on style " + str(glayer))
-            cont = cont+1
+    #         print("Interpolation step " + str(ninter+1) + " of " + str(NINTER) + " on style " + str(glayer))
+    #         cont = cont+1
             
     
     # # find new values
@@ -237,17 +245,68 @@ for nl in range(NLATS):
     #     latents_2 =tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN, seed=SEED_RESTART)
 
 
-# #----------------------------- make animation
-anim_file = './results_checkStyles/animation.gif'
-filenames = glob.glob(PATH_ANIMAT + "*.png")
-filenames = sorted(filenames)
+nTotImgs = len(totImgs)
+if (nTotImgs>1):
+    NY = int(np.sqrt(nTotImgs))
+    NX = int(nTotImgs/NY)
+    fig, axs = plt.subplots(NX, NY, figsize=(NY*2.5,NX*2.5))
+    cont = 0
+    for i in range(NX):
+        for j in range(NY):
+            vort = totImgs[cont][0,2,:,:].numpy()
+            axs[i,j].pcolormesh(vort, shading='gouraud', vmin=-1, vmax=1)
+            axs[i,j].axis("off")
+            axs[i,j].set_aspect('equal')
+            cont = cont+1
+    plt.savefig("results_checkStyles/multi_plots.png")
+    plt.close()
+    print("Done multiplot!")
 
-with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
-    for filename in filenames:
-        print(filename)
+    # find SSIM between images
+    totij = 0
+    loci = []
+    locj = []
+    totSSIM = []
+    for i in range(nTotImgs):
+        tDNS = tf.transpose(totImgs[i], [0,3,2,1])
+        for j in range(i+1,nTotImgs):
+            imgA = tf.transpose(totImgs[j], [0,3,2,1])
+            SSIM = tf.image.ssim(imgA, tDNS, max_val=2)
+            SSIM = SSIM.numpy()
+            totSSIM.append(SSIM)
+            loci.append(i)
+            locj.append(j)
+            # print(totij, i, j, SSIM)
+            totij = totij+1
+            if (np.abs(SSIM)>0.99 and np.abs(SSIM)<1.01):
+                print ("Attention!!! SSIM very high = ", SSIM)
+                filename = "results_checkStyles/plots_diff_i" + str(i).zfill(3) + "_j" + str(j).zfill(3) + ".png"
+                print_fields_3(totImgs[j][0,2,:,:].numpy(), tDNS[0,2,:,:].numpy(), vor_DNS_t, N=N_DNS, filename=filename, diff=True)
+
+
+    plt.plot(totSSIM, label="SSIM")
+    plt.ylim(-1,1)
+    if (NINTER>1):
+        plt.plot(loci, label="loci")
+        plt.plot(locj, label="locj")
+    plt.savefig("./results_checkStyles/SSIM.png")
+    plt.legend()
+    plt.close()
+    print("Done SSIM!")
+
+
+# #----------------------------- make animation
+if (NINTER>1):
+    anim_file = './results_checkStyles/animation.gif'
+    filenames = glob.glob(PATH_ANIMAT + "*.png")
+    filenames = sorted(filenames)
+
+    with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+        for filename in filenames:
+            print(filename)
+            image = imageio.v2.imread(filename)
+            writer.append_data(image)
         image = imageio.v2.imread(filename)
         writer.append_data(image)
-    image = imageio.v2.imread(filename)
-    writer.append_data(image)
 
 print ("Job completed successfully")

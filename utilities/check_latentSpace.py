@@ -51,11 +51,13 @@ RS          = int(2**FIL)
 tollDNS     = 1.0e-3
 
 if (TESTCASE=='HIT_2D'):
-    FILE_REAL_PATH  = "../LES_Solvers/fields/"
     from HIT_2D import L
+    FILE_REAL_PATH = "../LES_Solvers/fields/"
+    Z0_DIR_WL      = "../LES_Solvers/restart_fromGAN/"
 elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-    L = 50.176
-    FILE_REAL_PATH  = "../bout_interfaces/results/fields/"
+    L              = 50.176
+    Z0_DIR_WL      = "../bout_interfaces/restart_fromGAN/"
+    FILE_REAL_PATH = "../bout_interfaces/results/fields/"
 
 DELX = L/N_DNS
 DELY = L/N_DNS
@@ -84,32 +86,7 @@ train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(SEED_RESTART)
 
 
-# loading StyleGAN checkpoint
-managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=1)
-checkpoint.restore(managerCheckpoint.latest_checkpoint)
-
-if managerCheckpoint.latest_checkpoint:
-    print("StyleGAN restored from {}".format(managerCheckpoint.latest_checkpoint, max_to_keep=1))
-else:
-    print("Initializing StyleGAN from scratch.")
-
-
-# create variable synthesis model
-layer_kDNS = layer_zlatent_kDNS()
-z_in         = tf.keras.Input(shape=([2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE]), dtype=DTYPE)
-img_in       = tf.keras.Input(shape=([NUM_CHANNELS, 2**(RES_LOG2-FIL), 2**(RES_LOG2-FIL)]), dtype=DTYPE)
-w            = layer_kDNS(mapping, z_in)
-outputs      = synthesis([w,img_in], training=False)
-wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
-
-
-# create filter model
-x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = gaussian_filter(x_in[0,0,:,:], rs=RS, rsca=RS)
-gfilter = tf.keras.Model(inputs=x_in, outputs=out)
-
-
-# define optimizer for DNS search
+# define optimizer for z and w search
 if (lr_DNS_POLICY=="EXPONENTIAL"):
     lr_schedule_DNS  = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=lr_DNS,
@@ -121,60 +98,131 @@ elif (lr_DNS_POLICY=="PIECEWISE"):
 opt_kDNS = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_DNS)
 
 
+
+# loading StyleGAN checkpoint and filter
+managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
+checkpoint.restore(managerCheckpoint.latest_checkpoint)
+if managerCheckpoint.latest_checkpoint:
+    print("Net restored from {}".format(managerCheckpoint.latest_checkpoint, max_to_keep=2))
+else:
+    print("Initializing net from scratch.")
+time.sleep(3)
+
+
+
+# create fixed synthesis model
+flayer_kDNS   = layer_zlatent_kDNS()
+
+fz_in         = tf.keras.Input(shape=([1+2*(G_LAYERS-M_LAYERS), LATENT_SIZE]),  dtype=DTYPE)
+fw            = flayer_kDNS(mapping, fz_in)
+fpre_w        = pre_synthesis(fw)
+foutputs      = synthesis([fw, fpre_w], training=False)
+fwl_synthesis = tf.keras.Model(inputs=fz_in, outputs=[foutputs, fw])
+
+
+# create variable synthesis model
+layer_kDNS   = layer_zlatent_kDNS()
+
+z_in   = tf.keras.Input(shape=([1+2*(G_LAYERS-M_LAYERS), LATENT_SIZE]),  dtype=DTYPE)
+img_in = []
+for res in range(2,RES_LOG2-FIL+1):
+    img_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
+w            = layer_kDNS(mapping, z_in)
+outputs      = synthesis([w, img_in], training=False)
+wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
+
+
+
+# create filter model
+if (GAUSSIAN_FILTER):
+    x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    x_max   = tf.abs(tf.reduce_max(x_in))
+    x_min   = tf.abs(tf.reduce_min(x_in))
+    xamax   = tf.maximum(x_max, x_min)
+    x       = x_in/xamax
+    x       = gaussian_filter(x[0,0,:,:], rs=RS, rsca=RS)
+    x_max   = tf.abs(tf.reduce_max(x))
+    x_min   = tf.abs(tf.reduce_min(x))
+    xamaxn  = tf.maximum(x_max, x_min)
+    out     = x/xamaxn * xamax
+    gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+else:
+    gfilter = filters[IFIL]
+
+
 # define checkpoints wl_synthesis and filter
-checkpoint_wl = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
+checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
 managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
 
 
 # add latent space to trainable variables
 if (not TUNE_NOISE):
     ltv_DNS = []
-
+    
 for variable in layer_kDNS.trainable_variables:
     ltv_DNS.append(variable)
 
-print("\n DNS variables:")
+print("\n kDNS variables:")
 for variable in ltv_DNS:
-    print(variable.name)
+    print(variable.name, variable.shape)
 
 time.sleep(3)
 
 
 # set z
 if (RESTART_WL):
-    # loading wl_synthesis checkpoint and zlatents
+
+    # loading wl_synthesis checkpoint
     if managerCheckpoint_wl.latest_checkpoint:
         print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
     else:
         print("Initializing wl_synthesis from scratch.")
 
-    if (TESTCASE=='HIT_2D'):
-        data      = np.load("results_latentSpace/z0.npz")
-    elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        data      = np.load("../bout_interfaces/restart_fromGAN/z0.npz")
+    filename = Z0_DIR_WL + "z0.npz"
+                
+    data = np.load(filename)
 
-    z0        = data["z0"]
-    kDNS      = data["kDNS"]
-    noise_DNS = data["noise_DNS"]
+    z0      = data["z0"]
+    kDNS    = data["kDNS"]
+    LES_in0 = data["LES_in0"]
 
-    # convert to TensorFlow tensors            
-    z0        = tf.convert_to_tensor(z0, dtype=DTYPE)
-    kDNS      = layer_kDNS.trainable_variables[0].numpy()
+    print("z0",      z0.shape,      np.min(z0),      np.max(z0))
+    print("kDNS",    kDNS.shape,    np.min(kDNS),    np.max(kDNS))
+    print("LES_in0", LES_in0.shape, np.min(LES_in0), np.max(LES_in0))
 
-    # assign kDNS
-    layer_kDNS.trainable_variables[0].assign(kDNS)
+    # assign variables
+    z0 = tf.convert_to_tensor(z0, dtype=DTYPE)
+
+    for nvars in range(len(kDNS)):
+        tkDNS = tf.convert_to_tensor(kDNS[nvars], dtype=DTYPE)
+        layer_kDNS.trainable_variables[nvars].assign(tkDNS)
+
+    LES_in = []
+    for res in range(2,RES_LOG2-FIL+1):
+        rs = 2**(RES_LOG2-FIL-res)
+        LES_in.append(LES_in0[:,:,::rs,::rs])
 
     # assign variable noise
     if (TUNE_NOISE):
-        noise_DNS = tf.convert_to_tensor(noise_DNS, dtype=DTYPE)
+        noise_DNS = data["noise_DNS"]
+        print("noise_DNS", noise_DNS.shape, np.min(noise_DNS), np.max(noise_DNS))
+        noise_DNS  = tf.convert_to_tensor(noise_DNS,  dtype=DTYPE)
         it=0
         for layer in synthesis.layers:
             if "layer_noise_constants" in layer.name:
                 layer.trainable_variables[0].assign(noise_DNS[it])
                 it=it+1
+
 else:
+
     # set z
-    z0 = tf.random.uniform(shape=[BATCH_SIZE, 2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    z0 = tf.random.uniform(shape=[BATCH_SIZE, 1+2*(G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+
+    UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(fwl_synthesis, gfilter, z0, UVP_max)
+
+    LES_in = []
+    for res in range(2,RES_LOG2-FIL+1):
+        LES_in.append(predictions[res-2])
 
 
 #-------------- load DNS field
@@ -184,104 +232,141 @@ U_DNS = np.cast[DTYPE](U_DNS)
 V_DNS = np.cast[DTYPE](V_DNS)
 P_DNS = np.cast[DTYPE](P_DNS)
 
+# normalize the data
+maxU = np.max(U_DNS)
+minU = np.min(U_DNS)
+amaxU = max(abs(maxU), abs(minU))
+U_DNS = U_DNS/amaxU*INIT_SCA
+
+maxV = np.max(V_DNS)
+minV = np.min(V_DNS)
+amaxV = max(abs(maxV), abs(minV))
+V_DNS = V_DNS/amaxV*INIT_SCA
+
+maxP = np.max(P_DNS)
+minP = np.min(P_DNS)
+amaxP = max(abs(maxP), abs(minP))
+P_DNS = P_DNS/amaxP*INIT_SCA
+
+# save original DNS fields
+U_DNS_org = np.copy(U_DNS)
+V_DNS_org = np.copy(V_DNS)
+P_DNS_org = np.copy(P_DNS)
+
+
+#-------------- preprare targets
+U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
+
+U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+
+fU_DNS = gfilter(U_DNS)
+fV_DNS = gfilter(V_DNS)
+fP_DNS = gfilter(P_DNS)
+
+LES_in = []
+for res in range(2,RES_LOG2-FIL+1):
+    rs = 2**(RES_LOG2-FIL-res)
+    fU_DNS_res = fU_DNS[:,:,::rs,::rs]
+    fV_DNS_res = fV_DNS[:,:,::rs,::rs]
+    fP_DNS_res = fP_DNS[:,:,::rs,::rs]
+    fUVP_res   = tf.concat([fU_DNS_res, fV_DNS_res, fP_DNS_res], axis=1)
+    fUVP_res   = normalize_max(fUVP_res)
+    LES_in.append(fUVP_res)
+
+# set targets
+imgA  = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+fimgA = tf.identity(LES_in[-1])
+
+
+# find multiplier for DNS field
+UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
+        
 # convert to tensor
 U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
 V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
 P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
 
-# save original DNS
-U_DNS_org = tf.identity(U_DNS)
-V_DNS_org = tf.identity(V_DNS)
-P_DNS_org = tf.identity(P_DNS)
-
-U_DNS_org = U_DNS_org[tf.newaxis,tf.newaxis,:,:]
-V_DNS_org = V_DNS_org[tf.newaxis,tf.newaxis,:,:]
-P_DNS_org = P_DNS_org[tf.newaxis,tf.newaxis,:,:]
-
-imgA = tf.concat([U_DNS_org, V_DNS_org, P_DNS_org], axis=1)
-
-
-
-
-# find filtered field
-fU = gfilter(U_DNS_org)[0,0,:,:]
-fV = gfilter(V_DNS_org)[0,0,:,:]
-fP = gfilter(P_DNS_org)[0,0,:,:]
-
-# normalize
-U_min = np.min(fU)
-U_max = np.max(fU)
-V_min = np.min(fV)
-V_max = np.max(fV)
-P_min = np.min(fP)
-P_max = np.max(fP)
-
-fU_amax = max(np.absolute(U_min), np.absolute(U_max))
-fV_amax = max(np.absolute(V_min), np.absolute(V_max))
-fP_amax = max(np.absolute(P_min), np.absolute(P_max))
-
-print("Filtered DNS min/max ", U_min, U_max, V_min, V_max, P_min, P_max)
-print("Normalization values of filtered DNS", fU_amax, fV_amax, fP_amax)
-
-fimgA = tf.concat([fU[tf.newaxis,tf.newaxis,:,:], fV[tf.newaxis,tf.newaxis,:,:], fP[tf.newaxis,tf.newaxis,:,:]], axis=1)
-
-nfU = fU/fU_amax
-nfV = fV/fV_amax
-nfP = fP/fP_amax
-
-    
-
-
 
 # find multiplier for DNS field
-U = tf.identity(U_DNS_org)
-V = tf.identity(V_DNS_org)
-P = tf.identity(P_DNS_org)
+UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
 
-U_min = np.min(U)
-U_max = np.max(U)
-V_min = np.min(V)
-V_max = np.max(V)
-P_min = np.min(P)
-P_max = np.max(P)
+# if (k==0):
 
-nU_amax = max(np.absolute(U_min), np.absolute(U_max))
-nV_amax = max(np.absolute(V_min), np.absolute(V_max))
-nP_amax = max(np.absolute(P_min), np.absolute(P_max))
+#     fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(U_DNS_org, V_DNS_org, P_DNS_org, gfilter)
 
-print("DNS fields min/max", U_min, U_max, V_min, V_max, P_min, P_max)
-print("Normalization values of DNS", nU_amax, nV_amax, nP_amax)
+#     fnUo = fnUVP[0]
+#     fnVo = fnUVP[1]
+#     fnPo = fnUVP[2]
 
-nU = U/nU_amax
-nV = V/nV_amax
-nP = P/nP_amax
+#     nfUo = nfUVP[0]
+#     nfVo = nfUVP[1]
+#     nfPo = nfUVP[2]
 
+#     fU_amaxo = fUVP_amax[0]
+#     fV_amaxo = fUVP_amax[1]
+#     fP_amaxo = fUVP_amax[2]
 
-# find LES
-fnU = gfilter(nU)[0,0,:,:]
-fnV = gfilter(nV)[0,0,:,:]
-fnP = gfilter(nP)[0,0,:,:]
+#     nU_amaxo = nUVP_amax[0]
+#     nV_amaxo = nUVP_amax[1]
+#     nP_amaxo = nUVP_amax[2]
+    
+#     # find scaling coefficients
+#     kUmax = nU_amaxo
+#     kVmax = nV_amaxo
+#     kPmax = nP_amaxo
 
+#     # save initial values
+#     nU_amaxi = nU_amaxo
+#     nV_amaxi = nV_amaxo
+#     nP_amaxi = nP_amaxo
 
-kUmax = ( fnV[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfV[N2L,N2L])*fU_amax*nV_amax/fV_amax
-kVmax = ( fnU[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfU[N2L,N2L])*fV_amax*nU_amax/fU_amax
-kPmax = ( fnU[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfU[N2L,N2L])*fP_amax*nU_amax/fU_amax
+# else:
 
-#verify multipliers
-if (abs((kUmax-nU_amax) + (kVmax-nV_amax) + (kPmax-nP_amax))>1.e-4):
-    print("Diff on kUmax =", kUmax - nP_amax)
-    print("Diff on kUmax =", kVmax - nV_amax)
-    print("Diff on kUmax =", kPmax - nP_amax)
+#     fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(U_DNS_org, V_DNS_org, P_DNS_org, gfilter)
 
-    print("Mismatch in the filter properties!!!")
-    exit(0)
-else:
-    print("Diff on kUmax =", kUmax - nU_amax)
-    print("Diff on kUmax =", kVmax - nV_amax)
-    print("Diff on kUmax =", kPmax - nP_amax)
+#     fnU = fnUVP[0]
+#     fnV = fnUVP[1]
+#     fnP = fnUVP[2]
 
-    UVP_max = [kUmax, kVmax, kPmax]
+#     nfU = nfUVP[0]
+#     nfV = nfUVP[1]
+#     nfP = nfUVP[2]
 
+#     fU_amax = fUVP_amax[0]
+#     fV_amax = fUVP_amax[1]
+#     fP_amax = fUVP_amax[2]
+
+#     nU_amax = nUVP_amax[0]
+#     nV_amax = nUVP_amax[1]
+#     nP_amax = nUVP_amax[2]
+
+#     # find scaling coefficients
+#     kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
+#     kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
+#     kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
+
+#     # save old values
+#     fnUo = fnU
+#     fnVo = fnV
+#     fnPo = fnP
+
+#     nfUo = nfU
+#     nfVo = nfV
+#     nfPo = nfP
+
+#     fU_amaxo = fU_amax
+#     fV_amaxo = fV_amax
+#     fP_amaxo = fP_amax
+
+#     nU_amaxo = nU_amax
+#     nV_amaxo = nV_amax
+#     nP_amaxo = nP_amax
+
+# UVP_max = [kUmax, kVmax, kPmax]
 
 
 #------------------------------------------- loop over different latent spaces
@@ -314,7 +399,7 @@ for k in range(NL):
             # cP_DNS = (tr(V_DNS, 1, 0) - 2*V_DNS + tr(V_DNS, -1, 0))/(DELX**2) \
             #            + (tr(V_DNS, 0, 1) - 2*V_DNS + tr(V_DNS, 0, -1))/(DELY**2)
             cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
-                       + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
+                   + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
 
         # normalize
         U_min = np.min(U_DNS)
@@ -331,9 +416,9 @@ for k in range(NL):
         # print("DNS fields min/max", U_min, U_max, V_min, V_max, P_min, P_max)
         # print("Normalization values", U_norm, V_norm, P_norm)
 
-        U_DNS = U_DNS/U_norm
-        V_DNS = V_DNS/V_norm
-        P_DNS = P_DNS/P_norm
+        U_DNS = U_DNS/U_norm*INIT_SCA
+        V_DNS = V_DNS/V_norm*INIT_SCA
+        P_DNS = P_DNS/P_norm*INIT_SCA
         
         U_DNS_org = tf.identity(U_DNS)
         V_DNS_org = tf.identity(V_DNS)
@@ -355,30 +440,43 @@ for k in range(NL):
         if (TESTCASE=='HIT_2D'):
             plot_spectrum(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
         elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-            gradV_DNS_org = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
-                                  + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
-            plot_spectrum(U_DNS_org, gradV_DNS_org, L, filename, close=closePlot, label='DNS')
+            gradV = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+                          + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+            plot_spectrum(U_DNS_org, gradV, L, filename, close=closePlot, label='DNS')
 
 
 
         #-------------- preprare targets
-        U_DNS = U_DNS_org[np.newaxis,np.newaxis,:,:]
-        V_DNS = V_DNS_org[np.newaxis,np.newaxis,:,:]
-        P_DNS = P_DNS_org[np.newaxis,np.newaxis,:,:]
+        U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+        V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+        P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
 
-        U_DNS = tf.convert_to_tensor(U_DNS)
-        V_DNS = tf.convert_to_tensor(V_DNS)
-        P_DNS = tf.convert_to_tensor(P_DNS)
-
-        # concatenate
-        imgA  = tf.concat([U_DNS, V_DNS, P_DNS], 1)
-
-        # filter
+        U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+        V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+        P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+        
         fU_DNS = gfilter(U_DNS)
         fV_DNS = gfilter(V_DNS)
         fP_DNS = gfilter(P_DNS)
+        
+        LES_in = []
+        for res in range(2,RES_LOG2-FIL+1):
+            rs = 2**(RES_LOG2-FIL-res)
+            fU_DNS_res = fU_DNS[:,:,::rs,::rs]
+            fV_DNS_res = fV_DNS[:,:,::rs,::rs]
+            fP_DNS_res = fP_DNS[:,:,::rs,::rs]
+            fUVP_res   = tf.concat([fU_DNS_res, fV_DNS_res, fP_DNS_res], axis=1)
+            fUVP_res   = normalize_max(fUVP_res)
+            LES_in.append(fUVP_res)
 
-        fimgA = tf.concat([fU_DNS, fV_DNS, fP_DNS], 1)
+        # set targets
+        imgA  = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+        fimgA = tf.identity(LES_in[-1])
+        
+
+        # find multiplier for DNS field
+        UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
+
        
         # start research on the latent space
         it     = 0
@@ -388,14 +486,16 @@ for k in range(NL):
 
             lr = lr_schedule_DNS(it)
             UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, _, _ = \
-                step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, z0, imgA, fimgA, ltv_DNS, typeRes=0)
+                step_find_zlatents_kDNS(wl_synthesis, gfilter, opt_kDNS, [z0, LES_in], imgA, fimgA, ltv_DNS, UVP_max, typeRes=0)
 
-            kDNS  = layer_kDNS.trainable_variables[0]
-            kDNSn = tf.clip_by_value(kDNS, 0, 1)
-            if (tf.reduce_any((kDNS-kDNSn)>0)):
-                layer_kDNS.trainable_variables[0].assign(kDNSn)
-                UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, z0)
-                resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)        
+            # adjust variables
+            for lvar in range(len(layer_kDNS.trainable_variables[:])):
+                kDNS  = layer_kDNS.trainable_variables[lvar]
+                kDNSn = tf.clip_by_value(kDNS, 0.0, 1.0)
+                if (tf.reduce_any((kDNS-kDNSn)>0)):
+                    layer_kDNS.trainable_variables[lvar].assign(kDNSn)
+                    UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_in], UVP_max)
+                    resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)
 
             # print residuals and fields
             if (it%10==0):
@@ -447,7 +547,17 @@ for k in range(NL):
 
         # find DNS and LES fields from random input
         if (k>=0):
-            z0 = tf.random.uniform(shape=[BATCH_SIZE, 2*(G_LAYERS-M_LAYERS)+1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+            z0 = tf.random.uniform(shape=[BATCH_SIZE, 1 + 2*(G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+
+        UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
+        UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(fwl_synthesis, gfilter, z0, UVP_max)
+
+        #-------------- preprare targets
+        imgA   = tf.identity(UVP_DNS)
+        fimgA  = tf.identity(UVP_LES) 
+        LES_in = []
+        for res in range(2,RES_LOG2-FIL+1):
+            LES_in.append(predictions[res-2])
 
 
 
@@ -462,7 +572,7 @@ for k in range(NL):
 
     #-------- get fields
     res = 2**(RES_LOG2-FIL)
-    UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, fimgA], UVP_max)
+    UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_in], UVP_max)
       
     # DNS fields
     U_DNS = UVP_DNS[0,0,:,:]
@@ -528,17 +638,17 @@ for k in range(NL):
     if (TESTCASE=='HIT_2D'):
         plot_spectrum(fU_DNS, fV_DNS, L, filename, close=True, label='LES')
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        gradV_LES = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*delx_LES))**2 \
-                  + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*dely_LES))**2)
-        plot_spectrum(fU_DNS, gradV_LES, L, filename, close=False, label='LES')
+        gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*delx_LES))**2 \
+                      + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*dely_LES))**2)
+        plot_spectrum(fU_DNS, gradV, L, filename, close=False, label='LES')
 
     filename = "results_latentSpace/energy/energy_spectrum_DNS_lat" + str(k) + "_res" + str(res) + ".png"
     if (TESTCASE=='HIT_2D'):
-        plot_spectrum(U_DNS_org[0,0,:,:], V_DNS_org[0,0,:,:], L, filename, close=closePlot, label='DNS')
+        plot_spectrum(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-        gradV_DNS_org = np.sqrt(((cr(V_DNS_org[0,0,:,:], 1, 0) - cr(V_DNS_org[0,0,:,:], -1, 0))/(2.0*DELX))**2 \
-                              + ((cr(V_DNS_org[0,0,:,:], 0, 1) - cr(V_DNS_org[0,0,:,:], 0, -1))/(2.0*DELY))**2)
-        plot_spectrum(U_DNS_org[0,0,:,:], gradV_DNS_org, L, filename, close=True, label='DNS')
+        gradV = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+                      + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+        plot_spectrum(U_DNS_org, gradV, L, filename, close=True, label='DNS')
 
 
 

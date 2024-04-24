@@ -71,7 +71,7 @@ def make_mapping_model():
 
 
 #---------------------------define synthesis
-def make_synthesis_model():
+def make_pre_synthesis_model():
 
     # Options
     use_pixel_norm    = True         # Disable pixelwise feature vector normalization
@@ -144,6 +144,139 @@ def make_synthesis_model():
 
 
     # Building blocks for remaining layers.
+    def block_LES(in_res, in_x):  # res = 3..RES_LOG2
+        in_x = layer_epilogue(
+            blur(
+                upscale2d_conv2d(in_x,
+                    fmaps=NUM_CHANNELS,
+                    kernel=3,
+                    gain=GAIN,
+                    use_wscale=use_wscale,
+                    fused_scale=fused_scale,
+                )
+            ),
+            in_res * 2 - 4,
+        )
+        in_x = layer_epilogue(
+            conv2d(
+                in_x,
+                fmaps=NUM_CHANNELS,
+                kernel=3,
+                gain=GAIN,
+                use_wscale=use_wscale,
+            ),
+            in_res * 2 - 3,
+        )
+        return in_x
+
+
+    # convert to RGB
+    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+        in_lod = RES_LOG2 - in_res
+        x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+        x = bias(x)
+        x_R = gaussian_filter(x[0,0,:,:], rs=1)
+        x_G = gaussian_filter(x[0,1,:,:], rs=1)
+        if (TESTCASE=='HIT_2D'):
+            x_B = gaussian_filter(x[0,2,:,:], rs=1)
+        else:
+            x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+        x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
+        x = find_centred_fields(x)
+        x = normalize_max(x)
+        return x
+
+
+    # Finally, arrange the computations for the layers
+    images_out = []  # list will contain the output images at different resolutions
+    images_out.append(torgb(2, x))
+    for res in range(3, RES_LOG2-FIL):
+        x = block_LES(res, x)
+        images_out.append(torgb(res, x))
+
+
+    # LES layer
+    res = RES_LOG2-FIL
+    x = block_LES(res, x)
+    x = torgb(res, x)
+    images_out.append(x)
+
+    pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+
+    return pre_synthesis_model
+
+
+
+
+#---------------------------define synthesis
+def make_synthesis_model():
+
+    # Options
+    use_pixel_norm    = True         # Disable pixelwise feature vector normalization
+    use_wscale        = True         # Enable equalized learning rate
+    use_instance_norm = True         # Enable instance normalization
+    use_noise         = True         # Enable noise inputs
+    randomize_noise   = RANDOMIZE_NOISE  # True = randomize noise inputs every time (non-deterministic),
+                                    # False = read noise inputs from variables.
+    use_styles        = True         # Enable style inputs                             
+    blur_filter       = BLUR_FILTER  # Low-pass filter to apply when resampling activations. 
+                                    # None = no filtering.
+    fused_scale       = False        # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
+
+
+    # Inputs
+    dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+    images_in = []
+    for res in range(2,RES_LOG2-FIL+1):
+        images_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
+
+
+    # Noise inputs
+    noise_inputs = []
+    for ldx in range(G_LAYERS):
+
+        phi_init = tf.random_uniform_initializer(minval=0.0, maxval=2.0*np.pi, seed=ldx)
+        phi_noise = tf.Variable(
+            initial_value=phi_init([NC2_NOISE,1], dtype=DTYPE),
+            trainable=False,
+            name="input_phi_noise%d" % ldx,
+            )
+
+        noise_inputs.append(phi_noise)
+
+
+    # Things to do at the end of each layer.
+    def layer_epilogue(in_x, ldx):
+        if use_noise:
+            in_x = apply_noise(in_x, ldx, noise_inputs[ldx], randomize_noise=randomize_noise)
+
+        bias = layer_bias(in_x)
+        in_x = bias(in_x)
+        in_x = layers.LeakyReLU()(in_x)
+        if use_pixel_norm:
+            in_x = pixel_norm(in_x)
+        if use_instance_norm:
+            in_x = instance_norm(in_x)
+        if use_styles:
+            in_x = style_mod(in_x, 
+                            dlatents[:, ldx],
+                            use_wscale=use_wscale,
+                            name = "style_%d" % ldx)
+        return in_x
+
+
+    # define blur
+    def blur(in_x):
+        if blur_filter:
+            blur2d = layer_blur2d()
+            fx = blur2d(in_x)
+        else:
+            fx = in_x
+        return fx
+
+
+    # Building blocks for remaining layers.
     def block(in_res, in_x):  # res = 3..RES_LOG2
         in_x = layer_epilogue(
             blur(
@@ -169,41 +302,34 @@ def make_synthesis_model():
         )
         return in_x
 
-
     # convert to RGB
     def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
         in_lod = RES_LOG2 - in_res
-        x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        x = normalize(x)
-        return x
-
-    # convert to RGB final
-    def torgb_final(in_res, in_x):  # res = RES_LOG2-FIL -> RES_LOG2
-        in_lod = RES_LOG2 - in_res
-        x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
         x_R = gaussian_filter(x[0,0,:,:], rs=1)
         x_G = gaussian_filter(x[0,1,:,:], rs=1)
-        x_B = gaussian_filter(x[0,2,:,:], rs=1)
-        x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = normalize(x)
+        if (TESTCASE=='HIT_2D'):
+            x_B = gaussian_filter(x[0,2,:,:], rs=1)
+        else:
+            x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+        x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
+        x = find_centred_fields(x)
+        x = normalize_max(x)
         return x
 
     # Finally, arrange the computations for the layers
-    images_out = []  # list will contain the output images at different resolutions
-    images_out.append(torgb(2, x))
-    for res in range(3, RES_LOG2):
+    x = images_in[-1]
+    images_out = []
+    for layer in range(2, RES_LOG2-FIL+1):
+        images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
+
+    for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
         x = block(res, x)
         images_out.append(torgb(res, x))
 
-    for res in range(RES_LOG2, RES_LOG2+1):
-        x = block(res, x)
-        images_out.append(torgb_final(res, x))
-        
-    synthesis_model = Model(inputs=dlatents, outputs=images_out)
+    synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
 
     return synthesis_model
 
@@ -397,6 +523,7 @@ discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule_dis
 
 #-------------------------------------create an instance of the generator and discriminator
 mapping       = make_mapping_model()
+pre_synthesis = make_pre_synthesis_model()
 synthesis     = make_synthesis_model()
 discriminator = make_discriminator_model()
 
@@ -406,17 +533,19 @@ for fil in range(NFIL):
     filters.append(filter)
 
 
-#mapping.summary()
-#synthesis.summary()
-#discriminator.summary()
-#for fil in range(RES_LOG2-RES_LOG2-FIL):
-    #filter[fil].summary()
+# mapping.summary()
+# pre_synthesis.summary()
+# synthesis.summary()
+# discriminator.summary()
+# for fil in range(RES_LOG2-RES_LOG2-FIL):
+#     filter[fil].summary()
 
 
-#plot_model(mapping,       to_file='images/mapping_graph.png',       show_shapes=True, show_layer_names=True)
-#plot_model(synthesis,     to_file='images/synthesis_graph.png',     show_shapes=True, show_layer_names=True)
-#plot_model(filter,        to_file='images/filter_graph.png',        show_shapes=True, show_layer_names=True)
-#plot_model(discriminator, to_file='images/discriminator_graph.png', show_shapes=True, show_layer_names=True)
+# plot_model(mapping,       to_file='mapping_graph.png',       show_shapes=True, show_layer_names=True)
+# plot_model(pre_synthesis, to_file='pre_synthesis_graph.png', show_shapes=True, show_layer_names=True)
+# plot_model(synthesis,     to_file='synthesis_graph.png',     show_shapes=True, show_layer_names=True)
+# plot_model(filter,        to_file='images/filter_graph.png',        show_shapes=True, show_layer_names=True)
+# plot_model(discriminator, to_file='images/discriminator_graph.png', show_shapes=True, show_layer_names=True)
 
 
 #-------------------------------------define checkpoint
@@ -424,6 +553,7 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                     filter_optimizer=filter_optimizer,
                                     discriminator_optimizer=discriminator_optimizer,
                                     mapping=mapping,
+                                    pre_synthesis=pre_synthesis,
                                     synthesis=synthesis,
                                     filters=filters,
                                     discriminator=discriminator)
@@ -442,16 +572,14 @@ def gradient_penalty(x):
 
 
 # find lists of coarse, medium and fine tunable noises
-ltv_LES = []
 ltv_DNS = []
-
+            
 for layer in synthesis.layers:
     if "layer_noise_constants" in layer.name:
         lname = layer.name
         ldx = int(lname.replace("layer_noise_constants",""))
         for variable in layer.trainable_variables:
-            if (ldx<M_LAYERS):
-                ltv_LES.append(variable)
-            ltv_DNS.append(variable)
+            if (ldx>=M_LAYERS):
+                ltv_DNS.append(variable)
 
 
