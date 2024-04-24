@@ -82,6 +82,7 @@ def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_i
 @tf.function
 def train_step(input, images):
     with tf.GradientTape() as map_tape, \
+        tf.GradientTape() as pre_syn_tape, \
         tf.GradientTape() as syn_tape, \
         tf.GradientTape() as fil_tape_m1, \
         tf.GradientTape() as fil_tape_m2, \
@@ -90,7 +91,8 @@ def train_step(input, images):
         tf.GradientTape() as fil_tape_m5, \
         tf.GradientTape() as dis_tape:
         dlatents = mapping(input, training = True)
-        g_images = synthesis(dlatents, training = True)
+        g_pre_images = pre_synthesis(dlatents, training = True)
+        g_images = synthesis([dlatents, g_pre_images], training = True)
 
         f_images = []
         for fil in range(NFIL):
@@ -110,9 +112,10 @@ def train_step(input, images):
         loss_dis = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5) #10.0 gradient penalty weight
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
-    gradients_of_synthesis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
-    gradients_of_discriminator = dis_tape.gradient(loss_dis, discriminator.trainable_variables)
+    gradients_of_mapping       =     map_tape.gradient(loss_gen, mapping.trainable_variables)
+    gradients_of_pre_synthesis = pre_syn_tape.gradient(loss_gen, pre_synthesis.trainable_variables)
+    gradients_of_synthesis     =     syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_discriminator =     dis_tape.gradient(loss_dis, discriminator.trainable_variables)
 
     gradients_of_filters = []
     if (NFIL>0):
@@ -129,6 +132,7 @@ def train_step(input, images):
     
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping]
+    gradients_of_pre_synthesis = [g if g is not None else tf.zeros_like(g) for g in gradients_of_pre_synthesis]
     gradients_of_synthesis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthesis]
     gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator]
 
@@ -137,6 +141,7 @@ def train_step(input, images):
 
 
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
+    generator_optimizer.apply_gradients(zip(gradients_of_pre_synthesis,     pre_synthesis.trainable_variables))
     generator_optimizer.apply_gradients(zip(gradients_of_synthesis,         synthesis.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 

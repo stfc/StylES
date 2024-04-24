@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '/archive/jcastagna/Fields/HW/fields_N512_k1_singleImg/'
+DATASET           = '../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/' 
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -81,17 +81,24 @@ NFIL              = 3  # number of filters starting from the top (max can be 4! 
 FIL               = 3  # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
-G_LAYERS_FIL      = RES_LOG2-FIL*2 - 2   # Numer of layers for the filter
+G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
+N_DNS             = int(2**RES_LOG2)
+N_LES             = int(2**(RES_LOG2-FIL))
+LEN_DOMAIN        = 50.176  # for 2D HWLEN_DOMAIN
+DELX              = LEN_DOMAIN/N_DNS
+DELY              = LEN_DOMAIN/N_DNS
+DELX_LES          = LEN_DOMAIN/N_LES
+DELY_LES          = LEN_DOMAIN/N_LES
 
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
+BUFFER_SIZE       = 6000 #same size of the number of images in DATASET
 NEXAMPLES         = 1 
-AMP_NOISE_MAX     = 0.25
+AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = False 
@@ -129,14 +136,14 @@ BETA2_DIS        = 0.99
 
 # Reconstruction hyper-parameters
 INIT_SCA        = 5.0
-GAUSSIAN_FILTER = False
+GAUSSIAN_FILTER = True
 # FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run10_time801.npz"
-FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_time00200.npz"
+FILE_DNS = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
 # FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N512_k1_singleImg/fields_run54_time991.npz"
 
 
-# learning rate for DNS optimizer
-lr_DNS_maxIt  = 100000
+# learning rate for latent space optimizer
+lr_DNS_maxIt  = 10000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-3   # exponential policy initial learning rate
@@ -148,15 +155,3 @@ lr_DNS_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
 lr_DNS_BETA1  = 0.0
 lr_DNS_BETA2  = 0.99
 
-# learning rate for LES optimizer
-lr_LES_maxIt  = 100000
-lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
-lr_LES_STAIR  = False
-lr_LES        = 1.0e-3   # exponential policy initial learning rate
-lr_LES_RATE   = 1.0       # exponential policy decay rate
-lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
-lr_LES_EXP_ST = False      # exponential policy staircase
-lr_LES_BOUNDS = [100, 200, 300]             # piecewise policy bounds
-lr_LES_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
-lr_LES_BETA1  = 0.0
-lr_LES_BETA2  = 0.99
