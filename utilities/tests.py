@@ -51,7 +51,6 @@ exit()
 
 # N_DNS = 256
 # L     = 50.176
-# RS    = int(2**FIL)
 # FILE_REAL = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run21_time501.npz"
 
 

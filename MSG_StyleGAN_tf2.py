@@ -176,10 +176,10 @@ def make_pre_synthesis_model():
         x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter(x[0,0,:,:], rs=1)
-        x_G = gaussian_filter(x[0,1,:,:], rs=1)
+        x_R = gaussian_filter(x[0,0,:,:], rs=1, rsca=1)
+        x_G = gaussian_filter(x[0,1,:,:], rs=1, rsca=1)
         if (TESTCASE=='HIT_2D'):
-            x_B = gaussian_filter(x[0,2,:,:], rs=1)
+            x_B = gaussian_filter(x[0,2,:,:], rs=1, rsca=1)
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
         x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
@@ -308,10 +308,10 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter(x[0,0,:,:], rs=1)
-        x_G = gaussian_filter(x[0,1,:,:], rs=1)
+        x_R = gaussian_filter(x[0,0,:,:], rs=1, rsca=1)
+        x_G = gaussian_filter(x[0,1,:,:], rs=1, rsca=1)
         if (TESTCASE=='HIT_2D'):
-            x_B = gaussian_filter(x[0,2,:,:], rs=1)
+            x_B = gaussian_filter(x[0,2,:,:], rs=1, rsca=1)
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
         x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)

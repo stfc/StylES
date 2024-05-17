@@ -4,7 +4,9 @@ It is based on traditional LES solvers and Generative Adverserial Networks (GANs
 </br>
 
 # Description
-The idea is to train StyleGAN on DNS data and then use the GAN generator as deconvolution operator for LES. More details are in the PASC23 ACM paper: **StyleGAN as Deconvolution operator for Large Eddy Simulation**.
+The idea is to train StyleGAN on DNS data and then use the GAN generator as deconvolution operator for LES. More details are in the following papers:
+- J. Castagna and F. Schiavello, ACM PASC23: **StyleGAN as Deconvolution operator for Large Eddy Simulation** (2023).
+- J. Castagna et al., Physics of Plasma: **StyleGAN as an AI Deconvolution Operator for Large Eddy Simulations of Turbulent Plasma Equations in BOUT++** (2024).
 
 </br>
 
@@ -21,6 +23,41 @@ which you can easily install via conda.
 You will also need to download the TurboGenPY repo from https://github.com/saadgroup/TurboGenPY.git to find the energy spectra and use  Saad's initialization procedure for HIT_2D. Once cloned (at same directory level of StylES) modify the files using the patch file **patch_TurboGenPY.patch**.
 
 </br>
+
+# Quick start
+You can quickly test StylES with BOUT++ using the weights for an already trained StyleGAN according to the following database:
+
+|    Case     |    NxN      |    alpha    |     k       |   nu=nu     |
+| ----------- | ----------- | ----------- | ----------- | ----------- |
+|    HW       | 256x256     |     1.0     |    0.5      |    10-3     |
+|    HW       | 512x512     |     1.0     |    1.0      |    10-4     |
+|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     |
+
+
+and the following steps:
+
+- 1) donwload BOUT++, checkout bout_with_StylES branch and compile the hasegawa-wakatani as follows:
+- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.a) cmake -S . -B build_release -DBOUT_BUILD_EXAMPLES=ON
+- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.b) cmake --build /path_to_BOUT/BOUT-dev/build_release -j 16
+- &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.c) cmake --build build_release --target hasegawa-wakatani
+- 2) download the 1024x1024 weights from and save in
+- 3) generate the restart point usingas *python create_restart.py* in the **/StylES/utility** folder
+- 4) run the hasegawa-wakatani test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani/** as ./hasegawa-wakatani
+- 5) generate the results below using the *python convert_netCDF2png.py* from **/StylES/bout_interfaces/**
+
+You will obtain the following animatin and plot of energy vs time
+
+To make a comparison with the DNS data:
+- 6) go to **/BOUT-dev/examples/hasegawa-wakatani/** and set *int pStepStart = 1000000*
+- 7) repeat step 3.c
+- 8) save the *results_StylES* folder as *results_StylES_m1* in **/BOUT-dev/build_release/examples/hasegawa-wakatani/data/**
+- 9) modify BOUT.in in **/BOUT-dev/build_release/examples/hasegawa-wakatani/data/** as follows *nx = 1032* and *nx = 1028*
+- 10) repeat step 4
+- 11) run *python plot_comparison.py* from **/StylES/bout_interfaces/**
+
+You will now obtain a series of comparison plots between DNS and StylES.
+
+
 
 # Testloop
 The following results are obtained via these steps

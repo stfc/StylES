@@ -120,7 +120,7 @@ def StyleGAN_load_fields(file_path):
         print("-----------Attention: invalid field!!!")
         return
     else:
-        P = P / amaxP
+        P = P / amaxV   # we scale for same factor of phi to maintain the equation D2 phi = vort
 
     # downscale
     img_out = []
@@ -142,6 +142,9 @@ def StyleGAN_load_fields(file_path):
             #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
             #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
             #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
+            # data[0,:,:] = U_DNS_g[::rs,::rs]
+            # data[1,:,:] = V_DNS_g[::rs,::rs]
+            # data[2,:,:] = P_DNS_g[::rs,::rs]
             data[0,:,:] = U[::rs,::rs]
             data[1,:,:] = V[::rs,::rs]  
             data[2,:,:] = P[::rs,::rs]  

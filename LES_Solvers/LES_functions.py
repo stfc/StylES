@@ -84,14 +84,17 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], y
     else:    
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
    
+    plt.xlabel(r'k [$\rho_i^{-1}$]')
+    plt.ylabel(r'$\mathcal{F}(E)$')
+    # plt.plot(wave_numbers, wave_numbers**(-3), linestyle='solid', color='black')
 
     if (close):
         #plt.savefig(filename, bbox_inches='tight', pad_inches=0)
-        plt.savefig(filename, pad_inches=0)
+        plt.savefig(filename, pad_inches=0, dpi=100)
         plt.close()
 
     filename = filename.replace(".png",".txt")
-    print("knyquist for " + filename + " is:  " + str(knyquist))
+    # print("knyquist for " + filename + " is:  " + str(knyquist))
     np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
 
 

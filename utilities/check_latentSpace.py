@@ -46,8 +46,7 @@ RESTART_WL  = True
 CHKP_DIR_WL = "./checkpoints_wl"
 N_DNS       = 2**RES_LOG2
 N_LES       = 2**(RES_LOG2-FIL)
-N2L         = int(N_LES/2)
-RS          = int(2**FIL)
+N_LES2         = int(N_LES/2)
 tollDNS     = 1.0e-3
 
 if (TESTCASE=='HIT_2D'):
@@ -345,9 +344,9 @@ UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
 #     nP_amax = nUVP_amax[2]
 
 #     # find scaling coefficients
-#     kUmax = (fnUo[N2L,N2L]*nfU[N2L,N2L])/(fnU[N2L,N2L]*nfUo[N2L,N2L])*fU_amax*nU_amaxo/fU_amaxo
-#     kVmax = (fnVo[N2L,N2L]*nfV[N2L,N2L])/(fnV[N2L,N2L]*nfVo[N2L,N2L])*fV_amax*nV_amaxo/fV_amaxo
-#     kPmax = (fnPo[N2L,N2L]*nfP[N2L,N2L])/(fnP[N2L,N2L]*nfPo[N2L,N2L])*fP_amax*nP_amaxo/fP_amaxo
+#     kUmax = (fnUo[N_LES2,N_LES2]*nfU[N_LES2,N_LES2])/(fnU[N_LES2,N_LES2]*nfUo[N_LES2,N_LES2])*fU_amax*nU_amaxo/fU_amaxo
+#     kVmax = (fnVo[N_LES2,N_LES2]*nfV[N_LES2,N_LES2])/(fnV[N_LES2,N_LES2]*nfVo[N_LES2,N_LES2])*fV_amax*nV_amaxo/fV_amaxo
+#     kPmax = (fnPo[N_LES2,N_LES2]*nfP[N_LES2,N_LES2])/(fnP[N_LES2,N_LES2]*nfPo[N_LES2,N_LES2])*fP_amax*nP_amaxo/fP_amaxo
 
 #     # save old values
 #     fnUo = fnU

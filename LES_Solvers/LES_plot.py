@@ -190,7 +190,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, transpose=False):
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, dpi=100, transpose=False):
 
     if (testcase=='HIT_2D'):
         if (diff):
@@ -226,7 +226,7 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
     N = len(U[0,:])
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(2, 3, figsize=(20,10))
+    fig, axs = plt.subplots(2, 3, figsize=(20,10), dpi=dpi)
     fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0,0]
@@ -551,5 +551,5 @@ def print_fields_3new(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None,
     ax5.set_axis_off()
 
     # save images
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+    plt.savefig(filename, pad_inches=0)
     plt.close()

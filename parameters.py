@@ -68,7 +68,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 1024
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -77,21 +77,13 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-NFIL              = 3  # number of filters starting from the top (max can be 4! See gradient tape in train...)
-FIL               = 3  # number of layers below the DNS  
+NFIL              = 5  # number of filters starting from the top (max can be 4! See gradient tape in train...)
+FIL               = 5  # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
-N_DNS             = int(2**RES_LOG2)
-N_LES             = int(2**(RES_LOG2-FIL))
-LEN_DOMAIN        = 50.176  # for 2D HWLEN_DOMAIN
-DELX              = LEN_DOMAIN/N_DNS
-DELY              = LEN_DOMAIN/N_DNS
-DELX_LES          = LEN_DOMAIN/N_LES
-DELY_LES          = LEN_DOMAIN/N_LES
-
 NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
@@ -104,7 +96,7 @@ NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = False 
 
 # Training hyper-parameters
-TOT_ITERATIONS = 1000000
+TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
 IMAGES_EVERY   = 10000
 SAVE_EVERY     = 100000
@@ -134,16 +126,27 @@ BETA1_DIS        = 0.0
 BETA2_DIS        = 0.99
 
 
-# Reconstruction hyper-parameters
-INIT_SCA        = 5.0
+# Reconstruction parameters
+N_DNS           = int(2**RES_LOG2)
+N_LES           = int(2**(RES_LOG2-FIL))
+N_DNS2          = int(N_DNS/2)
+N_LES2          = int(N_LES/2)
+RS              = int(2**FIL)
+RS2             = int(RS/2)
+N2L             = N_LES2-RS2
+N2R             = N_LES2+RS2+1
+LEN_DOMAIN      = 50.176  # for 2D HWLEN_DOMAIN
+DELX            = LEN_DOMAIN/N_DNS
+DELY            = LEN_DOMAIN/N_DNS
+DELX_LES        = LEN_DOMAIN/N_LES
+DELY_LES        = LEN_DOMAIN/N_LES
+INIT_SCA        = 15.0
 GAUSSIAN_FILTER = True
-# FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N256_1image/fields_run10_time801.npz"
-FILE_DNS = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
-# FILE_DNS = "/archive/jcastagna/Fields/HW/fields_N512_k1_singleImg/fields_run54_time991.npz"
+FILE_DNS        = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
 
 
 # learning rate for latent space optimizer
-lr_DNS_maxIt  = 10000
+lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-3   # exponential policy initial learning rate

@@ -47,7 +47,6 @@ NLATS        = 100
 PATH_ANIMAT  = "results_checkStyles/plots/"
 N_DNS        = 2**RES_LOG2
 N_LES        = 2**RES_LOG2-FIL
-RS           = int(2**FIL)
   
 # clean up and prepare folders
 tf.random.set_seed(0)
