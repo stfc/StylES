@@ -27,7 +27,7 @@ from isoturb import generate_isotropic_turbulence_2d
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
@@ -59,7 +59,7 @@ if (MODE=='READ_NETCDF'):
     CWD = os.getcwd()
     os.chdir(PATH_NETCDF)
     n = collect("n", xguards=False, info=False)
-    FTIME = len(n)
+    FTIME = 10 #len(n)
     os.chdir(CWD)
     
     # find number of initial time
@@ -234,6 +234,7 @@ if (MODE=='READ_NETCDF'):
             if (FIND_MIXMAX):
                 print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+                    #Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
                 print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
@@ -329,7 +330,7 @@ elif (MODE=='READ_NUMPY'):
                 filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
                 plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
 
-            print ("done for file " + file_dest)
+            print ("done step " + str(i) + "/"+ str(nfiles) + " for file " + file_dest)
 
 
 

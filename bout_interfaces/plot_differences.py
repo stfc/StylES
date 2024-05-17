@@ -32,22 +32,21 @@ FIND_MIXMAX  = True
 DTYPE        = 'float32'
 DIR          = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 L            = 50.176 
-N_DNS        = 2**(RES_LOG2)
-N_DNS2       = 2**(RES_LOG2-FIL)
 N1           = N_DNS-1
-DELX_DNS     = L/N
-DELY_DNS     = L/N
-listRUN      = ["DNS",1]
+listRUN      = ["DNS",1,2,3,4]
 ITIME_DNS    = 1
-ITIME_StylES = 10
+ITIME_StylES = 1
 PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
-
+FIND_DIFFS   = False
 
 
 #----------------------------- initiliaze
-# os.system("rm -rf results_comparison")
+os.system("rm -rf results_comparison")
 os.system("mkdir results_comparison")
-
+if (FIND_DIFFS):
+    os.system("rm -rf results_comparison/plot_diffs")
+    os.system("mkdir results_comparison/plot_diffs")
+    
 cst = []
 cst.append(0)
 
@@ -174,19 +173,19 @@ for lrun in listRUN:
             v_tDNS.append(v_DNS)
             
             # find energy spectra
-            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*DELX_DNS))**2 \
-                                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY_DNS))**2)
-            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)*DELX_DNS*DELY_DNS
+            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*DELX))**2 \
+                                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY))**2)
+            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)*DELX*DELY
             gradV_DNS.append(gradV_p_DNS)
             Energy_DNS.append(E)
 
             # find enstrophy
-            e_DNS = 0.5*np.sum((n_DNS - v_DNS)**2)*DELX_DNS*DELY_DNS
+            e_DNS = 0.5*np.sum((n_DNS - v_DNS)**2)*DELX*DELY
             enstrophy_DNS.append(e_DNS)
                 
             # find flux
-            Vx_DNS = -((cr(p_DNS, 0, 1) - cr(p_DNS, 0,-1))/(2.0*DELY_DNS))  # vx = -dpdy
-            Vy_DNS =  ((cr(p_DNS, 1, 0) - cr(p_DNS,-1, 0))/(2.0*DELX_DNS))  # vy =  dpdx
+            Vx_DNS = -((cr(p_DNS, 0, 1) - cr(p_DNS, 0,-1))/(2.0*DELY))  # vx = -dpdy
+            Vy_DNS =  ((cr(p_DNS, 1, 0) - cr(p_DNS,-1, 0))/(2.0*DELX))  # vy =  dpdx
             rflux = np.sum(n_DNS[N1,:]*Vx_DNS[N1,:])/L
             pflux = np.sum(n_DNS[:,N1]*Vy_DNS[:,N1])/L
             rflux_DNS.append(rflux)
@@ -200,8 +199,10 @@ for lrun in listRUN:
             # print ("done for file time step ", str(t))
                         
         os.chdir("../../../../../StylES/bout_interfaces/")
-        
+        print("number of total files: ", cont_DNS)
+
     else:
+
         print("reading " + PATH_FILES)
         
         files = os.listdir(PATH_FILES)
@@ -228,19 +229,19 @@ for lrun in listRUN:
                 v_tStylES.append(v_StylES)
 
                 # find energy spectra
-                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*DELX_DNS))**2 \
-                                       + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY_DNS))**2)
-                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)*DELX_DNS*DELY_DNS
+                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*DELX))**2 \
+                                       + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY))**2)
+                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)*DELX*DELY
                 gradV_StylES.append(gradV_p_StylES)
                 Energy_StylES.append(E)
 
                 # find enstrophy
-                e_StylES = 0.5*np.sum((n_StylES - v_StylES)**2)*DELX_DNS*DELY_DNS
+                e_StylES = 0.5*np.sum((n_StylES - v_StylES)**2)*DELX*DELY
                 enstrophy_StylES.append(e_StylES)
 
                 # find flux
-                Vx_StylES = -((cr(p_StylES, 0, 1) - cr(p_StylES, 0,-1))/(2.0*DELY_DNS))  # vx = -dpdy
-                Vy_StylES =  ((cr(p_StylES, 1, 0) - cr(p_StylES,-1, 0))/(2.0*DELX_DNS))  # vy =  dpdx
+                Vx_StylES = -((cr(p_StylES, 0, 1) - cr(p_StylES, 0,-1))/(2.0*DELY))  # vx = -dpdy
+                Vy_StylES =  ((cr(p_StylES, 1, 0) - cr(p_StylES,-1, 0))/(2.0*DELX))  # vy =  dpdx
                 rflux = np.sum(n_StylES[N1,:]*Vx_StylES[N1,:])/L
                 pflux = np.sum(n_StylES[:,N1]*Vy_StylES[:,N1])/L
 
@@ -250,20 +251,41 @@ for lrun in listRUN:
                 # find time
                 time_StylES.append(simtime)
                 
-                cont_StylES = cont_StylES+1
-
                 # print ("done for file " + filename + " at simtime " + str(simtime))
+                if (FIND_DIFFS and lrun==listRUN[-1]):
+                    filename = "./results_comparison/plot_diffs/diff_vort_" + str(i).zfill(4) + ".png"
+                    print("plotting " + filename)
+                    ii = cont_StylES%ITIME_DNS
+                    print_fields_3(v_tDNS[ii], v_StylES, v_tDNS[ii]-v_StylES, filename=filename, diff=True, \
+                        Umin=-2*INIT_SCA, Umax=2*INIT_SCA, Vmin=-2*INIT_SCA, Vmax=2*INIT_SCA, Pmin=-2*INIT_SCA, Pmax=2*INIT_SCA)
+
+                cont_StylES = cont_StylES+1
                 
         cst.append(cont_StylES)
         print("number of total files: ", nfiles)
 
+if (FIND_DIFFS):
+    anim_file = './results_comparison/plot_diffs/animation_diff_vort.gif'
+    filenames = glob.glob("./results_comparison/plot_diffs/*.png")
+    filenames = sorted(filenames)
+
+    with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+        for filename in filenames:
+            print(filename)
+            image = imageio.v2.imread(filename)
+            writer.append_data(image)
+        image = imageio.v2.imread(filename)
+        writer.append_data(image)
+
+    import tensorflow_docs.vis.embed as embed
+    embed.embed_file(anim_file)
 
 
 #--------------------------------------------------------  plots
 
 print("plot comparison")
 # full fields
-kd = 1
+kd = 0
 k = cst[len(listRUN)-2]
 
 minv = np.min(n_tDNS[kd])
@@ -296,8 +318,6 @@ t = FTIME-1
 listtk = [(kd, cst[len(listRUN)-2]),(FTIME-1, cst[len(listRUN)-1]-1)]
 
 # verify DNS and StylES have same amount of data
-print(t, listtk, len(n_tDNS), len(gradV_DNS))
-
 for t,k in listtk:
     _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tDNS[t], gradV_DNS[t], L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(int(time_DNS[t])))
