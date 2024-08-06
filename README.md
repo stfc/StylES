@@ -104,8 +104,8 @@ Profile reconstructed at initial and final time:
 Energy spectra at initial and final time:
 ![image info](./utilities/results_reconstruction/Energy_spectrum.png)
 
-Animation with comparison to DNS:
-![image info](./utilities/results_reconstruction/animation.gif)
+<!-- Animation with comparison to DNS:
+![image info](./utilities/results_reconstruction/animation.gif) -->
 
 # Copyright
 Copyright (C): 2023 UKRI-STFC (Hartree Centre)
