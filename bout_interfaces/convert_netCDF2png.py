@@ -20,14 +20,14 @@ from LES_functions import *
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../../../codes/TurboGenPY/')
 
-from tkespec import compute_tke_spectrum2d
+from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES/fields/"
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m1/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
@@ -37,7 +37,7 @@ FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 10 # skip between STIME, FTIME, ITIME
+ITIME       = 1 # skip between STIME, FTIME, ITIME
 
 useLogSca = True
 xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
@@ -59,7 +59,7 @@ if (MODE=='READ_NETCDF'):
     CWD = os.getcwd()
     os.chdir(PATH_NETCDF)
     n = collect("n", xguards=False, info=False)
-    FTIME = 10 #len(n)
+    FTIME = len(n)
     os.chdir(CWD)
     
     # find number of initial time
@@ -232,17 +232,18 @@ if (MODE=='READ_NETCDF'):
         if (t%1==0):
             filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
                     #Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-        gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
+        dVdx = (-cr(Img_phi, 2, 0) + 8*cr(Img_phi, 1, 0) - 8*cr(Img_phi, -1,  0) + cr(Img_phi, -2,  0))/(12.0*DELX_LES)
+        dVdy = (-cr(Img_phi, 0, 2) + 8*cr(Img_phi, 0, 1) - 8*cr(Img_phi,  0, -1) + cr(Img_phi,  0, -2))/(12.0*DELY_LES)
 
         time.append(TGAP + t*DELT)
-        E = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+        E = 0.5*L**2*np.sum(Img_n**2 + dVdx**2 + dVdy**2)
         Energy.append(E)
         
         closePlot=False
@@ -250,7 +251,7 @@ if (MODE=='READ_NETCDF'):
             if (t+ITIME>FTIME-1):
                 closePlot=True
             filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + str(t).zfill(4) + ".png"
-            plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
+            plot_spectrum_2d_3v(Img_n, dVdx, dVdy, L, filename, label="DNS", close=closePlot)            
         
         # print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
         # print("average", t, np.mean(Img_n), np.mean(Img_phi), np.mean(Img_vort))
@@ -308,27 +309,27 @@ elif (MODE=='READ_NUMPY'):
             file_dest = file.replace(".npz",".png")
             filename  = "./results/plots/" + file_dest
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, diff=False, transpose=False, \
+                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
                     Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-            gradV_phi = np.sqrt(((cr(Img_phi, 1, 0) - cr(Img_phi, -1, 0))/(2.0*delx))**2 \
-                + ((cr(Img_phi, 0, 1) - cr(Img_phi, 0, -1))/(2.0*dely))**2)
+            dVdx = (-cr(Img_phi, 2, 0) + 8*cr(Img_phi, 1, 0) - 8*cr(Img_phi, -1,  0) + cr(Img_phi, -2,  0))/(12.0*DELX_LES)
+            dVdy = (-cr(Img_phi, 0, 2) + 8*cr(Img_phi, 0, 1) - 8*cr(Img_phi,  0, -1) + cr(Img_phi,  0, -2))/(12.0*DELY_LES)
 
             time.append(simtime)
-            E = 0.5*L**2*np.sum(Img_n**2 + gradV_phi**2)
+            E = 0.5*L**2*np.sum(Img_n**2 + dVdx**2 + dVdy**2)
             Energy.append(E)
             
             if (i%1==0 and i!=nfiles-1):
-                filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
-                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)
+                closePlot=False
 
             if (i+ITIME>nfiles-1):
                 closePlot=True
-                filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
-                plot_spectrum(Img_n, gradV_phi, L, filename, close=closePlot)                
+
+            filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
+            plot_spectrum_2d_3v(Img_n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
 
             print ("done step " + str(i) + "/"+ str(nfiles) + " for file " + file_dest)
 
@@ -357,8 +358,6 @@ with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
     image = imageio.v2.imread(filename)
     writer.append_data(image)
 
-import tensorflow_docs.vis.embed as embed
-embed.embed_file(anim_file)
 
 
 
@@ -375,5 +374,3 @@ with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
     image = imageio.v2.imread(filename)
     writer.append_data(image)
 
-import tensorflow_docs.vis.embed as embed
-embed.embed_file(anim_file)

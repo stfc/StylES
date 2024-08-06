@@ -372,7 +372,6 @@ UVP_max = [INIT_SCA, INIT_SCA, INIT_SCA]
 for k in range(NL):
     
     # load initial flow
-    tf.random.set_seed(k)
     if (LOAD_FIELD):
 
         # load initial flow
@@ -437,11 +436,11 @@ for k in range(NL):
         filename = "results_latentSpace/energy_org/energy_spectrum_org_" + str(k) + ".png"
         closePlot=True
         if (TESTCASE=='HIT_2D'):
-            plot_spectrum(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
+            plot_spectrum_2d_3v(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
         elif (TESTCASE=='HW' or TESTCASE=='mHW'):
             gradV = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
                           + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
-            plot_spectrum(U_DNS_org, gradV, L, filename, close=closePlot, label='DNS')
+            plot_spectrum_2d_3v(U_DNS_org, gradV, L, filename, close=closePlot, label='DNS')
 
 
 
@@ -522,15 +521,15 @@ for k in range(NL):
                         # Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
                     filename = "results_latentSpace/plots/Plots_DNS_UfromGAN_" + str(it).zfill(6) + ".png"
-                    print_fields_3(U_DNS, U_DNS_org, U_DNS-U_DNS_org, N=N_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                    print_fields_3(U_DNS_org, U_DNS, U_DNS_org-U_DNS, N=N_DNS, filename=filename, testcase=TESTCASE, plot='diff', \
                         Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
                     
                     filename = "results_latentSpace/plots/Plots_DNS_VfromGAN_" + str(it).zfill(6) + ".png"
-                    print_fields_3(V_DNS, V_DNS_org, V_DNS-V_DNS_org, N=N_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                    print_fields_3(V_DNS_org, V_DNS, V_DNS_org-V_DNS, N=N_DNS, filename=filename, testcase=TESTCASE, plot='diff', \
                         Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
                     
                     filename = "results_latentSpace/plots/Plots_DNS_PfromGAN_" + str(it).zfill(6) + ".png"
-                    print_fields_3(P_DNS, P_DNS_org, P_DNS-P_DNS_org, N=N_DNS, filename=filename, testcase=TESTCASE, diff=True, \
+                    print_fields_3(P_DNS_org, P_DNS, P_DNS_org-P_DNS, N=N_DNS, filename=filename, testcase=TESTCASE, plot='diff', \
                         Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
             it = it+1
@@ -603,7 +602,7 @@ for k in range(NL):
 
     filename = "results_latentSpace/plots/plots_diffLES_lat" + str(k) + "_res" + str(res) + ".png"
     print_fields_3(U_LES-fU_DNS, V_LES-fV_DNS, P_LES-fP_DNS, N=res, filename=filename, testcase=TESTCASE, \
-                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=True)
+                  Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, plot='diff')
 
 
     #-------- verify filter properties
@@ -623,31 +622,31 @@ for k in range(NL):
 
     # plot
     filename = "results_latentSpace/plots/plots_conservation_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(cf_DNS, c_LES, cf_DNS-c_LES, N=res, filename=filename, testcase=TESTCASE, diff=True)
+    print_fields_3(cf_DNS, c_LES, cf_DNS-c_LES, N=res, filename=filename, testcase=TESTCASE, plot='diff')
 
     filename = "results_latentSpace/plots/plots_linearity_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(lf_DNS, l_LES, lf_DNS-l_LES, N=res, filename=filename, testcase=TESTCASE, diff=True)
+    print_fields_3(lf_DNS, l_LES, lf_DNS-l_LES, N=res, filename=filename, testcase=TESTCASE, plot='diff')
 
     filename = "results_latentSpace/plots/plots_derivatives_lat" + str(k) + "_res" + str(res) + ".png"
-    print_fields_3(df_DNS, d_LES, df_DNS-d_LES, N=res, filename=filename, testcase=TESTCASE, diff=True)
+    print_fields_3(df_DNS, d_LES, df_DNS-d_LES, N=res, filename=filename, testcase=TESTCASE, plot='diff')
 
 
     # spectrum
     filename = "results_latentSpace/energy/energy_spectrum_LES_lat" + str(k) + "_res" + str(res) + ".png"
     if (TESTCASE=='HIT_2D'):
-        plot_spectrum(fU_DNS, fV_DNS, L, filename, close=True, label='LES')
+        plot_spectrum_2d_3v(fU_DNS, fV_DNS, L, filename, close=True, label='LES')
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
         gradV = np.sqrt(((cr(fV_DNS, 1, 0) - cr(fV_DNS, -1, 0))/(2.0*delx_LES))**2 \
                       + ((cr(fV_DNS, 0, 1) - cr(fV_DNS, 0, -1))/(2.0*dely_LES))**2)
-        plot_spectrum(fU_DNS, gradV, L, filename, close=False, label='LES')
+        plot_spectrum_2d_3v(fU_DNS, gradV, L, filename, close=False, label='LES')
 
     filename = "results_latentSpace/energy/energy_spectrum_DNS_lat" + str(k) + "_res" + str(res) + ".png"
     if (TESTCASE=='HIT_2D'):
-        plot_spectrum(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
+        plot_spectrum_2d_3v(U_DNS_org, V_DNS_org, L, filename, close=closePlot, label='DNS')
     elif (TESTCASE=='HW' or TESTCASE=='mHW'):
         gradV = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
                       + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
-        plot_spectrum(U_DNS_org, gradV, L, filename, close=True, label='DNS')
+        plot_spectrum_2d_3v(U_DNS_org, gradV, L, filename, close=True, label='DNS')
 
 
 
@@ -685,7 +684,7 @@ for k in range(NL):
             filename = "results_latentSpace/plots/plots_VortDiff_" + str(k) + "_res" + str(res) + ".png"
         elif (TESTCASE=='HW' or TESTCASE=='mHW'):
             filename = "results_latentSpace/plots/plots_PhiDiff_" + str(k) + "_res" + str(res) + ".png"
-        print_fields_3(P_DNS, cP_DNS, P_DNS-cP_DNS, N=res, filename=filename, testcase=TESTCASE, diff=True)
+        print_fields_3(P_DNS, cP_DNS, P_DNS-cP_DNS, N=res, filename=filename, testcase=TESTCASE, plot='diff')
 
         # filename = "results_latentSpace/plots/plot_1field_lat" + str(k) + "_res" + str(res) + ".png"
         # print_fields_1(P_DNS, filename, legend=False)

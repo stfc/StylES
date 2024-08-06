@@ -20,7 +20,7 @@ from LES_functions import *
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../../../codes/TurboGenPY/')
 
-from tkespec import compute_tke_spectrum2d
+from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 
@@ -33,11 +33,11 @@ DTYPE        = 'float32'
 DIR          = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 L            = 50.176 
 N1           = N_DNS-1
-listRUN      = ["DNS",1,2,3,4]
+listRUN      = ["DNS",1]
 ITIME_DNS    = 1
 ITIME_StylES = 1
 PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
-FIND_DIFFS   = False
+FIND_DIFFS   = True
 
 
 #----------------------------- initiliaze
@@ -53,8 +53,10 @@ cst.append(0)
 time_DNS    = []
 time_StylES = []
 
-gradV_DNS        = []
-gradV_StylES     = []
+dVdx_DNS         = []
+dVdy_DNS         = []
+dVdx_StylES      = []
+dVdy_StylES      = []
 Energy_DNS       = []
 Energy_StylES    = []
 rflux_DNS        = []
@@ -173,10 +175,11 @@ for lrun in listRUN:
             v_tDNS.append(v_DNS)
             
             # find energy spectra
-            gradV_p_DNS = np.sqrt(((cr(p_DNS, 1, 0) - cr(p_DNS, -1, 0))/(2.0*DELX))**2 \
-                                + ((cr(p_DNS, 0, 1) - cr(p_DNS, 0, -1))/(2.0*DELY))**2)
-            E = 0.5*L**2*np.sum(n_DNS**2 + gradV_p_DNS**2)*DELX*DELY
-            gradV_DNS.append(gradV_p_DNS)
+            dVdx = (-cr(p_DNS, 2, 0) + 8*cr(p_DNS, 1, 0) - 8*cr(p_DNS, -1,  0) + cr(p_DNS, -2,  0))/(12.0*DELX_LES)
+            dVdy = (-cr(p_DNS, 0, 2) + 8*cr(p_DNS, 0, 1) - 8*cr(p_DNS,  0, -1) + cr(p_DNS,  0, -2))/(12.0*DELY_LES)
+            E = 0.5*L**2*np.sum(n_DNS**2 + dVdx**2 + dVdy**2)*DELX*DELY
+            dVdx_DNS.append(dVdx)
+            dVdy_DNS.append(dVdy)
             Energy_DNS.append(E)
 
             # find enstrophy
@@ -229,10 +232,11 @@ for lrun in listRUN:
                 v_tStylES.append(v_StylES)
 
                 # find energy spectra
-                gradV_p_StylES = np.sqrt(((cr(p_StylES, 1, 0) - cr(p_StylES, -1, 0))/(2.0*DELX))**2 \
-                                       + ((cr(p_StylES, 0, 1) - cr(p_StylES, 0, -1))/(2.0*DELY))**2)
-                E = 0.5*L**2*np.sum(n_StylES**2 + gradV_p_StylES**2)*DELX*DELY
-                gradV_StylES.append(gradV_p_StylES)
+                dVdx = (-cr(p_StylES, 2, 0) + 8*cr(p_StylES, 1, 0) - 8*cr(p_StylES, -1,  0) + cr(p_StylES, -2,  0))/(12.0*DELX_LES)
+                dVdy = (-cr(p_StylES, 0, 2) + 8*cr(p_StylES, 0, 1) - 8*cr(p_StylES,  0, -1) + cr(p_StylES,  0, -2))/(12.0*DELY_LES)
+                E = 0.5*L**2*np.sum(n_StylES**2 + dVdx**2 + dVdy**2)*DELX*DELY
+                dVdx_StylES.append(dVdx)
+                dVdy_StylES.append(dVdy)
                 Energy_StylES.append(E)
 
                 # find enstrophy
@@ -254,10 +258,11 @@ for lrun in listRUN:
                 # print ("done for file " + filename + " at simtime " + str(simtime))
                 if (FIND_DIFFS and lrun==listRUN[-1]):
                     filename = "./results_comparison/plot_diffs/diff_vort_" + str(i).zfill(4) + ".png"
-                    print("plotting " + filename)
-                    ii = cont_StylES%ITIME_DNS
-                    print_fields_3(v_tDNS[ii], v_StylES, v_tDNS[ii]-v_StylES, filename=filename, diff=True, \
-                        Umin=-2*INIT_SCA, Umax=2*INIT_SCA, Vmin=-2*INIT_SCA, Vmax=2*INIT_SCA, Pmin=-2*INIT_SCA, Pmax=2*INIT_SCA)
+                    print("plotting diffrences for" + filename)
+                    ii = cont_StylES%FTIME
+                    print_fields_3(v_tDNS[ii], v_StylES, v_tDNS[ii]-v_StylES, filename=filename, plot='diff', \
+                        labels=[r"DNS $\zeta$", r"StylES $\zeta$", r"diff $\zeta$"], \
+                        Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
                 cont_StylES = cont_StylES+1
                 
@@ -319,9 +324,9 @@ listtk = [(kd, cst[len(listRUN)-2]),(FTIME-1, cst[len(listRUN)-1]-1)]
 
 # verify DNS and StylES have same amount of data
 for t,k in listtk:
-    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tDNS[t], gradV_DNS[t], L, L, True)
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tDNS[t], dVdx_DNS[t], dVdy_DNS[t], L, L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(int(time_DNS[t])))
-    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d(n_tStylES[k], gradV_StylES[k], L, L, True)
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tStylES[k], dVdx_StylES[k], dVdy_StylES[k], L, L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(int(time_DNS[t])))
 
     plt.yscale("log")
@@ -332,9 +337,9 @@ for t,k in listtk:
     plt.savefig("./results_comparison/energy_t" + str(t) + ".png", dpi=300)
     plt.close()
 
-    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d((n_tDNS[t]-v_DNS[t]), (n_tDNS[t]-v_DNS[t]), L, L, True)
+    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v((n_tDNS[t]-v_DNS[t]), (n_tDNS[t]-v_DNS[t]), L, L, L, True)
     # plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(t))
-    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d((n_tStylES[k]-v_tStylES[k]), (n_tStylES[k]-v_tStylES[k]), L, L, True)
+    # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v((n_tStylES[k]-v_tStylES[k]), (n_tStylES[k]-v_tStylES[k]), L, L, L, True)
     # plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(t))
 
     # plt.yscale("log")

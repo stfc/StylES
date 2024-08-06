@@ -168,7 +168,7 @@ def init_fields(seed):
         U_cpu = cp.asnumpy(U)
         V_cpu = cp.asnumpy(V)
 
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, L, L, True)
 
         # print("StylES nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
@@ -206,7 +206,7 @@ def init_fields(seed):
 
         U_cpu, V_cpu = generate_isotropic_turbulence_2d(L, L, N, N, M, k0, whichspec)
 
-        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+        knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, L, L, True)
 
         # print("Saad nyquist limit is ", knyquist)
         plt.plot(wave_numbers, tke_spectrum, 'yo-', linewidth=0.5, markersize=2)
@@ -278,7 +278,7 @@ def init_fields(seed):
 
             fr.close()
 
-            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+            knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, L, L, True)
 
             #print("OpenFoam Nyquist limit is ", knyquist)
             plt.plot(wave_numbers, tke_spectrum, 'ro-', linewidth=0.5, markersize=2)

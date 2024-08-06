@@ -18,7 +18,7 @@ else:
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../../TurboGenPY/')
 
-from tkespec import compute_tke_spectrum2d
+from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 
@@ -56,11 +56,11 @@ def save_fields(totTime, U, V, P, C=None, B=None, W=None, filename="restart.npz"
 
 
 
-def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e1], useLogSca=True):
+def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e1], useLogSca=True):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
-    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, L, L, True)
 
     if useLogSca:
         plt.xscale("log")
@@ -99,11 +99,58 @@ def plot_spectrum(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], y
 
 
 
-def plot_spectrum_noPlots(U, V, L):
+
+
+def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e1], useLogSca=True):
+    U_cpu = convert(U)
+    V_cpu = convert(V)
+    Z_cpu = convert(Z)
+
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, Z_cpu, L, L, L, True)
+
+    if useLogSca:
+        plt.xscale("log")
+        plt.yscale("log")
+
+    # xLogLim    = [1.0e0, 1000]   # to do: to make nmore general
+    # yLogLim    = [1.e-8, 0.1]
+    # xLinLim    = [0.0e0, 600]
+    # yLinLim    = [0.0e0, 1.0]
+    # xLogLim    = [1.0e-1, 1.e+3]
+    # yLogLim    = [1.e-11, 1.e+2]
+    # xLinLim    = [0.0e0, 600]
+    # yLinLim    = [0.0e0, 0.1]
+
+    # plt.xlim(xlim)
+    # plt.ylim(ylim) 
+
+    if (label is not None):
+        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
+        plt.legend()
+    else:    
+        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
+   
+    plt.xlabel(r'k [$\rho_i^{-1}$]')
+    plt.ylabel(r'$\mathcal{F}(E)$')
+    # plt.plot(wave_numbers, wave_numbers**(-3), linestyle='solid', color='black')
+
+    if (close):
+        #plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+        plt.savefig(filename, pad_inches=0, dpi=100)
+        plt.close()
+
+    filename = filename.replace(".png",".txt")
+    # print("knyquist for " + filename + " is:  " + str(knyquist))
+    np.savetxt(filename, np.c_[wave_numbers, tke_spectrum], fmt='%1.4e')   # use exponential notation
+    
+    
+
+
+def plot_spectrum_2d_3v_noPlots(U, V, L):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
-    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d(U_cpu, V_cpu, L, L, True)
+    knyquist, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(U_cpu, V_cpu, L, L, True)
     return wave_numbers, tke_spectrum
 
 

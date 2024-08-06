@@ -190,27 +190,18 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, dpi=100, transpose=False):
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
+    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=False):
 
     if (testcase=='HIT_2D'):
-        if (diff):
-            labelR = r'$A$'
-            labelG = r'$B$'
-            labelB = r'$diff$'
-        else:
-            labelR = r'$u$'
-            labelG = r'$v$'
-            labelB = r'$\omega$'
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
 
     if (testcase=='HW' or testcase=='mHW'):
-        if (diff):
-            labelR = r'$A$'
-            labelG = r'$B$'
-            labelB = r'$diff$'
-        else:
-            labelR = r'$n$'
-            labelG = r'$\phi$'
-            labelB = r'$\zeta$'
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
 
     #---------------------------------- convert to numpy arrays
     U = convert(U_)
@@ -240,10 +231,15 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
     cmap2 = 'Reds_r'
     cmap3 = 'hot'
     
-    if (diff):
+    if (plot=='diff'):
         cmap1 = 'hot'
         cmap2 = 'hot'
-        cmap3 = 'jet'
+        cmap3 = 'bwr'
+    elif (plot=='same'):
+        cmap1 = 'hot'
+        cmap2 = 'hot'
+        cmap3 = 'hot'
+    
 
     if (geomR is not None):
         velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)

@@ -38,7 +38,7 @@ from IO_functions import *
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
 
 
-def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_images, images):
+def compute_losses(real_output_per_sample, fake_output_per_sample, images):
 
     # discriminator loss
     loss_real_per_sample  = tf.math.softplus(-real_output_per_sample)
@@ -49,31 +49,16 @@ def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_i
     # generator loss
     loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
 
-    # filter loss
-    loss_filters_per_sample = []
-    for fil in range(NFIL):
-        for cfil in range(3):
-            gimg = (g_images[RES_LOG2-(fil+1)-2])[:,cfil,:,:]
-            gimg = gimg[:,tf.newaxis,:,:]
-            if (cfil==0):
-                loss_fil_per_sample = tf.math.squared_difference(f_images[fil*3+cfil], gimg)
-            else:
-                loss_fil_per_sample = loss_fil_per_sample + tf.math.squared_difference(f_images[fil*3+cfil], gimg)
-        loss_filters_per_sample.append(loss_fil_per_sample)
-
+    # mean losses
     loss_real   = tf.math.reduce_mean(loss_real_per_sample)
     loss_fake   = tf.math.reduce_mean(loss_fake_per_sample)
     loss_gen    = tf.math.reduce_mean(loss_gen_per_sample)
-
-    loss_filters = []
-    for fil in range(NFIL):
-        loss_filters.append(tf.math.reduce_mean(loss_filters_per_sample[fil]))
 
     r1_penalty  = tf.math.reduce_mean(r1_penalty_per_sample)
     real_output = tf.math.reduce_mean(real_output_per_sample)
     fake_output = tf.math.reduce_mean(fake_output_per_sample)
 
-    return loss_real, loss_fake, loss_gen, loss_filters, r1_penalty, real_output, fake_output
+    return loss_real, loss_fake, loss_gen, r1_penalty, real_output, fake_output
 
  
 
@@ -84,71 +69,39 @@ def train_step(input, images):
     with tf.GradientTape() as map_tape, \
         tf.GradientTape() as pre_syn_tape, \
         tf.GradientTape() as syn_tape, \
-        tf.GradientTape() as fil_tape_m1, \
-        tf.GradientTape() as fil_tape_m2, \
-        tf.GradientTape() as fil_tape_m3, \
-        tf.GradientTape() as fil_tape_m4, \
-        tf.GradientTape() as fil_tape_m5, \
         tf.GradientTape() as dis_tape:
-        dlatents = mapping(input, training = True)
-        g_pre_images = pre_synthesis(dlatents, training = True)
-        g_images = synthesis([dlatents, g_pre_images], training = True)
-
-        f_images = []
-        for fil in range(NFIL):
-            for cfil in range(3):
-                gimg = (g_images[RES_LOG2-2])[:,cfil,:,:]
-                gimg = gimg[:,tf.newaxis,:,:]
-                f_images.append(filters[fil](gimg, training = True))
+        dlatents       = mapping(input, training = True)
+        g_pre_images   = pre_synthesis(dlatents, training = True)
+        # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
+        g_images       = synthesis([dlatents, g_pre_images], training = True)
 
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
         # find losses
-        loss_real, loss_fake, loss_gen, loss_filters, r1_penalty, real_output, fake_output \
-            = compute_losses(real_output, fake_output, f_images, g_images, images)
+        loss_real, loss_fake, loss_gen, r1_penalty, real_output, fake_output \
+            = compute_losses(real_output, fake_output, images)
 
         # find loss discriminator
         loss_dis = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5) #10.0 gradient penalty weight
 
     #apply gradients
-    gradients_of_mapping       =     map_tape.gradient(loss_gen, mapping.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
     gradients_of_pre_synthesis = pre_syn_tape.gradient(loss_gen, pre_synthesis.trainable_variables)
-    gradients_of_synthesis     =     syn_tape.gradient(loss_gen, synthesis.trainable_variables)
-    gradients_of_discriminator =     dis_tape.gradient(loss_dis, discriminator.trainable_variables)
-
-    gradients_of_filters = []
-    if (NFIL>0):
-        gradients_of_filters.append(fil_tape_m1.gradient(loss_filters[0], filters[0].trainable_variables))
-    if (NFIL>1):
-        gradients_of_filters.append(fil_tape_m2.gradient(loss_filters[1], filters[1].trainable_variables))
-    if (NFIL>2):
-        gradients_of_filters.append(fil_tape_m3.gradient(loss_filters[2], filters[2].trainable_variables))
-    if (NFIL>3):
-        gradients_of_filters.append(fil_tape_m4.gradient(loss_filters[3], filters[3].trainable_variables))
-    if (NFIL>4):
-        gradients_of_filters.append(fil_tape_m5.gradient(loss_filters[4], filters[4].trainable_variables))
-    
-    
+    gradients_of_synthesis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_discriminator = dis_tape.gradient(loss_dis, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping]
     gradients_of_pre_synthesis = [g if g is not None else tf.zeros_like(g) for g in gradients_of_pre_synthesis]
     gradients_of_synthesis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthesis]
     gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator]
 
-    for fil in range(NFIL):
-        gradients_of_filters[fil]  = [g if g is not None else tf.zeros_like(g) for g in gradients_of_filters[fil]]
-
-
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
     generator_optimizer.apply_gradients(zip(gradients_of_pre_synthesis,     pre_synthesis.trainable_variables))
     generator_optimizer.apply_gradients(zip(gradients_of_synthesis,         synthesis.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-    for fil in range(NFIL):
-        filter_optimizer.apply_gradients(zip(gradients_of_filters[fil], filters[fil].trainable_variables))
-
-    metrics = [loss_dis, loss_gen, loss_filters, r1_penalty, real_output, fake_output]
+    metrics = [loss_dis, loss_gen, r1_penalty, real_output, fake_output]
 
     return metrics
 
@@ -157,19 +110,18 @@ def train_step(input, images):
 def train(dataset, train_summary_writer):
 
     # Load latest checkpoint, if restarting
-    managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=None)
+    managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=2)
     if (IRESTART):
         checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
-
     # Create noise for sample images
-    tf.random.set_seed(1)
+    tf.random.set_seed(SEED)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+    image_batch0 = next(iter(dataset))[RES_LOG2-FIL-2]
     mtr = np.zeros([5], dtype=DTYPE)
 
-
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, [input_latent, image_batch0], 0)
     with train_summary_writer.as_default():
         for res in range(RES_LOG2-1):
             pow = 2**(res+2)
@@ -202,35 +154,30 @@ def train(dataset, train_summary_writer):
                 'sf {7: 6.2e}, ' \
                 'lr_gen {8: 6.2e}, ' \
                 'lr_dis {9: 6.2e}, ' \
-                'lf {10: 6.2e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
+                mtr[2], \
                 mtr[3], \
                 mtr[4], \
-                mtr[5], \
                 lr_gen, \
-                lr_dis, \
-                mtr[2][IFIL]))
-#                (mtr[2][fil])) for fil in range(NFIL))
+                lr_dis))
             tint = tend
 
             # write losses to tensorboard
             with train_summary_writer.as_default():
                 tf.summary.scalar('a/loss_disc',   mtr[0], step=it)
                 tf.summary.scalar('a/loss_gen',    mtr[1], step=it)
-                for fil in range(NFIL):
-                    tf.summary.scalar('a/loss_filter_m' + str(fil+1), mtr[2][fil], step=it)
-                tf.summary.scalar('a/r1_penalty',  mtr[3], step=it)
-                tf.summary.scalar('a/score_real',  mtr[4], step=it)
-                tf.summary.scalar('a/score_fake',  mtr[5], step=it)
+                tf.summary.scalar('a/r1_penalty',  mtr[2], step=it)
+                tf.summary.scalar('a/score_real',  mtr[3], step=it)
+                tf.summary.scalar('a/score_fake',  mtr[4], step=it)
                 tf.summary.scalar('a/lr_gen',      lr_gen, step=it)
                 tf.summary.scalar('a/lr_dis',      lr_dis, step=it)                
 
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, [input_latent, image_batch0], it+1)
 
             if (TESTCASE=='HIT_2D'):
                 with train_summary_writer.as_default():

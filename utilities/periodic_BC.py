@@ -72,12 +72,12 @@ y1 = tf.nn.conv2d(x, filters=w, strides=[1, 1, 2, 2], padding="SAME", data_forma
 
 
 if (w.shape[0] % 2 == 0):
-    pleft   = np.int((w.shape[0]-1)/2)
-    pright  = np.int(w.shape[0]/2)
+    pleft   = int((w.shape[0]-1)/2)
+    pright  = int(w.shape[0]/2)
     ptop    = pleft
     pbottom = pright
 else:
-    pleft   = np.int(w.shape[0]/2)
+    pleft   = int(w.shape[0]/2)
     pright  = pleft
     ptop    = pleft
     pbottom = pleft

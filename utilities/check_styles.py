@@ -49,8 +49,7 @@ N_DNS        = 2**RES_LOG2
 N_LES        = 2**RES_LOG2-FIL
   
 # clean up and prepare folders
-tf.random.set_seed(0)
-
+tf.random.set_seed(SEED)
 os.system("rm -rf results_checkStyles/plots")
 os.system("rm -rf results_checkStyles/fields")
 os.system("rm -rf results_checkStyles/uvw")
@@ -280,7 +279,7 @@ if (nTotImgs>1):
             if (np.abs(SSIM)>0.99 and np.abs(SSIM)<1.01):
                 print ("Attention!!! SSIM very high = ", SSIM)
                 filename = "results_checkStyles/plots_diff_i" + str(i).zfill(3) + "_j" + str(j).zfill(3) + ".png"
-                print_fields_3(totImgs[j][0,2,:,:].numpy(), tDNS[0,2,:,:].numpy(), vor_DNS_t, N=N_DNS, filename=filename, diff=True)
+                print_fields_3(totImgs[j][0,2,:,:].numpy(), tDNS[0,2,:,:].numpy(), vor_DNS_t, N=N_DNS, filename=filename, plot='diff')
 
 
     plt.plot(totSSIM, label="SSIM")
