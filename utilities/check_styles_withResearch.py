@@ -65,7 +65,7 @@ os.system("mkdir -p results_checkStyles/energy")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
-tf.random.set_seed(0)
+tf.random.set_seed(SEED)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
@@ -186,8 +186,6 @@ for k in range(NL):
                     layer.set_weights([weights_DNS, weights_LES])
                     cont =cont+1
 
-            tf.random.set_seed(0)
-
             # find DNS and LES fields from random input
             tminMaxUVP = tf.convert_to_tensor(minMaxUVP[RES_LOG2-4,:][np.newaxis,:], dtype="float32")
             if (k==0):
@@ -237,7 +235,7 @@ for k in range(NL):
                 filename = "results_checkStyles/energy/energy_spectrum_lat" + str(ninter) + "_res" + str(res) + ".png"
                 if (kk==RES_LOG2):
                     closePlot=True
-                plot_spectrum(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
+                plot_spectrum_2d_3v(U_DNS_t, V_DNS_t, L, filename, close=closePlot)
 
                 print("From GAN spectrum at resolution " + str(res))
 

@@ -893,7 +893,7 @@ while (tstep<totSteps and totTime<finalTime):
 
         #     # Create noise for sample images
         #     if (firstRetrain):
-        #         tf.random.set_seed(1)
+        #         tf.random.set_seed(SEED)        
         #         input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         #         inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
         #         lr = LR
@@ -1080,8 +1080,8 @@ while (tstep<totSteps and totTime<finalTime):
                     print_fields(U,     V,     P,     W,     N_LES,"plots/plots_LES_"         + str(te[s]) + "te.png")
 
                     #print spectrum
-                    plot_spectrum(U_DNS, V_DNS, L, "energy/energy_DNS_fromGAN_" + str(te[s]) + "te.txt")
-                    plot_spectrum(U, V, L,         "energy/energy_LES_"         + str(te[s]) + "te.txt")
+                    plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_DNS_fromGAN_" + str(te[s]) + "te.txt")
+                    plot_spectrum_2d_3v(U, V, L,         "energy/energy_LES_"         + str(te[s]) + "te.txt")
         else:
     
             tail = "it{0:d}".format(tstep)
@@ -1101,8 +1101,8 @@ while (tstep<totSteps and totTime<finalTime):
 
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
-                plot_spectrum(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
+                plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
+                plot_spectrum_2d_3v(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
 
 
 # end of the simulation
@@ -1123,8 +1123,8 @@ if (len(te)==0):
     save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
     # print spectrum
-    plot_spectrum(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
-    plot_spectrum(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
+    plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
+    plot_spectrum_2d_3v(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
 
 # save center values
 filename = "DNS_fromGAN_center_values.txt"

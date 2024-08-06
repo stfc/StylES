@@ -68,7 +68,8 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
+OUTPUT_DIM        = 256 
+DPI               = 100*int(OUTPUT_DIM/256)
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -77,8 +78,7 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-NFIL              = 5  # number of filters starting from the top (max can be 4! See gradient tape in train...)
-FIL               = 5  # number of layers below the DNS  
+FIL               = 3  # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
@@ -88,12 +88,12 @@ NUM_CHANNELS      = 3                # Number of input color channels. Overridde
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 6000 #same size of the number of images in DATASET
-NEXAMPLES         = 1 
+BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
+NEXAMPLES         = 1
 AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-RANDOMIZE_NOISE   = False 
+RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
@@ -140,9 +140,19 @@ DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES
 DELY_LES        = LEN_DOMAIN/N_LES
-INIT_SCA        = 15.0
+if (N_DNS==256):
+    INIT_SCA = 5.0
+elif (N_DNS==512):
+    INIT_SCA = 10.0
+elif (N_DNS==1024):
+    INIT_SCA = 15.0
+NC_NOISE_IN     = 1000
+NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
-FILE_DNS        = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
+FILE_DNS_N256   = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
+FILE_DNS_N512   = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N512/fields/fields_run0_time701.npz"
+#FILE_DNS_N512   = "../../../../PhaseIV_FARSCAPE4/data/BOUT_runs/HW_3D/HW_N512x16x512/fields_npz/fields_run0_time298.npz"
+FILE_DNS_N1024  = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
 
 
 # learning rate for latent space optimizer

@@ -80,7 +80,7 @@ os.system("mkdir -p results_compare_profiles/energy_org")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
-tf.random.set_seed(0)
+tf.random.set_seed(SEED)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
@@ -313,7 +313,6 @@ for tv, tollDNS in enumerate(tollDNSValues):
     checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
     # set latent spaces
-    tf.random.set_seed(0)
     if (USE_DLATENTS):
         zlatent = tf.random.uniform([1, LATENT_SIZE])
         latent  = mapping(zlatent, training=False)
@@ -372,7 +371,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         save_fields(0, U_DNS, V_DNS, V_DNS, V_DNS, V_DNS, W_DNS, filename)
 
         filename = "energy_spectrum_compare_DNS_" + str(k) + ".png"
-        plot_spectrum_noPlots(U_DNS, V_DNS, L, filename)
+        plot_spectrum_2d_3v_noPlots(U_DNS, V_DNS, L, filename)
 
 
         tU_DNS = tf.convert_to_tensor(U_DNS_t)
@@ -445,7 +444,7 @@ for tv, tollDNS in enumerate(tollDNSValues):
         save_fields(0, U_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, W_DNS_t, filename)
 
         filename = "energy_spectrum_compare_" + str(k) + ".png"
-        plot_spectrum_noPlots(U_DNS_t, V_DNS_t, L, filename)
+        plot_spectrum_2d_3v_noPlots(U_DNS_t, V_DNS_t, L, filename)
 
         if (k==1):
             lineColor = 'k'

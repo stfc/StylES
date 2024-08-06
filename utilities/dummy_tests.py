@@ -10,9 +10,6 @@ from tensorflow.keras.models import Model
 print("TensorFlow version:", tf.__version__)
 
 
-tf.random.set_seed(seed=0)
-
-
 tf.config.run_functions_eagerly(True)
 
 RAND_NOISE = True

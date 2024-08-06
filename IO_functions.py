@@ -75,6 +75,8 @@ def decode_img(img):
     
     return img_out
 
+
+
 def process_path(file_path):
     img = tf.io.read_file(file_path)
     img = decode_img(img)
@@ -84,74 +86,68 @@ def process_path(file_path):
 
 # functions for processing and decoding numpy arrays
 def StyleGAN_load_fields(file_path):
-    data = np.load(file_path)
-    U = data['U']
-    V = data['V']
-    P = data['P']
+    data_org = np.load(file_path)
+    U_DNS_org = np.cast[DTYPE](data_org['U'])
+    V_DNS_org = np.cast[DTYPE](data_org['V'])
+    P_DNS_org = np.cast[DTYPE](data_org['P'])
 
-    U = np.cast[DTYPE](U)
-    V = np.cast[DTYPE](V)
-    P = np.cast[DTYPE](P)
-    DIM_DATA, _ = U.shape
-
-    # normalize the data
-    maxU = np.max(U)
-    minU = np.min(U)
-    amaxU = max(abs(maxU), abs(minU))
-    if (amaxU<SMALL):
-        print("-----------Attention: invalid field!!!")
-        return
-    else:
-        U = U / amaxU
-    
-    maxV = np.max(V)
-    minV = np.min(V)
-    amaxV = max(abs(maxV), abs(minV))
-    if (amaxV<SMALL):
-        print("-----------Attention: invalid field!!!")
-        return
-    else:
-        V = V / amaxV
-
-    maxP = np.max(P)
-    minP = np.min(P)
-    amaxP = max(abs(maxP), abs(minP))
-    if (amaxP<SMALL):
-        print("-----------Attention: invalid field!!!")
-        return
-    else:
-        P = P / amaxV   # we scale for same factor of phi to maintain the equation D2 phi = vort
-
-    # downscale
+    rs = 2
     img_out = []
-    for reslog in range(RES_LOG2-1):
-        res = 2**(reslog+2)
+    for reslog in range(RES_LOG2, 1, -1):
+        res = 2**reslog
         data = np.zeros([3, res, res], dtype=DTYPE)
-        s = res/DIM_DATA
-        rs = int(DIM_DATA/res)
-        if (rs==1):
-            data[0,:,:] = U
-            data[1,:,:] = V
-            data[2,:,:] = P
+        if (reslog==RES_LOG2):
+            fU_DNS = U_DNS_org
+            fV_DNS = V_DNS_org
+            fP_DNS = P_DNS_org
         else:
-            # if (TESTCASE=='mHW'):
-            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
-            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
-            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
-            # else:
-            #     U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
-            #     V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-            #     P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
-            # data[0,:,:] = U_DNS_g[::rs,::rs]
-            # data[1,:,:] = V_DNS_g[::rs,::rs]
-            # data[2,:,:] = P_DNS_g[::rs,::rs]
-            data[0,:,:] = U[::rs,::rs]
-            data[1,:,:] = V[::rs,::rs]  
-            data[2,:,:] = P[::rs,::rs]  
+            if (TESTCASE=='mHW'):
+                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode=['constant','wrap'])
+                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
+                fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
+            else:
+                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='grid-wrap')
+                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='grid-wrap')
+                fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='grid-wrap')
 
-        img_out.append(data)
+            fU_DNS = fU_DNS[::rs,::rs]
+            fV_DNS = fV_DNS[::rs,::rs]
+            fP_DNS = fP_DNS[::rs,::rs]
+
+        # normalize the data
+        minU = np.min(fU_DNS)
+        maxU = np.max(fU_DNS)
+        amaxU = max(abs(minU), abs(maxU))
+        if (amaxU<SMALL):
+            print("-----------Attention: invalid field!!!")
+            exit(0)
+        else:
+            data[0,:,:] = fU_DNS / amaxU
+        
+        minV = np.min(fV_DNS)
+        maxV = np.max(fV_DNS)
+        amaxV = max(abs(minV), abs(maxV))
+        if (amaxV<SMALL):
+            print("-----------Attention: invalid field!!!")
+            exit(0)
+        else:
+            data[1,:,:] = fV_DNS / amaxV
+
+        minP = np.min(fP_DNS)
+        maxP = np.max(fP_DNS)
+        amaxP = max(abs(minP), abs(maxP))
+        if (amaxP<SMALL):
+            print("-----------Attention: invalid field!!!")
+            exit(0)
+        else:
+            data[2,:,:] = fP_DNS / amaxP
+
+
+        img_out = [data] + img_out
 
     return img_out
+
+
 
 def process_path_numpy_arrays(path):
     list = []
@@ -355,9 +351,10 @@ def check_divergence_staggered(img, res):
 
 
 def generate_and_save_images(mapping, synthesis, input, iteration):
-    dlatents    = mapping(input, training=False)
+    dlatents    = mapping(input[0], training=False)
     predictions = pre_synthesis(dlatents, training=False)
-    predictions = synthesis([dlatents, predictions], training=False)
+    new_predictions = [predictions[0:RES_LOG2-FIL-2], input[1]]
+    predictions = synthesis([dlatents, new_predictions], training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
@@ -372,8 +369,7 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
         # setup figure size
         nr = NEXAMPLES
         nc = 3
-        dpi = 100  # scale to a 512 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 2.5), dpi=dpi)
+        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 2.5), dpi=DPI)
         plt.subplots_adjust(wspace=0, hspace=0)
         axs = axs.ravel()
         img = predictions[reslog]

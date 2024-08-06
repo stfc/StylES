@@ -176,10 +176,10 @@ def make_pre_synthesis_model():
         x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter(x[0,0,:,:], rs=1, rsca=1)
-        x_G = gaussian_filter(x[0,1,:,:], rs=1, rsca=1)
+        x_R = define_filter(x[0,0,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
+        x_G = define_filter(x[0,1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         if (TESTCASE=='HIT_2D'):
-            x_B = gaussian_filter(x[0,2,:,:], rs=1, rsca=1)
+            x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
         x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
@@ -308,10 +308,10 @@ def make_synthesis_model():
         x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
         x = bias(x)
-        x_R = gaussian_filter(x[0,0,:,:], rs=1, rsca=1)
-        x_G = gaussian_filter(x[0,1,:,:], rs=1, rsca=1)
+        x_R = define_filter(x[0,0,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
+        x_G = define_filter(x[0,1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         if (TESTCASE=='HIT_2D'):
-            x_B = gaussian_filter(x[0,2,:,:], rs=1, rsca=1)
+            x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
         x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
@@ -333,58 +333,6 @@ def make_synthesis_model():
 
     return synthesis_model
 
-
-
-
-#-------------------------------------define filter
-def make_filter_model(f_res, t_res):
-
-    # inner parameters
-    use_wscale  = True        # Enable equalized learning rate
-    blur_filter = BLUR_FILTER # Low-pass filter to apply when resampling activations. 
-                            # None = no filtering.
-    fused_scale = False       # True = fused convolution + scaling, False = separate ops, 'auto' = decide automatically.
-
-    # inner functions
-    def blur(in_x):
-        if blur_filter:
-            blur2d = layer_blur2d()
-            fx = blur2d(in_x)
-        else:
-            fx = in_x
-        return fx
-
-    def torgb(in_res, in_x):  # res = 2..RES_LOG2
-        in_lod = RES_LOG2 - in_res
-        x = conv2d(in_x, fmaps=1, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        return x
-
-    # create model
-    f_in = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-
-    f_x = tf.identity(f_in)
-    for res in range(f_res, t_res, -1):
-        f_x = conv2d(f_x, fmaps=nf(res - 1), kernel=3, gain=GAIN, use_wscale=use_wscale, name="filter_conv_" + str(res))
-        bias = layer_bias(f_x, name="filter_bias_0")
-        f_x = bias(f_x)
-        f_x = layers.LeakyReLU()(f_x)
-
-        f_x = blur(f_x)
-        f_x = conv2d_downscale2d(f_x, fmaps=nf(res - 2), kernel=3, gain=GAIN,
-                use_wscale=use_wscale, fused_scale=fused_scale, name="filter_conv_1")
-        bias = layer_bias(f_x, name="filter_bias_1")
-        f_x = bias(f_x)
-        f_x = layers.LeakyReLU()(f_x)
-        f_x = torgb(res-1, f_x)
-
-    fout_x = tf.identity(f_x)
-
-    # Create model
-    filter_model = Model(inputs=f_in, outputs=fout_x)
-
-    return filter_model 
 
 
 
@@ -516,7 +464,6 @@ lr_schedule_dis = tf.keras.optimizers.schedules.ExponentialDecay(
     staircase=STAIRCASE_DIS)
 
 generator_optimizer     = tf.keras.optimizers.Adam(learning_rate=lr_schedule_gen, beta_1=BETA1_GEN, beta_2=BETA2_GEN, epsilon=SMALL)
-filter_optimizer        = tf.keras.optimizers.Adam(learning_rate=lr_schedule_fil, beta_1=BETA1_FIL, beta_2=BETA2_FIL, epsilon=SMALL)
 discriminator_optimizer = tf.keras.optimizers.Adam(learning_rate=lr_schedule_dis, beta_1=BETA1_DIS, beta_2=BETA2_DIS, epsilon=SMALL)
 
 
@@ -527,35 +474,26 @@ pre_synthesis = make_pre_synthesis_model()
 synthesis     = make_synthesis_model()
 discriminator = make_discriminator_model()
 
-filters = [] 
-for fil in range(NFIL):
-    filter = make_filter_model(RES_LOG2, RES_LOG2-(1+fil))
-    filters.append(filter)
 
 
 # mapping.summary()
 # pre_synthesis.summary()
 # synthesis.summary()
 # discriminator.summary()
-# for fil in range(RES_LOG2-RES_LOG2-FIL):
-#     filter[fil].summary()
 
 
 # plot_model(mapping,       to_file='mapping_graph.png',       show_shapes=True, show_layer_names=True)
 # plot_model(pre_synthesis, to_file='pre_synthesis_graph.png', show_shapes=True, show_layer_names=True)
 # plot_model(synthesis,     to_file='synthesis_graph.png',     show_shapes=True, show_layer_names=True)
-# plot_model(filter,        to_file='images/filter_graph.png',        show_shapes=True, show_layer_names=True)
 # plot_model(discriminator, to_file='images/discriminator_graph.png', show_shapes=True, show_layer_names=True)
 
 
 #-------------------------------------define checkpoint
 checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
-                                    filter_optimizer=filter_optimizer,
                                     discriminator_optimizer=discriminator_optimizer,
                                     mapping=mapping,
                                     pre_synthesis=pre_synthesis,
                                     synthesis=synthesis,
-                                    filters=filters,
                                     discriminator=discriminator)
 
 def gradient_penalty(x):

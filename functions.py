@@ -51,35 +51,65 @@ def nr(phi, i, j):
 
 #------------------------------ functions to build StyleGAN network
 
+#------------- define spectral kernel
+def make_tophat_kernel(size=1, mean=0.0, delta=1.0):
+
+    """Makes 2D spectral Kernel for convolution."""
+
+    d = tf.ones([2*size+1], dtype=DTYPE)
+    tophat_kernel = tf.einsum('i,j->ij', d, d)
+    tophat_kernel = tophat_kernel / tf.reduce_sum(tophat_kernel)
+
+    return tophat_kernel
+
+
 #------------- define Gaussian kernel
-def gaussian_kernel(size: int, mean: float, std: float):
+def make_gaussian_kernel(size=1, mean=0.0, delta=1.0):
 
     """Makes 2D gaussian Kernel for convolution."""
 
-    x = tf.range(start = -size, limit = size + 1, dtype = DTYPE)
-    Z = (2.0 * np.pi * std**2)**0.5
-    d = tf.math.exp(-0.5 * (x - mean)**2 / std**2) / Z
-    gauss_kernel = tf.einsum('i,j->ij', d, d)
+    x = tf.range(start=-size, limit=size+1, dtype=DTYPE)
+    Z = (2.0 * np.pi * delta**2)**0.5
+    d = tf.math.exp(-0.5 * (x - mean)**2 / delta**2) / Z
+    gaussian_kernel = tf.einsum('i,j->ij', d, d)
 
-    filtered = gauss_kernel / tf.reduce_sum(gauss_kernel)
+    gaussian_kernel = gaussian_kernel / tf.reduce_sum(gaussian_kernel)
 
-    return filtered
+    return gaussian_kernel
 
 
-#------------- define sharp (spectral) kernel
-def spectral_kernel(delta: float, size: int):
+#------------- define spectral kernel
+def make_spectral_kernel(size=1, mean=0.0, delta=1.0):
 
-    """Makes 2D sharp Kernel for convolution."""
+    """Makes 2D spectral Kernel for convolution."""
 
-    x = tf.range(start = -size, limit = size + 1, dtype = DTYPE)
-    d = tf.math.sin(np.pi*x/delta) / (np.pi*x)
+    x = tf.range(start=-size, limit=size+1, dtype=DTYPE)
+    d = tf.math.sin(np.pi*(x-mean)/delta) / (np.pi*(x-mean))
     d2 = d[0:size]
     d  = tf.concat([d2,[1.0/delta],-d2], axis=0)
-    sharp_kernel = tf.einsum('i,j->ij', d, d)
-
-    sharp_kernel = sharp_kernel / tf.reduce_sum(sharp_kernel)
+    d  = d - tf.reduce_min(d)
     
-    return sharp_kernel
+    spectral_kernel = tf.einsum('i,j->ij', d, d)
+
+    spectral_kernel = spectral_kernel / tf.reduce_sum(spectral_kernel)
+
+    return spectral_kernel
+
+
+#------------- define differential kernel
+def make_differential_kernel(size=1, mean=0.0, delta=1.0):
+
+    """Makes 2D differential Kernel for convolution."""
+
+    x = tf.range(start=-size, limit=size+1, dtype=DTYPE)
+    Z = (4.0 * np.pi * delta**2)
+    d = tf.math.exp(-tf.abs(x-mean)/delta)/(Z*tf.abs(x - mean))
+    d2 = tf.concat([d[0:size],[d[size+1]],d[size+1:2*size+1]], axis=0)
+    differential_kernel = tf.einsum('i,j->ij', d2, d2)
+
+    differential_kernel = differential_kernel / tf.reduce_sum(differential_kernel)
+
+    return differential_kernel
 
 
 #-------------define periodic padding
@@ -242,11 +272,11 @@ class layer_bias(layers.Layer):
 
 #---------------------------------------------------------------------
 class layer_create_noise(layers.Layer):
-    def __init__(self, xshape, ldx, randomize_noise, **kwargs):
+    def __init__(self, xshape, ldx, randomize_noise, nc_noise=NC_NOISE, **kwargs):
         super(layer_create_noise, self).__init__(**kwargs)
 
         self.NSIZE = xshape[-2] * xshape[-1]
-        self.N     = NC_NOISE
+        self.N     = nc_noise
         self.N2    = int(self.N/2)
         self.T     = self.NSIZE-1
         self.Dt    = self.T/(self.NSIZE-1)
@@ -355,7 +385,7 @@ def apply_noise(x, ldx, phi_noise_in=None, randomize_noise=True):
     # noise   = lcnoise([x.shape[-2], x.shape[-1]], phi_noise)  # why passing the shape as argument is not working???
 
     lcnoise      = layer_create_noise([x.shape[-2], x.shape[-1]], ldx, randomize_noise, name="layer_noise_constants%d" % ldx)
-    scalingNoise = 1.0 #- ldx/(G_LAYERS-1)
+    scalingNoise = 1.0 - ldx/(G_LAYERS-1)
     noise        = lcnoise(x, phi_noise, scalingNoise=scalingNoise)
 
     lnoise = layer_noise(noise, name="layer_noise_weights%d" % ldx)
@@ -391,32 +421,38 @@ def style_mod(x, dlatent, **kwargs):
 
 
 
-#-------------gaussian filter
-def gaussian_filter(field, rs=1, rsca=1, subsection=False):
+def define_filter(field, size=1, rsca=1, mean=0.0, delta=1.0, type='Gaussian', subsection=False):
 
     # separate DNS fields
     field = field[tf.newaxis,:,:,tf.newaxis]
 
-    # prepare Gaussian Kernel
-    gauss_kernel = gaussian_kernel(rs, 0.0, rs)
-    gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
-    gauss_kernel = tf.cast(gauss_kernel, dtype=field.dtype)
+    # prepare differential Kernel
+    if (type=='Top-hat'):
+        filter_kernel = make_tophat_kernel(size=size, mean=mean, delta=delta)
+    elif (type=='Gaussian'):
+        filter_kernel = make_gaussian_kernel(size=size, mean=mean, delta=delta)
+    elif (type=='Spectral'):
+        filter_kernel = make_spectral_kernel(size=size, mean=mean, delta=delta)
+    elif (type=='Differential'):
+        filter_kernel = make_differential_kernel(size=size, mean=mean, delta=delta)
+    filter_kernel = filter_kernel[:, :, tf.newaxis, tf.newaxis]
+    filter_kernel = tf.cast(filter_kernel, dtype=field.dtype)
 
     # add padding
     if (subsection):
-        fU = tf.nn.conv2d(field, gauss_kernel, strides=[1, rsca, rsca, 1], padding="SAME")
+        fU = tf.nn.conv2d(field, filter_kernel, strides=[1, rsca, rsca, 1], padding="SAME")
         fU = fU[0,0,0,0]
         return fU
     else:
-        pleft   = rs
-        pright  = rs
-        ptop    = rs
-        pbottom = rs
+        pleft   = size
+        pright  = size
+        ptop    = size
+        pbottom = size
 
         field = periodic_padding_flexible(field, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
 
         # convolve
-        fU = tf.nn.conv2d(field, gauss_kernel, strides=[1, rsca, rsca, 1], padding="VALID")
+        fU = tf.nn.conv2d(field, filter_kernel, strides=[1, rsca, rsca, 1], padding="VALID")
 
         # reset dimensions
         fU = fU[0,:,:,0]
@@ -425,40 +461,6 @@ def gaussian_filter(field, rs=1, rsca=1, subsection=False):
         fU = fU[tf.newaxis, tf.newaxis, :, :]
 
         return fU
-
-
-
-#-------------sharp spectral filter
-def sharp_filter(field, delta=0, size=1, rsca=1):
-
-    # separate DNS fields
-    field = field[tf.newaxis,:,:,tf.newaxis]
-
-    # prepare spectral Kernel
-    sharp_kernel = spectral_kernel(delta, size)
-    sharp_kernel = sharp_kernel[:, :, tf.newaxis, tf.newaxis]
-    sharp_kernel = tf.cast(sharp_kernel, dtype=field.dtype)
-
-    # add padding
-    pleft   = size
-    pright  = size
-    ptop    = size
-    pbottom = size
-
-    field = periodic_padding_flexible(field, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-
-    # convolve
-    field = tf.nn.conv2d(field, sharp_kernel, strides=[1, 1, 1, 1], padding="VALID")
-
-    # downscale
-    if (rsca>0):
-        fU = field[0,::rsca,::rsca,0]
-    else:
-        fU = field[0,:,:,0]
-        
-    fU = fU[tf.newaxis, tf.newaxis, :, :]
-
-    return fU
 
 
 
@@ -494,17 +496,17 @@ def _blur2d(x, f=[1, 2, 1], normalize=True, flip=False, stride=1):
         strides = [1, stride, stride, 1]
 
     if (f.shape[0] % 2 == 0):
-        pleft   = np.int((f.shape[0]-1)/2)
-        pright  = np.int(f.shape[0]/2)
+        pleft   = int((f.shape[0]-1)/2)
+        pright  = int(f.shape[0]/2)
     else:
-        pleft   = np.int((f.shape[0]-1)/2)
+        pleft   = int((f.shape[0]-1)/2)
         pright  = pleft
 
     if (f.shape[1] % 2 == 0):
-        ptop    = np.int((f.shape[1]-1)/2)
-        pbottom = np.int(f.shape[1]/2)
+        ptop    = int((f.shape[1]-1)/2)
+        pbottom = int(f.shape[1]/2)
     else:
-        ptop    = np.int((f.shape[1]-1)/2)
+        ptop    = int((f.shape[1]-1)/2)
         pbottom = ptop
 
     if (pleft*pright*ptop*pbottom>0):
@@ -654,17 +656,17 @@ def conv2d(x, fmaps, kernel, in_str=1, **kwargs):
     strides=[1, 1, in_str, in_str]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = np.int((w.shape[0]-1)/2)
-        pright  = np.int(w.shape[0]/2)
+        pleft   = int((w.shape[0]-1)/2)
+        pright  = int(w.shape[0]/2)
     else:
-        pleft   = np.int((w.shape[0]-1)/2)
+        pleft   = int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = np.int((w.shape[1]-1)/2)
-        pbottom = np.int(w.shape[1]/2)
+        ptop    = int((w.shape[1]-1)/2)
+        pbottom = int(w.shape[1]/2)
     else:
-        ptop    = np.int((w.shape[1]-1)/2)
+        ptop    = int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -727,17 +729,17 @@ def conv2d_downscale2d(x, fmaps, kernel, fused_scale="auto", **kwargs):
     strides=[1, 1, 2, 2]
 
     if (w.shape[0] % 2 == 0):
-        pleft   = np.int((w.shape[0]-1)/2)
-        pright  = np.int(w.shape[0]/2)
+        pleft   = int((w.shape[0]-1)/2)
+        pright  = int(w.shape[0]/2)
     else:
-        pleft   = np.int((w.shape[0]-1)/2)
+        pleft   = int((w.shape[0]-1)/2)
         pright  = pleft
 
     if (w.shape[1] % 2 == 0):
-        ptop    = np.int((w.shape[1]-1)/2)
-        pbottom = np.int(w.shape[1]/2)
+        ptop    = int((w.shape[1]-1)/2)
+        pbottom = int(w.shape[1]/2)
     else:
-        ptop    = np.int((w.shape[1]-1)/2)
+        ptop    = int((w.shape[1]-1)/2)
         pbottom = ptop
 
     x = periodic_padding_flexible(x, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
@@ -903,11 +905,39 @@ def normalize_max(UVP):
 
     tU = tU[tf.newaxis,tf.newaxis,:,:]/U_norm
     tV = tV[tf.newaxis,tf.newaxis,:,:]/V_norm
-    tP = tP[tf.newaxis,tf.newaxis,:,:]/V_norm   # we scale for same factor of phi to maintain the equation D2 phi = vort
+    tP = tP[tf.newaxis,tf.newaxis,:,:]/P_norm
 
     UVP = tf.concat([tU, tV, tP], 1)
 
     return UVP
+
+
+
+def np_normalize_max(UVP):
+
+    tU = UVP[0,0,:,:]
+    tV = UVP[0,1,:,:]
+    tP = UVP[0,2,:,:]
+
+    minU  = abs(np.min(tU))
+    maxU  = abs(np.max(tU))
+    amaxU = max(minU, maxU)
+
+    minV  = abs(np.min(tV))
+    maxV  = abs(np.max(tV))
+    amaxV = max(minV, maxV)
+
+    minP  = abs(np.min(tP))
+    maxP  = abs(np.max(tP))
+    amaxP = max(minP, maxP)
+
+    tU = tU[np.newaxis,np.newaxis,:,:]/amaxU
+    tV = tV[np.newaxis,np.newaxis,:,:]/amaxV
+    tP = tP[np.newaxis,np.newaxis,:,:]/amaxP
+
+    UVP = np.concatenate([tU, tV, tP], 1)
+    
+    return UVP, [amaxU, amaxV, amaxP]
 
 
 def rescale_max(UVP, UVP_max):
@@ -918,7 +948,7 @@ def rescale_max(UVP, UVP_max):
     
     tU = tU[tf.newaxis,tf.newaxis,:,:]*UVP_max[0]
     tV = tV[tf.newaxis,tf.newaxis,:,:]*UVP_max[1]
-    tP = tP[tf.newaxis,tf.newaxis,:,:]*UVP_max[1]  # we scale for same factor of phi to maintain the equation D2 phi = vort
+    tP = tP[tf.newaxis,tf.newaxis,:,:]*UVP_max[2]
 
     UVP = tf.concat([tU, tV, tP], 1)
     
@@ -954,20 +984,26 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
     # find predictions
     predictions, wn = synthesis(z, training=False)
-    
+
     UVP_DNS = predictions[RES_LOG2-2]
-    UVP_DNS  = rescale_max(UVP_DNS, UVP_max)
+    UVP_DNS = rescale_max(UVP_DNS, UVP_max)
+    U_DNS   = UVP_DNS[:,0:1,:,:]
+    V_DNS   = UVP_DNS[:,1:2,:,:]
+    P_DNS   = find_vorticity_HW(V_DNS[0,0,:,:], DELX, DELY)[tf.newaxis,tf.newaxis,:,:]
+    UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
     # find filtered fields
     if (find_fDNS):
         UVP_LES = predictions[RES_LOG2-FIL-2]
-        UVP_LES  = rescale_max(UVP_LES, UVP_max)
+        UVP_LES = rescale_max(UVP_LES, UVP_max[3:6])
+        U_LES   = UVP_LES[:,0:1,:,:]
+        V_LES   = UVP_LES[:,1:2,:,:]
+        P_LES   = find_vorticity_HW(V_LES[0,0,:,:], DELX_LES, DELY_LES)[tf.newaxis,tf.newaxis,:,:]
+        UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
 
-        fU_DNS = filter(UVP_DNS[:,0:1,:,:], training = False)
-        fV_DNS = filter(UVP_DNS[:,1:2,:,:], training = False)
-        # fP_DNS = filter(UVP_DNS[:,2:3,:,:], training = False)
-        fP_DNS = find_vorticity_HW(fV_DNS[0,0,:,:], DELX_LES, DELY_LES)[tf.newaxis,tf.newaxis,:,:]
-    
+        fU_DNS   = filter(UVP_DNS[:,0:1,:,:], training = False)
+        fV_DNS   = filter(UVP_DNS[:,1:2,:,:], training = False)
+        fP_DNS   = find_vorticity_HW(fV_DNS[0,0,:,:], DELX_LES, DELY_LES)[tf.newaxis,tf.newaxis,:,:]
         fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
         return UVP_DNS, UVP_LES, fUVP_DNS, wn, predictions
@@ -980,10 +1016,15 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
 
     if (typeRes==0):
-        resDNS   = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
-        resLES   = tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
+        resDNS   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
+        resLES   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
         resREC   = resDNS + resLES
         loss_fil = resDNS
+    elif (typeRes==1):
+        resLES   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES)) # remember to use fUVP_DNS rather than UVP_LES
+        resDNS   = 0.0*resLES
+        resREC   = resDNS + resLES                                                                       # otherwise the gradients will be zero!!  
+        loss_fil = resLES
         
     return resREC, resLES, resDNS, loss_fil
 
@@ -994,7 +1035,7 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max,
     with tf.GradientTape() as tape_LES:
         
         # find predictions
-        UVP_DNS, UVP_LES, fUVP_DNS, wn, preds = find_predictions(synthesis, filter, z, UVP_max)
+        UVP_DNS, UVP_LES, fUVP_DNS, wn, predictions = find_predictions(synthesis, filter, z, UVP_max)
 
         # find residuals        
         resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=typeRes)
@@ -1004,7 +1045,7 @@ def step_find_zlatents_kDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max,
         opt.apply_gradients(zip(gradients_LES, ltv))
 
         
-    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn, preds
+    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil, wn, predictions
 
 
 
@@ -1063,6 +1104,24 @@ class layer_zlatent_kDNS(layers.Layer):
 
 
 
+class layer_zlatent_kDNS2(layers.Layer):
+    def __init__(self, **kwargs):
+        super(layer_zlatent_kDNS2, self).__init__()
+
+        k_init = tf.random_normal_initializer(mean=1.0, stddev=0.0)
+        self.k = tf.Variable(
+            initial_value=k_init(shape=[G_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            trainable=True,
+            name="zlatent_kDNS"
+        )
+        
+    def call(self, w):
+
+        # interpolate latent spaces
+        w = self.k*w
+        return w
+
+
 
 class layer_gaussian(layers.Layer):
     def __init__(self, rs=1, rsca=1, **kwargs):
@@ -1077,12 +1136,6 @@ class layer_gaussian(layers.Layer):
         x = tf.range(start = -self.size, limit = self.size + 1, dtype = DTYPE)
         d_init = tf.math.exp(-0.5 * (x - self.mean)**2 / self.std**2) / Z
 
-        # self.d = tf.Variable(
-        #     initial_value=d_init,
-        #     trainable=True,
-        #     name="gaussian_layer"
-        # )
-
         d_init = tf.einsum('i,j->ij', d_init, d_init)
 
         self.d = tf.Variable(
@@ -1096,9 +1149,9 @@ class layer_gaussian(layers.Layer):
         # prepare kernel
         field = field[tf.newaxis,:,:,tf.newaxis]
         # newd = tf.concat([self.d, self.d[1:]], axis=0)
-        # gauss_kernel = tf.einsum('i,j->ij', self.d, self.d)
-        gauss_kernel = self.d / tf.reduce_sum(self.d)
-        gauss_kernel = gauss_kernel[:, :, tf.newaxis, tf.newaxis]
+        # gaussian_kernel = tf.einsum('i,j->ij', self.d, self.d)
+        gaussian_kernel = self.d / tf.reduce_sum(self.d)
+        gaussian_kernel = gaussian_kernel[:, :, tf.newaxis, tf.newaxis]
 
         # add padding
         pleft   = self.size
@@ -1108,7 +1161,7 @@ class layer_gaussian(layers.Layer):
 
         # convolve
         field = periodic_padding_flexible(field, axis=(1,2), padding=([pleft, pright], [ptop, pbottom]))
-        field = tf.nn.conv2d(field, gauss_kernel, strides=[1, 1, 1, 1], padding="VALID")
+        field = tf.nn.conv2d(field, gaussian_kernel, strides=[1, 1, 1, 1], padding="VALID")
 
         # downscale
         fU = field[0,::self.rsca,::self.rsca,0]
@@ -1161,6 +1214,14 @@ class layer_wlatent_mLES(layers.Layer):
         w  = tf.concat([wa,wb], axis=1)
         return w
 
+
+def find_minmax2(U, V):
+    Umin = np.min(U)
+    Umax = np.max(U)
+    Vmin = np.min(V)
+    Vmax = np.max(V)
+    return min(Umin,Vmin), max(Umax,Vmax)
+    
 
 @tf.function
 def find_bracket(F, G, filter, spacingFactor):

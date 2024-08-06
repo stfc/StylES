@@ -20,7 +20,7 @@ from LES_functions import *
 # (0 at the beginning, 1 after the first element, etc ...)
 sys.path.insert(0, '../../../codes/TurboGenPY/')
 
-from tkespec import compute_tke_spectrum2d
+from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 

@@ -57,7 +57,7 @@ os.system("mkdir energy")
 
 
 dir_log = 'logs/'
-tf.random.set_seed(1)
+tf.random.set_seed(SEED)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 P_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
 C_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
@@ -133,7 +133,7 @@ for st in range(1,len(wl_synthesis.trainable_variables)):
             filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".png"
             if (i == NIP-1):
                 closePlot=True
-            plot_spectrum(U_DNS_t, V_DNS_t, L, filename, closePlot)
+            plot_spectrum_2d_3v(U_DNS_t, V_DNS_t, L, filename, closePlot)
 
         print("done for style " + str(st) + " i " + str(i))
 

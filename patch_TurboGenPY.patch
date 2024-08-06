@@ -35,8 +35,8 @@ index 937c5c4..daf63b4 100644
  #     print('cells with divergence: ', count)
  
  # verify that the generated velocities fit the spectrum
--knyquist, wavenumbers, tkespec = compute_tke_spectrum2d(u, v, lx, ly, False)
-+knyquist, wavenumbers, tkespec = compute_tke_spectrum2d(u, v, lx, ly, True)
+-knyquist, wavenumbers, tkespec = compute_tke_spectrum2d_3v(u, v, lx, ly, False)
++knyquist, wavenumbers, tkespec = compute_tke_spectrum2d_3v(u, v, lx, ly, True)
  # save the generated spectrum to a text file for later post processing
  np.savetxt('tkespec_' + fileappend + '.txt', np.transpose([wavenumbers, tkespec]))
  
@@ -98,7 +98,7 @@ index 76701e6..6296604 100644
      if smooth:
          tkespecsmooth = movingaverage(tke_spectrum, 5)  # smooth the spectrum
          tkespecsmooth[0:4] = tke_spectrum[0:4]  # get the first 4 values from the original data
-@@ -246,7 +253,7 @@ def compute_tke_spectrum2d(u, v, lx, ly, smooth):
+@@ -246,7 +253,7 @@ def compute_tke_spectrum2d_3v(u, v, lx, ly, smooth):
      k0y = 2.0 * pi / ly
  
      knorm = (k0x + k0y) / 2.0
@@ -107,7 +107,7 @@ index 76701e6..6296604 100644
  
      kxmax = nx / 2
      kymax = ny / 2
-@@ -262,7 +269,7 @@ def compute_tke_spectrum2d(u, v, lx, ly, smooth):
+@@ -262,7 +269,7 @@ def compute_tke_spectrum2d_3v(u, v, lx, ly, smooth):
          for ky in range(-ny//2, ny//2-1):
          	rk = sqrt(kx**2 + ky**2)
          	k = int(np.round(rk))

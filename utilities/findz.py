@@ -37,7 +37,8 @@ os.chdir('../')
 from MSG_StyleGAN_tf2 import *
 os.chdir('./utilities')
 
-tf.random.set_seed(SEED_RESTART)
+tf.random.set_seed(seed=SEED)
+
 
 
 # local parameters
@@ -118,7 +119,7 @@ for i in range(NL):
 
         filename = "findz_fields_diff.png"
         print_fields_3(P_DNS_org, UVP_DNS[0,2,:,:], P_DNS_org-UVP_DNS[0,2,:,:], N=N_DNS, filename=filename, \
-        Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0, diff=True)
+        Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0, plot='diff')
 
     if (i%100 == 0):
         print ("done for i ", i)
