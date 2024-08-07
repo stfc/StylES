@@ -108,9 +108,9 @@ os.system("mkdir results_tests")
 #             fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
 #             fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
 #         else:
-#             fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='grid-wrap')
-#             fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='grid-wrap')
-#             fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='grid-wrap')
+#             fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
+#             fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
+#             fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
 
 #         fU_DNS = fU_DNS[::rs,::rs]
 #         fV_DNS = fV_DNS[::rs,::rs]
@@ -207,9 +207,9 @@ plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename, label="DNS", close=False)
 
 
 #--- Gaussian (SciPy)
-fU_DNS = sc.ndimage.gaussian_filter(U_DNS, sigma=RS, mode='grid-wrap')
-fV_DNS = sc.ndimage.gaussian_filter(V_DNS, sigma=RS, mode='grid-wrap')
-fP_DNS = sc.ndimage.gaussian_filter(P_DNS, sigma=RS, mode='grid-wrap')
+fU_DNS = sc.ndimage.gaussian_filter(U_DNS, sigma=RS, mode='wrap')
+fV_DNS = sc.ndimage.gaussian_filter(V_DNS, sigma=RS, mode='wrap')
+fP_DNS = sc.ndimage.gaussian_filter(P_DNS, sigma=RS, mode='wrap')
 
 fU_DNS = fU_DNS[::RSCA,::RSCA]
 fV_DNS = fV_DNS[::RSCA,::RSCA]

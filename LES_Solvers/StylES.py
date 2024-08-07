@@ -683,9 +683,9 @@ while (tstep<totSteps and totTime<finalTime):
                 newV = V_DNS[:,:]
                 newP = P_DNS[:,:]
             else:
-                fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
-                fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
-                fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+                fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='wrap')
+                fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='wrap')
+                fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='wrap')
                 
                 newU = fU[::DW,::DW]
                 newV = fV[::DW,::DW]
@@ -780,7 +780,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     for i in range(16):
-            #         NL_DNS[i,:,:] = sc.ndimage.gaussian_filter(NL_DNS[i,:,:], rs, mode='grid-wrap')
+            #         NL_DNS[i,:,:] = sc.ndimage.gaussian_filter(NL_DNS[i,:,:], rs, mode='wrap')
             #         NL[i,:,:] = NL_DNS[i,::DW,::DW]
         
             # # find Tau_SGS

@@ -170,9 +170,9 @@ if (TESTCASE=='mHW'):
     fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode=['constant','wrap'])
     fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode=['constant','wrap'])
 else:
-    fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='grid-wrap')
-    fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='grid-wrap')
-    fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='grid-wrap')
+    fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='wrap')
+    fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='wrap')
+    fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='wrap')
 
 fU_DNS = fU_DNS[np.newaxis,np.newaxis,:,:]
 fV_DNS = fV_DNS[np.newaxis,np.newaxis,:,:]
@@ -210,9 +210,9 @@ for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
             fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
             fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
         else:
-            fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='grid-wrap')
-            fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='grid-wrap')
-            fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='grid-wrap')
+            fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
+            fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
+            fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
 
         fU_DNS = fU_DNS[::rs,::rs]
         fV_DNS = fV_DNS[::rs,::rs]

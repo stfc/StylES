@@ -106,9 +106,9 @@ def StyleGAN_load_fields(file_path):
                 fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
                 fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
             else:
-                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='grid-wrap')
-                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='grid-wrap')
-                fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='grid-wrap')
+                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
+                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
+                fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
 
             fU_DNS = fU_DNS[::rs,::rs]
             fV_DNS = fV_DNS[::rs,::rs]

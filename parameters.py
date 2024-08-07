@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/' 
+DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/' 
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -68,7 +68,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256 
+OUTPUT_DIM        = 256
 DPI               = 100*int(OUTPUT_DIM/256)
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -99,7 +99,7 @@ RANDOMIZE_NOISE   = True
 TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
 IMAGES_EVERY   = 10000
-SAVE_EVERY     = 100000
+SAVE_EVERY     = 10000
 BATCH_SIZE     = NEXAMPLES
 IRESTART       = False
 
@@ -149,10 +149,10 @@ elif (N_DNS==1024):
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
-FILE_DNS_N256   = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
-FILE_DNS_N512   = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N512/fields/fields_run0_time701.npz"
+FILE_DNS_N256   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
+FILE_DNS_N512   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N512/fields/fields_run0_time701.npz"
 #FILE_DNS_N512   = "../../../../PhaseIV_FARSCAPE4/data/BOUT_runs/HW_3D/HW_N512x16x512/fields_npz/fields_run0_time298.npz"
-FILE_DNS_N1024  = "../../../../PhaseII_FARSCAPE2/data/BOUT_runs/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
+FILE_DNS_N1024  = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
 
 
 # learning rate for latent space optimizer

@@ -258,7 +258,7 @@ for lrun in listRUN:
                 # print ("done for file " + filename + " at simtime " + str(simtime))
                 if (FIND_DIFFS and lrun==listRUN[-1]):
                     filename = "./results_comparison/plot_diffs/diff_vort_" + str(i).zfill(4) + ".png"
-                    print("plotting diffrences for" + filename)
+                    print("plotting diffrences for " + filename)
                     ii = cont_StylES%FTIME
                     print_fields_3(v_tDNS[ii], v_StylES, v_tDNS[ii]-v_StylES, filename=filename, plot='diff', \
                         labels=[r"DNS $\zeta$", r"StylES $\zeta$", r"diff $\zeta$"], \

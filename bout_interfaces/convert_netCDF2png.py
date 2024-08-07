@@ -304,8 +304,9 @@ elif (MODE=='READ_NUMPY'):
             Img_n     = np.cast[DTYPE](data['U'])
             Img_phi   = np.cast[DTYPE](data['V'])
             Img_vort  = np.cast[DTYPE](data['P'])
-            
+
             file_dest = file.replace("fields","plots")
+            file_dest = file.replace("fields_DNS","plots")
             file_dest = file.replace(".npz",".png")
             filename  = "./results/plots/" + file_dest
             if (FIND_MIXMAX):
