@@ -68,8 +68,8 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
-DPI               = 100*int(OUTPUT_DIM/256)
+OUTPUT_DIM        = 512
+DPI               = 100*max(1,int(OUTPUT_DIM/256))
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -90,7 +90,7 @@ SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 NEXAMPLES         = 1
-AMP_NOISE_MAX     = 1.0
+AMP_NOISE_MAX     = 0.25
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 RANDOMIZE_NOISE   = True

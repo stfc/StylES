@@ -876,11 +876,34 @@ def tf_find_vorticity(U, V):
     return W
 
 
-def find_vorticity_HW(V_DNS, DELX, DELY):
-    # cP_DNS = (tr(V_DNS, 1, 0) - 2*V_DNS + tr(V_DNS,-1, 0))/(DELX**2) \
-    #        + (tr(V_DNS, 0, 1) - 2*V_DNS + tr(V_DNS, 0,-1))/(DELY**2)
-    cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
-           + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
+
+def np_find_vorticity_HW(V_DNS, DELX, DELY, order=4):
+    if (order==2):
+        cP_DNS = (cr(V_DNS, 1, 0) - 2*V_DNS + cr(V_DNS,-1, 0))/(DELX**2) \
+               + (cr(V_DNS, 0, 1) - 2*V_DNS + cr(V_DNS, 0,-1))/(DELY**2)
+    elif (order==4):
+        cP_DNS = (-cr(V_DNS, 2, 0) + 16*cr(V_DNS, 1, 0) - 30*V_DNS + 16*cr(V_DNS,-1, 0) - cr(V_DNS,-2, 0))/(12*DELX**2) \
+               + (-cr(V_DNS, 0, 2) + 16*cr(V_DNS, 0, 1) - 30*V_DNS + 16*cr(V_DNS, 0,-1) - cr(V_DNS, 0,-2))/(12*DELY**2)
+        
+        
+
+def find_vorticity_HW(V_DNS, DELX, DELY, order=4):
+    if (order==2):
+        cP_DNS = (tr(V_DNS, 1, 0) - 2*V_DNS + tr(V_DNS,-1, 0))/(DELX**2) \
+               + (tr(V_DNS, 0, 1) - 2*V_DNS + tr(V_DNS, 0,-1))/(DELY**2)
+    elif (order==4):
+        cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
+               + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
+    elif (order==8):
+        a4 =   -1.0/560.0
+        a3 =    8.0/315.0
+        a2 =   -1.0/5.0
+        a1 =    8.0/5.0
+        a5 = -205.0/72.0
+        cP_DNS = (a4*tr(V_DNS, 4, 0) + a3*tr(V_DNS, 3, 0) + a2*tr(V_DNS, 2, 0) + a1*tr(V_DNS, 1, 0) + a5*V_DNS   \
+                 +a4*tr(V_DNS,-4, 0) + a3*tr(V_DNS,-3, 0) + a2*tr(V_DNS,-2, 0) + a1*tr(V_DNS,-1, 0))/(DELX**4) + \
+                 (a4*tr(V_DNS, 0, 4) + a3*tr(V_DNS, 0, 3) + a2*tr(V_DNS, 0, 2) + a1*tr(V_DNS, 0, 1) + a5*V_DNS   \
+                 +a4*tr(V_DNS, 0,-4) + a3*tr(V_DNS, 0,-3) + a2*tr(V_DNS, 0,-2) + a1*tr(V_DNS, 0,-1))/(DELY**4)
 
     return cP_DNS
 

@@ -182,7 +182,8 @@ def make_pre_synthesis_model():
             x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
-        x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
+        x_B = x_B[tf.newaxis,tf.newaxis,:,:]
+        x = tf.concat([x_R, x_G, x_B], axis=1)
         x = find_centred_fields(x)
         x = normalize_max(x)
         return x
@@ -314,7 +315,8 @@ def make_synthesis_model():
             x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
         else:
             x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
-        x = tf.concat([x_R, x_G, x_B[tf.newaxis,tf.newaxis,:,:]], axis=1)
+        x_B = x_B[tf.newaxis,tf.newaxis,:,:]
+        x = tf.concat([x_R, x_G, x_B], axis=1)
         x = find_centred_fields(x)
         x = normalize_max(x)
         return x

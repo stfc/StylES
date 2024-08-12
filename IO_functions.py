@@ -91,6 +91,21 @@ def StyleGAN_load_fields(file_path):
     V_DNS_org = np.cast[DTYPE](data_org['V'])
     P_DNS_org = np.cast[DTYPE](data_org['P'])
 
+    NX_DNS = len(U_DNS_org[0,:])
+    rsin = int(NX_DNS/OUTPUT_DIM)
+    if (rsin>1):
+        U_DNS_org = sc.ndimage.gaussian_filter(U_DNS_org, 2*rsin, mode=['constant','wrap'])
+        V_DNS_org = sc.ndimage.gaussian_filter(V_DNS_org, 2*rsin, mode=['constant','wrap'])
+        U_DNS_org = U_DNS_org[::rsin,::rsin]
+        V_DNS_org = V_DNS_org[::rsin,::rsin]
+        P_DNS_org = np_find_vorticity_HW(V_DNS_org, DELX*rs, DELY*rs)
+    
+    
+    # centralize
+    U_DNS_org = U_DNS_org-np.mean(U_DNS_org)
+    V_DNS_org = V_DNS_org-np.mean(V_DNS_org)
+    P_DNS_org = P_DNS_org-np.mean(P_DNS_org)
+    
     rs = 2
     img_out = []
     for reslog in range(RES_LOG2, 1, -1):
@@ -353,8 +368,8 @@ def check_divergence_staggered(img, res):
 def generate_and_save_images(mapping, synthesis, input, iteration):
     dlatents    = mapping(input[0], training=False)
     predictions = pre_synthesis(dlatents, training=False)
-    new_predictions = [predictions[0:RES_LOG2-FIL-2], input[1]]
-    predictions = synthesis([dlatents, new_predictions], training=False)
+    predictions = [predictions[0:RES_LOG2-FIL-2], input[1]]
+    predictions = synthesis([dlatents, predictions], training=False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
