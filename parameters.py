@@ -69,7 +69,7 @@ elif DEVICE_TYPE == 'GPU':
 
 # Network hyper-parameters
 OUTPUT_DIM        = 512 
-BATCH_SIZE        = 16  # remember this shoudl NOT be bigger than dataset length!
+BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
 DIMS_3D           = True
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
@@ -91,18 +91,18 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-AMP_NOISE_MAX     = 0.25
+AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 USE_LESStyleGAN   = True
 USE_VORTICITY     = False
 USE_PREIMGS       = False
-RANDOMIZE_NOISE   = False
+RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
-PRINT_EVERY    = 100
-IMAGES_EVERY   = 1000
+TOT_ITERATIONS = 500000
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
 SAVE_EVERY     = 10000
 IRESTART       = False 
 
