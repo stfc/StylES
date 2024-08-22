@@ -42,7 +42,7 @@ FILE_DNS    = FILE_DNS_N512_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
-RESTART_WL  = True
+RESTART_WL  = False
 
  
 # check that randomization is off
