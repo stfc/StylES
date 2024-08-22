@@ -272,7 +272,7 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
         g_pre_images, block_in = pre_synthesis(dlatents, training = False)
 
     if (not USE_PREIMGS):
-        g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
+        g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
 
     if (USE_LESStyleGAN):
         g_images = synthesis([dlatents, g_pre_images], training = False)
