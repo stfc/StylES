@@ -15,13 +15,34 @@ from parameters import *
 from LES_constants import *
 from LES_parameters import *
 from LES_plot import *
-from MSG_StyleGAN_tf2 import *
+from functions import *
+#from MSG_StyleGAN_tf2 import *
 
 tf.random.set_seed(seed=SEED)
 
 os.system("rm -rf results_tests")
 os.system("mkdir results_tests")
 
+
+
+# test average and normalization on batch
+A = tf.range(0, 16, dtype=tf.float32)
+A = tf.reshape(A, [2,2,2,2])
+print(A)
+
+Am = tf.reduce_mean(A, axis=(2,3), keepdims=True)
+print(Am)
+
+B = A - Am
+print(B)
+
+amax = tf.abs(tf.reduce_max(tf.abs(B), axis=(2,3), keepdims=True))
+print(amax)
+
+Bn = B/amax
+print(Bn)
+
+exit(0)
 
 
 
@@ -164,9 +185,10 @@ os.system("mkdir results_tests")
 
 
 #--------------------------- compare filters
+FILE_DNS = FILE_DNS_N512
 L        = 50.176
 RS       = 8 # overwrite RS from parameters...
-RSCA     = 1
+RSCA     = 4
 DELX_LES = L/N_DNS*RS  # overwrite DELX_LES from parameters...
 DELY_LES = L/N_DNS*RS  # overwrite DELY_LES from parameters...
 filename = "./results_tests/filters_spectrum.png"
@@ -177,9 +199,9 @@ U_DNS = np.cast[DTYPE](U_DNS)
 V_DNS = np.cast[DTYPE](V_DNS)
 P_DNS = np.cast[DTYPE](P_DNS)
 
-tU_DNS = tf.convert_to_tensor(U_DNS[tf.newaxis,tf.newaxis,:,:])
-tV_DNS = tf.convert_to_tensor(V_DNS[tf.newaxis,tf.newaxis,:,:])
-tP_DNS = tf.convert_to_tensor(P_DNS[tf.newaxis,tf.newaxis,:,:])
+tU_DNS = tf.convert_to_tensor(U_DNS[tf.newaxis,tf.newaxis,:,:], dtype=DTYPE)
+tV_DNS = tf.convert_to_tensor(V_DNS[tf.newaxis,tf.newaxis,:,:], dtype=DTYPE)
+tP_DNS = tf.convert_to_tensor(P_DNS[tf.newaxis,tf.newaxis,:,:], dtype=DTYPE)
 
 
 #--- DNS spectrum
@@ -225,31 +247,31 @@ fP_DNS_gsc = fP_DNS
 
 
 
-#--- top-hat
-x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = define_filter(x_in[0,0,:,:], size=RS, rsca=RSCA, mean=0.0, delta=RS, type='Top-hat')
-gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+# #--- top-hat
+# x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+# out     = apply_filter(x_in[0,0,:,:], size=RS, rsca=RSCA, mean=0.0, delta=RS, type='Top-hat')
+# gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
-fU_DNS = gfilter(tU_DNS)[0,0,:,:]
-fV_DNS = gfilter(tV_DNS)[0,0,:,:]
-fP_DNS = gfilter(tP_DNS)[0,0,:,:]
+# fU_DNS = gfilter(tU_DNS)[0,0,:,:]
+# fV_DNS = gfilter(tV_DNS)[0,0,:,:]
+# fP_DNS = gfilter(tP_DNS)[0,0,:,:]
 
-fU_DNS = fU_DNS.numpy()
-fV_DNS = fV_DNS.numpy()
-fP_DNS = fP_DNS.numpy()
+# fU_DNS = fU_DNS.numpy()
+# fV_DNS = fV_DNS.numpy()
+# fP_DNS = fP_DNS.numpy()
 
-dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
-dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
-plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Top-hat", close=False)
+# dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
+# dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
+# plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Top-hat", close=False)
 
-fU_DNS_hat = fU_DNS
-fV_DNS_hat = fV_DNS
-fP_DNS_hat = fP_DNS
+# fU_DNS_hat = fU_DNS
+# fV_DNS_hat = fV_DNS
+# fP_DNS_hat = fP_DNS
 
 
 #--- Gaussian
 x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = define_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Gaussian')
+out     = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Gaussian')
 gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
 fU_DNS = gfilter(tU_DNS)[0,0,:,:]
@@ -269,14 +291,17 @@ fV_DNS_gtf = fV_DNS
 fP_DNS_gtf = fP_DNS
 
 
-#--- Spectral
-x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = define_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Spectral')
+#--- Gaussian (using multi channel filter)
+x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+out     = apply_filter_NCH(x_in, size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Gaussian')
 gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
-fU_DNS = gfilter(tU_DNS)[0,0,:,:]
-fV_DNS = gfilter(tV_DNS)[0,0,:,:]
-fP_DNS = gfilter(tP_DNS)[0,0,:,:]
+tUVP_DNS = tf.concat([tU_DNS, tV_DNS, tP_DNS], axis=1)
+fUVP_DNS = gfilter(tUVP_DNS)
+
+fU_DNS = fUVP_DNS[0,0,:,:]
+fV_DNS = fUVP_DNS[0,1,:,:]
+fP_DNS = fUVP_DNS[0,2,:,:]
 
 fU_DNS = fU_DNS.numpy()
 fV_DNS = fV_DNS.numpy()
@@ -284,33 +309,71 @@ fP_DNS = fP_DNS.numpy()
 
 dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
 dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
-plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Spectral", close=False)
+plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Gaussian multi channel", close=True)
 
-fU_DNS_stf = fU_DNS
-fV_DNS_stf = fV_DNS
-fP_DNS_stf = fP_DNS
+fU_DNS_gmctf = fU_DNS
+fV_DNS_gmctf = fV_DNS
+fP_DNS_gmctf = fP_DNS
 
 
-#--- Differential
-x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-out     = define_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Differential')
-gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+filename = "./results_tests/filters_Gaussian_diff_U.png"
+print_fields_3(fU_DNS_gtf, fU_DNS_gmctf, fU_DNS_gmctf-fU_DNS_gtf, filename=filename, \
+    labels=['gtf', 'gmctf', 'diff P'], plot='same', testcase=TESTCASE) #, \
+    #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-fU_DNS = gfilter(tU_DNS)[0,0,:,:]
-fV_DNS = gfilter(tV_DNS)[0,0,:,:]
-fP_DNS = gfilter(tP_DNS)[0,0,:,:]
+filename = "./results_tests/filters_Gaussian_diff_V.png"
+print_fields_3(fV_DNS_gtf, fV_DNS_gmctf, fV_DNS_gmctf-fV_DNS_gtf, filename=filename, \
+    labels=['gtf', 'gmctf', 'diff P'], plot='same', testcase=TESTCASE) #, \
+    #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-fU_DNS = fU_DNS.numpy()
-fV_DNS = fV_DNS.numpy()
-fP_DNS = fP_DNS.numpy()
+filename = "./results_tests/filters_Gaussian_diff_P.png"
+print_fields_3(fP_DNS_gtf, fP_DNS_gmctf, fP_DNS_gmctf-fP_DNS_gtf, filename=filename, \
+    labels=['gtf', 'gmctf', 'diff P'], plot='same', testcase=TESTCASE) #, \
+    #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
-dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
-plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Differential", close=True)
 
-fU_DNS_dtf = fU_DNS
-fV_DNS_dtf = fV_DNS
-fP_DNS_dtf = fP_DNS
+# #--- Spectral
+# x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+# out     = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Spectral')
+# gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+
+# fU_DNS = gfilter(tU_DNS)[0,0,:,:]
+# fV_DNS = gfilter(tV_DNS)[0,0,:,:]
+# fP_DNS = gfilter(tP_DNS)[0,0,:,:]
+
+# fU_DNS = fU_DNS.numpy()
+# fV_DNS = fV_DNS.numpy()
+# fP_DNS = fP_DNS.numpy()
+
+# dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
+# dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
+# plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Spectral", close=False)
+
+# fU_DNS_stf = fU_DNS
+# fV_DNS_stf = fV_DNS
+# fP_DNS_stf = fP_DNS
+
+
+# #--- Differential
+# x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+# out     = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=RSCA, mean=0.0, delta=RS, type='Differential')
+# gfilter = tf.keras.Model(inputs=x_in, outputs=out)
+
+# fU_DNS = gfilter(tU_DNS)[0,0,:,:]
+# fV_DNS = gfilter(tV_DNS)[0,0,:,:]
+# fP_DNS = gfilter(tP_DNS)[0,0,:,:]
+
+# fU_DNS = fU_DNS.numpy()
+# fV_DNS = fV_DNS.numpy()
+# fP_DNS = fP_DNS.numpy()
+
+# dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
+# dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
+# plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="Differential", close=True)
+
+# fU_DNS_dtf = fU_DNS
+# fV_DNS_dtf = fV_DNS
+# fP_DNS_dtf = fP_DNS
 
 exit(0)
 
@@ -318,9 +381,9 @@ exit(0)
 # closePlot=False
 # for i in range(10):
 #     if i==0:
-#         fU_DNS = tf.convert_to_tensor(U_DNS_org)
-#         fV_DNS = tf.convert_to_tensor(V_DNS_org)
-#         fP_DNS = tf.convert_to_tensor(P_DNS_org)
+#         fU_DNS = tf.convert_to_tensor(U_DNS_org, dtype=DTYPE)
+#         fV_DNS = tf.convert_to_tensor(V_DNS_org, dtype=DTYPE)
+#         fP_DNS = tf.convert_to_tensor(P_DNS_org, dtype=DTYPE)
 #         fU_DNS = fU_DNS[tf.newaxis,tf.newaxis,:,:]
 #         fV_DNS = fV_DNS[tf.newaxis,tf.newaxis,:,:]
 #         fP_DNS = fP_DNS[tf.newaxis,tf.newaxis,:,:]
@@ -490,7 +553,7 @@ exit(0)
 #     a = np.reshape(a, [N,N])
 
 #     tstart = time.time()
-#     b = tf.convert_to_tensor(a)
+#     b = tf.convert_to_tensor(a, dtype=DTYPE)
 #     print(str(N) + "CPU-GPU ", time.time() - tstart)
 
 #     tstart = time.time()

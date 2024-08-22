@@ -674,7 +674,7 @@ for k in range(NL):
             cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*delx**2) \
                    + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*dely**2)
             # cP_DNS = sc.ndimage.gaussian_filter(cP_DNS.numpy(), 1, mode=['wrap','wrap'])
-            # cP_DNS =tf.convert_to_tensor(cP_DNS)
+            # cP_DNS =tf.convert_to_tensor(cP_DNS, dtype=DTYPE)
 
         # plot fields        
         filename = "results_latentSpace/plots/plots_lat" + str(k) + "_res" + str(res) + ".png"

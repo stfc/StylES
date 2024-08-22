@@ -8,6 +8,7 @@ import sys
 from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
+from pyevtk.hl import gridToVTK
 
 sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers/')
@@ -25,9 +26,9 @@ from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
 MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m1/fields/"
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/results_StylES_m1/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/data_DNS/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
@@ -37,19 +38,43 @@ FIND_MIXMAX = True
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 1 # skip between STIME, FTIME, ITIME
+ITIME       = 100 # skip between STIME, FTIME, ITIME
+USE_VKT     = True
 
-useLogSca = True
-xLogLim   = [1.0e-2, 100]   # to do: to make nmore general
-yLogLim   = [1.e-10, 10.]
-xLinLim   = [0.0e0, 600] 
-yLinLim   = [0.0e0, 1.0]
-time      = []
-Energy    = []
-L         = 50.176 
-N         = OUTPUT_DIM
-delx      = L/N
-dely      = L/N
+useLogSca   = True
+xLogLim     = [1.0e-2, 100]   # to do: to make nmore general
+yLogLim     = [1.e-10, 10.]
+xLinLim     = [0.0e0, 600] 
+yLinLim     = [0.0e0, 1.0]
+time        = []
+Energy      = []
+L           = 50.176 
+N           = OUTPUT_DIM
+delx        = L/N
+dely        = L/N
+
+if (DIMS_3D):
+    file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/BOUT.inp", 'r')
+    for line in file:
+        if "nx =" in line:
+            NX = int(line.split()[2]) - 4
+        if "ny =" in line:
+            NY = int(line.split()[2])
+        if "nz =" in line:
+            NZ = int(line.split()[2])
+        if "Lx =" in line:
+            LX = float(line.split()[2])
+        if "Ly =" in line:
+            LY = float(line.split()[2])
+        if "Lz =" in line:
+            LZ = float(line.split()[2])
+
+    DX  = LX/NX
+    DY  = LY/NY
+    DZ  = LZ/NZ
+    NY2 = int(NY/2)-1
+
+    print("System sizes are: Lx,Ly,Lz,dx,dy,dz,nx,ny,nz =", LX,LY,LZ,DX,DY,DZ,NX,NY,NZ)
 
 
 #----------------------------- initialize
@@ -132,6 +157,12 @@ def save_fields(totTime, U, V, P, filename="restart.npz"):
     np.savez(filename, t=totTime, U=U, V=V, P=P)
 
 
+if (DIMS_3D):
+    x = np.linspace(0,LX,NX)
+    y = np.linspace(0,LY,NY)
+    z = np.linspace(0,LZ,NZ)
+
+    X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
 #----------------------------- select MODE
 if (MODE=='READ_NETCDF'):
@@ -230,14 +261,19 @@ if (MODE=='READ_NETCDF'):
         save_fields(t, Img_n, Img_phi, Img_vort, filename=filename)
 
         if (t%1==0):
-            filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
-            if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
-                    Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
-                    #Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+
+            if (DIMS_3D):
+                filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5)
+                gridToVTK(filename, X, Y, Z, pointData={"n": n[t,:,:,:], "phi": phi[t,:,:,:], "vort": vort[t,:,:,:]})
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
-                    Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+                filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
+                if (FIND_MIXMAX):
+                    print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=True) #, \
+                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+                        #Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+                else:
+                    print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=True) #, \
+                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
         dVdx = (-cr(Img_phi, 2, 0) + 8*cr(Img_phi, 1, 0) - 8*cr(Img_phi, -1,  0) + cr(Img_phi, -2,  0))/(12.0*DELX_LES)
         dVdy = (-cr(Img_phi, 0, 2) + 8*cr(Img_phi, 0, 1) - 8*cr(Img_phi,  0, -1) + cr(Img_phi,  0, -2))/(12.0*DELY_LES)
@@ -301,26 +337,42 @@ elif (MODE=='READ_NUMPY'):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
             simtime   = np.cast[DTYPE](data['simtime'])
-            Img_n     = np.cast[DTYPE](data['U'])
-            Img_phi   = np.cast[DTYPE](data['V'])
-            Img_vort  = np.cast[DTYPE](data['P'])
+            n    = np.cast[DTYPE](data['U'])
+            phi  = np.cast[DTYPE](data['V'])
+            vort = np.cast[DTYPE](data['P'])
 
             file_dest = file.replace("fields","plots")
             file_dest = file.replace("fields_DNS","plots")
             file_dest = file.replace(".npz",".png")
-            filename  = "./results/plots/" + file_dest
             if (FIND_MIXMAX):
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
-                    Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+                if (USE_VKT):
+                    n = np.transpose(n, (1,0,2))
+                    phi = np.transpose(phi, (1,0,2))
+                    vort = np.transpose(vort, (1,0,2))
+                    print(n.shape, phi.shape, vort.shape)
+                    filename = "./results/plots_time" + str(i).zfill(5)
+                    gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
+                else:
+                    filename  = "./results/plots/" + file_dest
+                    print_fields_3(n[0,:,:], phi[0,:,:], vort[0,:,:], filename=filename, transpose=True) #, \
+                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
             else:
-                print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=False, \
-                    Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+                if (USE_VKT):
+                    n = np.transpose(n, (1,0,2))
+                    phi = np.transpose(phi, (1,0,2))
+                    vort = np.transpose(vort, (1,0,2))
+                    filename = "./results/plots_time" + str(i).zfill(5)
+                    gridToVTK(filename, X, Y, Z, pointData={"n": n[:,:,:], "phi": phi[:,:,:], "vort": vort[:,:,:]})
+                else:
+                    filename  = "./results/plots/" + file_dest
+                    print_fields_3(n, phi, vort, filename=filename, transpose=True) #, \
+                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-            dVdx = (-cr(Img_phi, 2, 0) + 8*cr(Img_phi, 1, 0) - 8*cr(Img_phi, -1,  0) + cr(Img_phi, -2,  0))/(12.0*DELX_LES)
-            dVdy = (-cr(Img_phi, 0, 2) + 8*cr(Img_phi, 0, 1) - 8*cr(Img_phi,  0, -1) + cr(Img_phi,  0, -2))/(12.0*DELY_LES)
+            dVdx = (-cr(phi, 2, 0) + 8*cr(phi, 1, 0) - 8*cr(phi, -1,  0) + cr(phi, -2,  0))/(12.0*DELX_LES)
+            dVdy = (-cr(phi, 0, 2) + 8*cr(phi, 0, 1) - 8*cr(phi,  0, -1) + cr(phi,  0, -2))/(12.0*DELY_LES)
 
             time.append(simtime)
-            E = 0.5*L**2*np.sum(Img_n**2 + dVdx**2 + dVdy**2)
+            E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)
             Energy.append(E)
             
             if (i%1==0 and i!=nfiles-1):
@@ -330,8 +382,11 @@ elif (MODE=='READ_NUMPY'):
                 closePlot=True
 
             filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
-            plot_spectrum_2d_3v(Img_n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
-
+            if (DIMS_3D):
+                plot_spectrum_2d_3v(n[0,:,:], dVdx[0,:,:], dVdy[0,:,:], L, filename, label="StylES", close=closePlot)
+            else:
+                plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
+                
             print ("done step " + str(i) + "/"+ str(nfiles) + " for file " + file_dest)
 
 
@@ -347,17 +402,18 @@ if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
 
 
 #----------------------------- make animation fields
-anim_file = './results/animation_plots.gif'
-filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
-filenames = sorted(filenames)
+if (not USE_VKT):
+    anim_file = './results/animation_plots.gif'
+    filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
+    filenames = sorted(filenames)
 
-with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
-    for filename in filenames:
-        print(filename)
+    with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+        for filename in filenames:
+            print(filename)
+            image = imageio.v2.imread(filename)
+            writer.append_data(image)
         image = imageio.v2.imread(filename)
         writer.append_data(image)
-    image = imageio.v2.imread(filename)
-    writer.append_data(image)
 
 
 

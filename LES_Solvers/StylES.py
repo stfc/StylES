@@ -452,7 +452,7 @@ while (tstep<totSteps and totTime<finalTime):
 
 
     # filter them
-    tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+    tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
     NL = filters[IFIL](tNL_DNS, training=False)
     fUU = NL[0, 0, :, :].numpy()
     fUV = NL[0, 1, :, :].numpy()
@@ -646,9 +646,9 @@ while (tstep<totSteps and totTime<finalTime):
 
             # separate DNS fields
             rs = SIG
-            U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis])
-            V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis])
-            P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis])
+            U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+            V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+            P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
 
             # preprare Gaussian Kernel
             gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -733,7 +733,7 @@ while (tstep<totSteps and totTime<finalTime):
             # # filter them
             # if (FILTER=="Trained_filter"):
 
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
             #     NL = filter(tNL_DNS, training=False)
             #     fUU = NL[0, 0, :, :].numpy()
             #     fUV = NL[0, 1, :, :].numpy()
@@ -744,7 +744,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     pad = 4*rs
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
 
             #     # preprare Gaussian Kernel
             #     gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -762,7 +762,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     pad = 4*rs
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
 
             #     # preprare Gaussian Kernel
             #     gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -801,7 +801,7 @@ while (tstep<totSteps and totTime<finalTime):
         minMaxUVP[0,3] = np.min(V_DNS)
         minMaxUVP[0,4] = np.max(P_DNS)
         minMaxUVP[0,5] = np.min(P_DNS)
-        tminMaxUVP = tf.convert_to_tensor(minMaxUVP)
+        tminMaxUVP = tf.convert_to_tensor(minMaxUVP, dtype=DTYPE)
 
         maxU = np.max(U)
         minU = np.min(U)

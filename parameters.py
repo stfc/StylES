@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/' 
+DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -68,7 +68,9 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 512
+OUTPUT_DIM        = 512 
+BATCH_SIZE        = 16  # remember this shoudl NOT be bigger than dataset length!
+DIMS_3D           = True
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -78,7 +80,7 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-FIL               = 3  # number of layers below the DNS  
+FIL               = 3 # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
@@ -89,19 +91,20 @@ SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0)
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-NEXAMPLES         = 1
 AMP_NOISE_MAX     = 0.25
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-RANDOMIZE_NOISE   = True
+USE_LESStyleGAN   = True
+USE_VORTICITY     = False
+USE_PREIMGS       = False
+RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
-TOT_ITERATIONS = 500000
-PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
+TOT_ITERATIONS = 100000
+PRINT_EVERY    = 100
+IMAGES_EVERY   = 1000
 SAVE_EVERY     = 10000
-BATCH_SIZE     = NEXAMPLES
-IRESTART       = False
+IRESTART       = False 
 
 # learning rates
 LR_GEN           = 7.5e-4
@@ -131,6 +134,7 @@ N_DNS           = int(2**RES_LOG2)
 N_LES           = int(2**(RES_LOG2-FIL))
 N_DNS2          = int(N_DNS/2)
 N_LES2          = int(N_LES/2)
+NY2             = max(1,int(BATCH_SIZE/2))
 RS              = int(2**FIL)
 RS2             = int(RS/2)
 N2L             = N_LES2-RS2
@@ -140,19 +144,14 @@ DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES
 DELY_LES        = LEN_DOMAIN/N_LES
-if (N_DNS==256):
-    INIT_SCA = 5.0
-elif (N_DNS==512):
-    INIT_SCA = 10.0
-elif (N_DNS==1024):
-    INIT_SCA = 15.0
+INIT_SCA        = 3.0  # 5 10, 15
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
-FILE_DNS_N256   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
-FILE_DNS_N512   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N512/fields/fields_run0_time701.npz"
-#FILE_DNS_N512   = "../../../../PhaseIV_FARSCAPE4/data/BOUT_runs/HW_3D/HW_N512x16x512/fields_npz/fields_run0_time298.npz"
-FILE_DNS_N1024  = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
+FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
+FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_run0_time298.npz"
+FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
+FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz_3D/fields_run0_time298.npz"
 
 
 # learning rate for latent space optimizer

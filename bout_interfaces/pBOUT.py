@@ -36,7 +36,8 @@ if (RUN_TEST):
 else:
     PATH_StylES = "../../../../StylES/"
 
-sys.path.insert(0, PATH_StylES + 'LES_Solvers/')
+sys.path.insert(0, PATH_StylES + './')
+sys.path.insert(0, PATH_StylES + './LES_Solvers/')
 sys.path.insert(0, PATH_StylES + '../TurboGenPY/')
 
 
@@ -63,12 +64,13 @@ tollLES      = 0.25
 CHKP_DIR     = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL  = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass     = lr_DNS_maxIt
-pPrintFreq   = 1.0
+pPrintFreq   = 0.01
 RUN_DNS      = False
 RESTART_WL   = True
 USE_DIFF_LES = False 
-IMPLICIT     = True  
+IMPLICIT     = False  
 PROFILE_BOUT = False
+SIZE         = N_LES*BATCH_SIZE*N_LES
 
 tf.random.set_seed(seed=SEED_RESTART)
 
@@ -82,11 +84,18 @@ dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
 tf.random.set_seed(SEED_RESTART)
 
-BOUT_U_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
-BOUT_V_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
-BOUT_P_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
-BOUT_F_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
-BOUT_G_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
+if (DIMS_3D):
+    BOUT_U_LES  = np.zeros((N_LES,BATCH_SIZE,N_LES), dtype=DTYPE)
+    BOUT_V_LES  = np.zeros((N_LES,BATCH_SIZE,N_LES), dtype=DTYPE)
+    BOUT_P_LES  = np.zeros((N_LES,BATCH_SIZE,N_LES), dtype=DTYPE)
+    BOUT_F_LES  = np.zeros((N_LES,BATCH_SIZE,N_LES), dtype=DTYPE)
+    BOUT_G_LES  = np.zeros((N_LES,BATCH_SIZE,N_LES), dtype=DTYPE)
+else:    
+    BOUT_U_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
+    BOUT_V_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
+    BOUT_P_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
+    BOUT_F_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
+    BOUT_G_LES  = np.zeros((N_LES,N_LES), dtype=DTYPE)
 
 
 # define optimizer for z and w search
@@ -111,28 +120,45 @@ else:
 
 
 # create variable synthesis model
-lcnoise    = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
-x_in       = tf.constant(0, shape=[1, LATENT_SIZE], dtype=DTYPE)
+lcnoise = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
+z_in    = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
-z_in  = tf.keras.Input(shape=([1]),  dtype=DTYPE)
-z_new = lcnoise(x_in, z_in, scalingNoise=1.0)
+phi_in = tf.keras.Input(shape=([NC2_NOISE_IN, 1]),  dtype=DTYPE)
+wl_z  = lcnoise(z_in, phi_in, scalingNoise=1.0)
+
 img_in = []
 for res in range(2,RES_LOG2-FIL+1):
     img_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
-w            = mapping(z_new, training=False)
-outputs      = synthesis([w, img_in], training=False)
-wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
+wl_dlatents = mapping(wl_z, training=False)
+if (USE_LESStyleGAN):
+    p_img   = pre_synthesis(wl_dlatents, training=False)
+    if (USE_PREIMGS):
+        outputs = synthesis([wl_dlatents, p_img], training=False)
+    else:
+        outputs = synthesis([wl_dlatents, img_in], training=False)
+else:
+    p_img, xb = pre_synthesis(wl_dlatents, training=False)
+    if (USE_PREIMGS):    
+        outputs = synthesis([wl_dlatents, img_in, xb], training=False)
+    else:
+        outputs = synthesis([wl_dlatents, p_img, xb], training=False)
+
+wl_synthesis = tf.keras.Model(inputs=[phi_in, img_in], outputs=[outputs, wl_dlatents])
 
 
 
 # create filter model
 if (GAUSSIAN_FILTER):
-    x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out     = define_filter(x_in[0,0,:,:], size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
+    x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
+    x_in_single    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out_single     = apply_filter_NCH(x_in_single, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=1)
+    gfilter_single = tf.keras.Model(inputs=x_in_single, outputs=out_single)
+
     x_in        = tf.keras.Input(shape=([1, RS+1, RS+1]), dtype=DTYPE)
-    out         = define_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, subsection=True, type='Gaussian')
+    out         = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, subsection=True, type='Gaussian')
     gfilter_sub = tf.keras.Model(inputs=x_in, outputs=out)
 else:
     gfilter     = filters[IFIL]
@@ -231,13 +257,13 @@ LES_all = [LES_all0, LES_in0]
 # load numpy array
 UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
 
-U_DNS = UVP_DNS[0,0,:,:].numpy()
-V_DNS = UVP_DNS[0,1,:,:].numpy()
-P_DNS = UVP_DNS[0,2,:,:].numpy()
+U_DNS = UVP_DNS[NY2,0,:,:].numpy()
+V_DNS = UVP_DNS[NY2,1,:,:].numpy()
+P_DNS = UVP_DNS[NY2,2,:,:].numpy()
 
 filename = "plots_DNS.png"
-print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE, \
-               Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE) #, \
+            #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
 resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
 print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
@@ -280,12 +306,18 @@ def initFlow(npv):
 
     if (RUN_DNS):
 
-        U_LES = (imgA[0, 0, :, :]).numpy()
-        V_LES = (imgA[0, 1, :, :]).numpy()
-        P_LES = (imgA[0, 2, :, :]).numpy()
-        
-        print(np.max(imgA.numpy()), np.min(imgA.numpy()))
-
+        if (DIMS_3D):
+            U_LES = imgA[:,0,:,:]
+            V_LES = imgA[:,1,:,:]
+            P_LES = imgA[:,2,:,:]
+            U_LES = tf.transpose(U_LES, perm=[1,0,2])
+            V_LES = tf.transpose(V_LES, perm=[1,0,2])
+            P_LES = tf.transpose(P_LES, perm=[1,0,2])
+        else:
+            U_LES = (imgA[0,0,:,:])
+            V_LES = (imgA[0,1,:,:])
+            P_LES = (imgA[0,2,:,:])
+            
     else:
 
         resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, imgA, fimgA, typeRes=0)
@@ -293,11 +325,19 @@ def initFlow(npv):
             .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
         # find fields
-        U_LES = fimgA[0, 0, :, :].numpy()
-        V_LES = fimgA[0, 1, :, :].numpy()
-        P_LES = fimgA[0, 2, :, :].numpy()
+        if (DIMS_3D):
+            U_LES = fimgA[:,0,:,:]
+            V_LES = fimgA[:,1,:,:]
+            P_LES = fimgA[:,2,:,:]
+            U_LES = tf.transpose(U_LES, perm=[1,0,2])
+            V_LES = tf.transpose(V_LES, perm=[1,0,2])
+            P_LES = tf.transpose(P_LES, perm=[1,0,2])
+        else:        
+            U_LES = fimgA[0, 0, :, :]
+            V_LES = fimgA[0, 1, :, :]
+            P_LES = fimgA[0, 2, :, :]
 
-
+    
     # pass values back
     U_LES = tf.reshape(U_LES, [-1])
     V_LES = tf.reshape(V_LES, [-1])
@@ -310,11 +350,10 @@ def initFlow(npv):
     U_LES = U_LES.numpy()
     V_LES = V_LES.numpy()
     P_LES = P_LES.numpy()
-    
+
     rnpv = np.concatenate((U_LES, V_LES, P_LES), axis=0)
-
+    
     print("------------------------------------- Done StylES initialization -------------\n\n")
-
 
     return rnpv
 
@@ -351,26 +390,25 @@ def findLESTerms(pLES):
     dely = dely_LES*N_LES/N_DNS
     
     if (IMPLICIT):
-        BOUT_fU = pLES[4+0*N_LES*N_LES:4+1*N_LES*N_LES]
-        BOUT_fV = pLES[4+1*N_LES*N_LES:4+2*N_LES*N_LES]
-        BOUT_fP = pLES[4+2*N_LES*N_LES:4+3*N_LES*N_LES]
-        BOUT_pV = pLES[4+3*N_LES*N_LES:4+4*N_LES*N_LES]
-        BOUT_pN = pLES[4+4*N_LES*N_LES:4+5*N_LES*N_LES]
+        BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
+        BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
+        BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
+        BOUT_pV = pLES[4+3*SIZE:4+4*SIZE]
+        BOUT_pN = pLES[4+4*SIZE:4+5*SIZE]
 
-        fU           = np.reshape(BOUT_fU, (N_LES, N_LES))
-        fV           = np.reshape(BOUT_fV, (N_LES, N_LES))
-        fP           = np.reshape(BOUT_fP, (N_LES, N_LES))
-        pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, N_LES))
-        pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, N_LES))        
+        fU           = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
+        fV           = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
+        fP           = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
+        pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, BATCH_SIZE, N_LES))
+        pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, BATCH_SIZE, N_LES))        
     else:
-        BOUT_fU = pLES[4+0*N_LES*N_LES:4+1*N_LES*N_LES]
-        BOUT_fV = pLES[4+1*N_LES*N_LES:4+2*N_LES*N_LES]
-        BOUT_fP = pLES[4+2*N_LES*N_LES:4+3*N_LES*N_LES]
-        fU = np.reshape(BOUT_fU, (N_LES, N_LES))
-        fV = np.reshape(BOUT_fV, (N_LES, N_LES))
-        fP = np.reshape(BOUT_fP, (N_LES, N_LES))
+        BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
+        BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
+        BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
+        fU = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
+        fV = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
+        fP = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
     
-
 
     #--------------------------- prepare LES field in 
     # normalize
@@ -388,9 +426,20 @@ def findLESTerms(pLES):
     nfU = fU/fU_amax
     nfV = fV/fV_amax
     nfP = fP/fP_amax
-
-    nfimgA = np.concatenate([nfU[np.newaxis,np.newaxis, :, :], nfV[np.newaxis,np.newaxis,:,:], nfP[np.newaxis,np.newaxis,:,:]], axis=1)
-    nfimgA = tf.convert_to_tensor(nfimgA, dtype=DTYPE)
+    if (DIMS_3D):
+        nfU = tf.convert_to_tensor(nfU, dtype=DTYPE)
+        nfV = tf.convert_to_tensor(nfV, dtype=DTYPE)
+        nfP = tf.convert_to_tensor(nfP, dtype=DTYPE)
+        nfU = tf.transpose(nfU, [1,0,2])
+        nfV = tf.transpose(nfV, [1,0,2])
+        nfP = tf.transpose(nfP, [1,0,2])
+        nfU = nfU[:,tf.newaxis,:,:]
+        nfV = nfV[:,tf.newaxis,:,:]
+        nfP = nfP[:,tf.newaxis,:,:]
+        nfimgA = tf.concat([nfU,nfV,nfP], axis=1)
+    else:
+        nfimgA = np.concatenate([nfU[np.newaxis,np.newaxis, :, :], nfV[np.newaxis,np.newaxis,:,:], nfP[np.newaxis,np.newaxis,:,:]], axis=1)
+        nfimgA = tf.convert_to_tensor(nfimgA, dtype=DTYPE)
 
     # set new LES_in
     if (USE_DIFF_LES):
@@ -411,13 +460,14 @@ def findLESTerms(pLES):
         print("prepare ", time.time() - tstart)
         tstart = time.time()
 
-    
+        
     #--------------------------- find reconstructed field
     UVP_DNS = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max, find_fDNS=False)
     # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
     # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
+    
     if (PROFILE_BOUT):
         print("inference ", time.time() - tstart)
         tstart = time.time()
@@ -438,14 +488,14 @@ def findLESTerms(pLES):
         simtimeo = simtime
         pStepo   = pStep
    
-
+    
     #--------------------------- find poisson terms
     spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
-    F = UVP_DNS[0, 1, :, :]
-    G = UVP_DNS[0, 2, :, :]
-    fpPhiVort_DNS = find_bracket(F, G, gfilter, spacingFactor)
-    G = UVP_DNS[0, 0, :, :]
-    fpPhiN_DNS = find_bracket(F, G, gfilter, spacingFactor)
+    F = UVP_DNS[:, 1:2, :, :]
+    G = UVP_DNS[:, 2:3, :, :]
+    fpPhiVort_DNS = find_bracket(F, G, gfilter_single, spacingFactor)
+    G = UVP_DNS[:, 0:1, :, :]
+    fpPhiN_DNS = find_bracket(F, G, gfilter_single, spacingFactor)
 
     
     if (IMPLICIT):
@@ -485,9 +535,9 @@ def findLESTerms(pLES):
         pPrint = pPrint + pPrintFreq
 
         # find DNS fields
-        U_DNS = UVP_DNS[0,0,:,:].numpy()
-        V_DNS = UVP_DNS[0,1,:,:].numpy()
-        P_DNS = UVP_DNS[0,2,:,:].numpy()
+        U_DNS = UVP_DNS[:,0,:,:].numpy()
+        V_DNS = UVP_DNS[:,1,:,:].numpy()
+        P_DNS = UVP_DNS[:,2,:,:].numpy()
 
         # save
         filename = "./results_StylES/fields/fields_DNS_" + str(pStep).zfill(7)

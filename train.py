@@ -70,15 +70,28 @@ def train_step(input, images):
         tf.GradientTape() as pre_syn_tape, \
         tf.GradientTape() as syn_tape, \
         tf.GradientTape() as dis_tape:
-        dlatents       = mapping(input, training = True)
-        g_pre_images   = pre_synthesis(dlatents, training = True)
-        # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
-        g_images       = synthesis([dlatents, g_pre_images], training = True)
 
+        # find inference
+        dlatents = mapping(input, training = True)
+
+        if (USE_LESStyleGAN):
+            g_pre_images           = pre_synthesis(dlatents, training = True)
+        else:
+            g_pre_images, block_in = pre_synthesis(dlatents, training = True)
+
+        if (not USE_PREIMGS):
+            g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
+
+        if (USE_LESStyleGAN):
+            g_images = synthesis([dlatents, g_pre_images], training = True)
+        else:
+            g_images = synthesis([dlatents, g_pre_images, block_in], training = True)
+
+
+        # find losses
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
-        # find losses
         loss_real, loss_fake, loss_gen, r1_penalty, real_output, fake_output \
             = compute_losses(real_output, fake_output, images)
 
@@ -118,19 +131,22 @@ def train(dataset, train_summary_writer):
     tf.random.set_seed(SEED)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
     image_batch0 = next(iter(dataset))[RES_LOG2-FIL-2]
+
     mtr = np.zeros([5], dtype=DTYPE)
+
 
     #save first images
     div, momU, momV = generate_and_save_images(mapping, synthesis, [input_latent, image_batch0], 0)
-    with train_summary_writer.as_default():
-        for res in range(RES_LOG2-1):
-            pow = 2**(res+2)
-            var_name = "b/divergence_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, div[res], step=0)
-            var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, momU[res], step=0)
-            var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, momV[res], step=0)
+    if (TESTCASE=='HIT_2D'):
+        with train_summary_writer.as_default():
+            for res in range(RES_LOG2-1):
+                pow = 2**(res+2)
+                var_name = "b/divergence_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, div[res], step=0)
+                var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, momU[res], step=0)
+                var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, momV[res], step=0)
 
     tstart = time.time()
     tint   = tstart

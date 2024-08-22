@@ -191,7 +191,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
-    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=False):
+    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=True):
 
     if (testcase=='HIT_2D'):
         labelR = labels[0]

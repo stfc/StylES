@@ -38,17 +38,13 @@ tf.random.set_seed(seed=SEED_RESTART)
 
 
 #------------------------------------------------------ parameters
+FILE_DNS    = FILE_DNS_N512_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
 RESTART_WL  = False
-if (N_DNS==256):
-    FILE_DNS = FILE_DNS_N256
-elif (N_DNS==512):
-    FILE_DNS = FILE_DNS_N512
-elif (N_DNS==1024):
-    FILE_DNS = FILE_DNS_N1024
-    
+
+ 
 # check that randomization is off
 noise_DNS=[]
 for layer in synthesis.layers:
@@ -70,6 +66,8 @@ elif (TESTCASE=='HW' or TESTCASE=='mHW'):
     Z0_DIR_WL      = "../bout_interfaces/restart_fromGAN/"
     Z0_DIR_WL_LOGS = "../bout_interfaces/restart_fromGAN/logs/"
 
+filename_spectra = Z0_DIR_WL + "energy_spectrum.png"
+
 if (not RESTART_WL):
     os.system("rm -rf " + Z0_DIR_WL)
     os.system("mkdir -p " + Z0_DIR_WL)
@@ -77,7 +75,7 @@ CHKP_DIR_WL = Z0_DIR_WL + "checkpoints_wl/"
 
 
 
-#------------------------------------------------------ define optimizer for z and w search
+#------------------------------------------------------ define optimizer for z and wl_dlatents search
 if (lr_DNS_POLICY=="EXPONENTIAL"):
     lr_schedule_DNS  = tf.keras.optimizers.schedules.ExponentialDecay(
         initial_learning_rate=lr_DNS,
@@ -103,27 +101,45 @@ time.sleep(3)
 
 
 # create variable synthesis model
-lcnoise    = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
-x_in       = tf.constant(0, shape=[1, LATENT_SIZE], dtype=DTYPE)
+lcnoise = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
+z_in    = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
 
-z_in  = tf.keras.Input(shape=([1]),  dtype=DTYPE)
-z_new = lcnoise(x_in, z_in, scalingNoise=1.0)
+phi_in = tf.keras.Input(shape=([NC2_NOISE_IN, 1]),  dtype=DTYPE)
+wl_z  = lcnoise(z_in, phi_in, scalingNoise=1.0)
+
 img_in = []
 for res in range(2,RES_LOG2-FIL+1):
     img_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
-w            = mapping(z_new, training=False)
-outputs      = synthesis([w, img_in], training=False)
-wl_synthesis = tf.keras.Model(inputs=[z_in, img_in], outputs=[outputs, w])
+wl_dlatents = mapping(wl_z, training=False)
+if (USE_LESStyleGAN):
+    p_img   = pre_synthesis(wl_dlatents, training=False)
+    if (USE_PREIMGS):
+        outputs = synthesis([wl_dlatents, p_img], training=False)
+    else:
+        outputs = synthesis([wl_dlatents, img_in], training=False)
+else:
+    p_img, xb = pre_synthesis(wl_dlatents, training=False)
+    if (USE_PREIMGS):    
+        outputs = synthesis([wl_dlatents, img_in, xb], training=False)
+    else:
+        outputs = synthesis([wl_dlatents, p_img, xb], training=False)
+
+wl_synthesis = tf.keras.Model(inputs=[phi_in, img_in], outputs=[outputs, wl_dlatents])
+
 
 
 # create filter model
 if (GAUSSIAN_FILTER):
-    x_in    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out     = define_filter(x_in[0,0,:,:], size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
+    x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
+    x_in        = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out         = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
+    gfilter_1ch = tf.keras.Model(inputs=x_in, outputs=out)
+
     x_in              = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out               = define_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, type='Gaussian')
+    out               = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, type='Gaussian')
     gfilter_noScaling = tf.keras.Model(inputs=x_in, outputs=out)
 else:
     gfilter = filters[IFIL]
@@ -158,41 +174,72 @@ U_DNS = np.cast[DTYPE](U_DNS)
 V_DNS = np.cast[DTYPE](V_DNS)
 P_DNS = np.cast[DTYPE](P_DNS)
 
-tU_DNS = U_DNS[np.newaxis,np.newaxis,:,:]
-tV_DNS = V_DNS[np.newaxis,np.newaxis,:,:]
-tP_DNS = P_DNS[np.newaxis,np.newaxis,:,:]
+# convert to tf
+U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
 
-UVP_DNS = np.concatenate([tU_DNS, tV_DNS, tP_DNS], axis=1)
-UVP_DNS, nUVP_amaxo = np_normalize_max(UVP_DNS)
-
-if (TESTCASE=='mHW'):
-    fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode=['constant','wrap'])
-    fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode=['constant','wrap'])
-    fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode=['constant','wrap'])
+if (DIMS_3D):
+    U_DNS = tf.transpose(U_DNS, [1,0,2])
+    V_DNS = tf.transpose(V_DNS, [1,0,2])
+    P_DNS = tf.transpose(P_DNS, [1,0,2])
+    U_DNS = U_DNS[:,tf.newaxis,:,:]
+    V_DNS = V_DNS[:,tf.newaxis,:,:]
+    P_DNS = P_DNS[:,tf.newaxis,:,:]
 else:
-    fU_DNS = sc.ndimage.gaussian_filter(U_DNS, RS, mode='wrap')
-    fV_DNS = sc.ndimage.gaussian_filter(V_DNS, RS, mode='wrap')
-    fP_DNS = sc.ndimage.gaussian_filter(P_DNS, RS, mode='wrap')
+    U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+    V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+    P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+    
+UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
-fU_DNS = fU_DNS[np.newaxis,np.newaxis,:,:]
-fV_DNS = fV_DNS[np.newaxis,np.newaxis,:,:]
-fP_DNS = fP_DNS[np.newaxis,np.newaxis,:,:]
+# filter and dowscale if needed
+NX_DNS = len(U_DNS[0,0,0,:])
+rsin = int(NX_DNS/OUTPUT_DIM)
+if (rsin>1):
+    UVP_DNS     = apply_filter_NCH(UVP_DNS_org, size=4*rsin, rsca=rsin, mean=0.0, delta=rsin, type='Gaussian', NCH=3)
+    U_DNS       = UVP_DNS[:,0:1,:,:]
+    V_DNS       = UVP_DNS[:,1:2,:,:]
+    if (USE_VORTICITY):
+        P_DNS = find_vorticity_HW(V_DNS, DELX*rsin, DELY*rsin)
+    else:
+        P_DNS = UVP_DNS[:,2:3,:,:]
+    UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
-UVP_LES = np.concatenate([fU_DNS, fV_DNS, fP_DNS], axis=1)
-UVP_LES, fUVP_amaxo = np_normalize_max(UVP_LES)
+UVP_LES_org = apply_filter_NCH(UVP_DNS_org, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
 
-UVP_max = nUVP_amaxo + fUVP_amaxo
 
+# print values
+U_DNS = UVP_DNS_org[0,0,:,:].numpy()
+V_DNS = UVP_DNS_org[0,1,:,:].numpy()
+P_DNS = UVP_DNS_org[0,2,:,:].numpy()
 
 filename = Z0_DIR_WL + "plots_DNS_org.png"
-print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE, \
-            Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE), \
+            #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
-closePlot=False
-filename = Z0_DIR_WL + "energy_spectrum_DNS.png"
-dVdx = (-cr(V_DNS, 2, 0) + 8*cr(V_DNS, 1, 0) - 8*cr(V_DNS, -1,  0) + cr(V_DNS, -2,  0))/(12.0*DELX_LES)
-dVdy = (-cr(V_DNS, 0, 2) + 8*cr(V_DNS, 0, 1) - 8*cr(V_DNS,  0, -1) + cr(V_DNS,  0, -2))/(12.0*DELY_LES)
-plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename, label="DNS", close=False)
+U_LES = UVP_LES_org[0,0,:,:].numpy()
+V_LES = UVP_LES_org[0,1,:,:].numpy()
+P_LES = UVP_LES_org[0,2,:,:].numpy()
+
+filename = Z0_DIR_WL + "plots_LES_org.png"
+print_fields_3(U_LES, V_LES, P_LES, filename=filename, testcase=TESTCASE) #, \
+            #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+
+
+dVdx = (-cr(V_DNS, 2, 0) + 8*cr(V_DNS, 1, 0) - 8*cr(V_DNS, -1,  0) + cr(V_DNS, -2,  0))/(12.0)
+dVdy = (-cr(V_DNS, 0, 2) + 8*cr(V_DNS, 0, 1) - 8*cr(V_DNS,  0, -1) + cr(V_DNS,  0, -2))/(12.0)
+plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename_spectra, label="DNS", close=False)
+
+dVdx = (-cr(V_LES, 2, 0) + 8*cr(V_LES, 1, 0) - 8*cr(V_LES, -1,  0) + cr(V_LES, -2,  0))/(12.0*DELX_LES)
+dVdy = (-cr(V_LES, 0, 2) + 8*cr(V_LES, 0, 1) - 8*cr(V_LES,  0, -1) + cr(V_LES,  0, -2))/(12.0*DELY_LES)
+plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename_spectra, label="LES_org", close=False)
+
+
+# Normalize values
+nUVP_DNS, nUVP_amaxo = normalize_max(UVP_DNS_org)
+nUVP_LES, fUVP_amaxo = normalize_max(UVP_LES_org)
+UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 
 
@@ -201,61 +248,25 @@ rs = 2
 for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
     res = 2**reslog
     if (reslog==RES_LOG2):
-        fU_DNS = U_DNS
-        fV_DNS = V_DNS
-        fP_DNS = P_DNS
+        fUVP_DNS = nUVP_DNS
     else:
-        if (TESTCASE=='mHW'):
-            fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode=['constant','wrap'])
-            fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
-            fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
+        fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian')
+        U_DNS    = fUVP_DNS[:,0:1,:,:]
+        V_DNS    = fUVP_DNS[:,1:2,:,:]
+        if (USE_VORTICITY):        
+            P_DNS    = find_vorticity_HW(V_DNS, DELX*OUTPUT_DIM/res, DELY*OUTPUT_DIM/res)
+            fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
         else:
-            fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
-            fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
-            fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
-
-        fU_DNS = fU_DNS[::rs,::rs]
-        fV_DNS = fV_DNS[::rs,::rs]
-        fP_DNS = fP_DNS[::rs,::rs]
+            P_DNS    = fUVP_DNS[:,2:3,:,:]
+        fUVP_DNS = find_centred_fields(fUVP_DNS)
+        fUVP_DNS, _ = normalize_max(fUVP_DNS)
 
     # normalize the data
-    minU = np.min(fU_DNS)
-    maxU = np.max(fU_DNS)
-    amaxU = max(abs(minU), abs(maxU))
-    fU_DNS = fU_DNS / amaxU
-    
-    minV = np.min(fV_DNS)
-    maxV = np.max(fV_DNS)
-    amaxV = max(abs(minV), abs(maxV))
-    fV_DNS = fV_DNS / amaxV
-
-    minP = np.min(fP_DNS)
-    maxP = np.max(fP_DNS)
-    amaxP = max(abs(minP), abs(maxP))
-    fP_DNS = fP_DNS / amaxP
-
-        
-
+    fUVP_DNS, _ = normalize_max(fUVP_DNS)
+       
 # save LES_in0
-fU_DNS = tf.convert_to_tensor(fU_DNS[np.newaxis,np.newaxis,:,:])
-fV_DNS = tf.convert_to_tensor(fV_DNS[np.newaxis,np.newaxis,:,:])
-fP_DNS = tf.convert_to_tensor(fP_DNS[np.newaxis,np.newaxis,:,:])
+LES_in0 = tf.identity(fUVP_DNS)
 
-LES_in0 = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
-
-
-# save original DNS field
-U_DNS = tf.convert_to_tensor(U_DNS[np.newaxis,np.newaxis,:,:])
-V_DNS = tf.convert_to_tensor(V_DNS[np.newaxis,np.newaxis,:,:])
-P_DNS = tf.convert_to_tensor(P_DNS[np.newaxis,np.newaxis,:,:])
-UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
-
-
-# save original LES field
-U_LES = gfilter(U_DNS)
-V_LES = gfilter(V_DNS)
-P_LES = gfilter(P_DNS)
-UVP_LES_org = tf.concat([U_LES, V_LES, P_LES], axis=1)
 
 
 # set LES_all0
@@ -312,17 +323,33 @@ if (RESTART_WL):
 
 else:
 
-    for res in range(2,RES_LOG2-FIL+1):
-        rs = 2**(RES_LOG2-FIL-res)
-        if (res != RES_LOG2-FIL):
-            U_LES = U_DNS[:,:,::rs,::rs]
-            V_LES = V_DNS[:,:,::rs,::rs]
-            P_LES = P_DNS[:,:,::rs,::rs]
-            img_LES = tf.concat([U_LES,V_LES,P_LES], axis=1)
-            LES_all0.append(img_LES)
-
     # set z
-    z0 = tf.random.uniform(shape=[NC2_NOISE_IN, 1], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    z0 = tf.random.uniform(shape=[BATCH_SIZE, NC2_NOISE_IN, 1], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+
+    if (USE_PREIMGS):
+        if (USE_LESStyleGAN):
+            p_img = pre_synthesis(wl_dlatents, training = True)
+            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, p_img], UVP_max)    
+        else:
+            p_img, b_in = pre_synthesis(wl_dlatents, training = True)
+            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, p_img, b_in], UVP_max)
+    else:
+        for res in range(2,RES_LOG2-FIL+1):
+            rs = 2**(RES_LOG2-FIL-res)
+            if (res != RES_LOG2-FIL):
+                img_LES = LES_in0[:,:,::rs,::rs]
+                LES_all0.append(img_LES)
+
+        LES_all = [LES_all0, LES_in0]
+        if (USE_LESStyleGAN):
+            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+        else:
+            p_img, b_in = pre_synthesis(wl_dlatents, training = True)
+            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all, b_in], UVP_max)
+
+    LES_in0 = predictions[RES_LOG2-FIL-2]
+
+
 
 LES_all = [LES_all0, LES_in0]
 
@@ -335,10 +362,12 @@ print ("============================Completed setup!\n\n")
 #------------------------------------------------------ find initial residuals
 # find inference...
 UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
-#... and correct it with new LES_in0
-LES_in0 = normalize_max(fUVP_DNS)
-LES_all = [LES_all0, LES_in0]
-UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+
+# #... and correct it with new LES_in0
+# LES_in0, _ = normalize_max(fUVP_DNS)
+# LES_all = [LES_all0, LES_in0]
+# UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+
 
 # find residuals
 resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS_org, UVP_LES, typeRes=1)
@@ -401,7 +430,7 @@ if (TUNE):
 
 
         # # normalize the data
-        # LES_in0 = 1.0*normalize_max(fUVP_DNS) + 0.0*LES_in0
+        # LES_in0 = 1.0*normalize_max(fUVP_DNS)[0] + 0.0*LES_in0
         # LES_all = [LES_all0, LES_in0]
 
         # move next iteration
@@ -453,19 +482,23 @@ if (not RESTART_WL):
 
 #------------------------------------------------------ check, find and print fields
 if (TESTCASE=='HW' or TESTCASE=='mHW'):
-    print("Mean U ", tf.reduce_mean(UVP_DNS[0, 0, :, :]))
-    print("Mean V ", tf.reduce_mean(UVP_DNS[0, 1, :, :]))
-    print("Mean P ", tf.reduce_mean(UVP_DNS[0, 2, :, :]))
+    print("Mean U ", tf.reduce_mean(UVP_DNS[:, 0, :, :]))
+    print("Mean V ", tf.reduce_mean(UVP_DNS[:, 1, :, :]))
+    print("Mean P ", tf.reduce_mean(UVP_DNS[:, 2, :, :]))
 
 
-#--------------------------- find DNS, LES and filtered fields
+#--------------------------- find mean and min/max values
+print("Min/max values in each field :")
+print(np.min(UVP_DNS[0, 0, :, :].numpy()), np.min(UVP_DNS[0, 1, :, :].numpy()), np.min(UVP_DNS[0, 2, :, :].numpy()), \
+      np.max(UVP_DNS[0, 0, :, :].numpy()), np.max(UVP_DNS[0, 1, :, :].numpy()), np.max(UVP_DNS[0, 2, :, :].numpy()))
+
+
+
+#--------------------------- plot final fields, differences and spectra
 # DNS
 U_DNS = UVP_DNS[0, 0, :, :].numpy()
 V_DNS = UVP_DNS[0, 1, :, :].numpy()
 P_DNS = UVP_DNS[0, 2, :, :].numpy()
-
-print("Min/max values in each field :")
-print(np.min(U_DNS), np.max(U_DNS), np.min(V_DNS), np.max(V_DNS), np.min(P_DNS), np.max(P_DNS))
 
 # DNS
 U_LES = UVP_LES[0, 0, :, :].numpy()
@@ -477,8 +510,6 @@ fU_DNS = fUVP_DNS[0, 0, :, :].numpy()
 fV_DNS = fUVP_DNS[0, 1, :, :].numpy()
 fP_DNS = fUVP_DNS[0, 2, :, :].numpy()
 
-
-#--------------------------- print final fields, differences and spectra
 if (TESTCASE=='HIT_2D'):
 
     filename = Z0_DIR_WL + "plots.png"
@@ -488,15 +519,14 @@ if (TESTCASE=='HIT_2D'):
     save_fields(0.6, U_DNS, V_DNS, P_DNS, filename=filename)  # Note: t=0.6 is the corrisponding time to t=545 tau_e
 
     filename = Z0_DIR_WL + "energy_spectrum.png"
-    closePlot=True
-    plot_spectrum_2d_3v(U_DNS, V_DNS, L, filename, close=closePlot)
+    plot_spectrum_2d_3v(U_DNS, V_DNS, L, filename, close=True)
 
 elif(TESTCASE=='HW' or TESTCASE=='mHW'):
 
     # fields
     filename = Z0_DIR_WL + "plots_DNS.png"
-    print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE, \
-                Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+    print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE) #, \
+                #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
     filename = Z0_DIR_WL + "plots_LES.png"
     print_fields_3(U_LES, V_LES, P_LES, filename=filename, testcase=TESTCASE) #, \
@@ -525,30 +555,27 @@ elif(TESTCASE=='HW' or TESTCASE=='mHW'):
     print_fields_3(P_LES, fP_DNS, fP_DNS-P_LES, filename=filename, testcase=TESTCASE, plot='diff', \
                 Umin=minf, Umax=maxf, Vmin=minf, Vmax=maxf, Pmin=minf, Pmax=maxf)
 
-    cP_DNS = (-tr(V_DNS, 2, 0) + 16*tr(V_DNS, 1, 0) - 30*V_DNS + 16*tr(V_DNS,-1, 0) - tr(V_DNS,-2, 0))/(12*DELX**2) \
-           + (-tr(V_DNS, 0, 2) + 16*tr(V_DNS, 0, 1) - 30*V_DNS + 16*tr(V_DNS, 0,-1) - tr(V_DNS, 0,-2))/(12*DELY**2)
+    cP_DNS = (-cr(V_DNS, 2, 0) + 16*cr(V_DNS, 1, 0) - 30*V_DNS + 16*cr(V_DNS,-1, 0) - cr(V_DNS,-2, 0))/(12*DELX**2) \
+           + (-cr(V_DNS, 0, 2) + 16*cr(V_DNS, 0, 1) - 30*V_DNS + 16*cr(V_DNS, 0,-1) - cr(V_DNS, 0,-2))/(12*DELY**2)
     filename = Z0_DIR_WL + "plots_diff_Phi.png"
     print_fields_3(P_DNS, cP_DNS, P_DNS-cP_DNS, filename=filename, testcase=TESTCASE, plot='diff')
 
 
-    # spectrum
-    closePlot=False
+    # spectra
     filename = Z0_DIR_WL + "energy_spectrum_StylES.png"
     dVdx = (-cr(V_DNS, 2, 0) + 8*cr(V_DNS, 1, 0) - 8*cr(V_DNS, -1,  0) + cr(V_DNS, -2,  0))/(12.0*DELX_LES)
     dVdy = (-cr(V_DNS, 0, 2) + 8*cr(V_DNS, 0, 1) - 8*cr(V_DNS,  0, -1) + cr(V_DNS,  0, -2))/(12.0*DELY_LES)
-    plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
-
+    plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename, label="StylES", close=False)
 
     filename = Z0_DIR_WL + "energy_spectrum_LES.png"
     dVdx = (-cr(V_LES, 2, 0) + 8*cr(V_LES, 1, 0) - 8*cr(V_LES, -1,  0) + cr(V_LES, -2,  0))/(12.0*DELX_LES)
     dVdy = (-cr(V_LES, 0, 2) + 8*cr(V_LES, 0, 1) - 8*cr(V_LES,  0, -1) + cr(V_LES,  0, -2))/(12.0*DELY_LES)
-    plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename, label="LES", close=closePlot)
+    plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename, label="LES", close=False)
 
-    closePlot=True
     filename = Z0_DIR_WL + "energy_spectrum_fDNS.png"
     dVdx = (-cr(fV_DNS, 2, 0) + 8*cr(fV_DNS, 1, 0) - 8*cr(fV_DNS, -1,  0) + cr(fV_DNS, -2,  0))/(12.0*DELX_LES)
     dVdy = (-cr(fV_DNS, 0, 2) + 8*cr(fV_DNS, 0, 1) - 8*cr(fV_DNS,  0, -1) + cr(fV_DNS,  0, -2))/(12.0*DELY_LES)
-    plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="fDNS", close=closePlot)
+    plot_spectrum_2d_3v(fU_DNS, dVdx, dVdy, L, filename, label="fDNS", close=True)
 
 
 print ("============================Completed tuning!\n\n")
@@ -560,20 +587,20 @@ print ("============================Completed tuning!\n\n")
 # find
 cf_DNS = 10.0*U_DNS  # conservation
 lf_DNS = U_DNS + V_DNS  # linearity
-df_DNS = ((tr(P_DNS, 1, 0) - tr(P_DNS,-1, 0))/(2*DELX)) + ((tr(P_DNS, 0, 1) - tr(P_DNS, 0,-1))/(2*DELY))  # commutative
+df_DNS = ((cr(P_DNS, 1, 0) - cr(P_DNS,-1, 0))/(2*DELX)) + ((cr(P_DNS, 0, 1) - cr(P_DNS, 0,-1))/(2*DELY))  # commutative
         
-cf_DNS = (gfilter(cf_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
-lf_DNS = (gfilter(lf_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
-df_DNS = (gfilter(df_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
+cf_DNS = (gfilter_1ch(cf_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
+lf_DNS = (gfilter_1ch(lf_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
+df_DNS = (gfilter_1ch(df_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
 
 c_LES = 10.0*fU_DNS
 l_LES = fU_DNS + fV_DNS
 if (GAUSSIAN_FILTER):
     fP_DNS_noSca = (gfilter_noScaling(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]   # the downscaling must happens after the filtering!!
-    d_LES = ((tr(fP_DNS_noSca, 1, 0) - tr(fP_DNS_noSca,-1, 0))/(2*DELX)) + ((tr(fP_DNS_noSca, 0, 1) - tr(fP_DNS_noSca, 0,-1))/(2*DELY))
+    d_LES = ((cr(fP_DNS_noSca, 1, 0) - cr(fP_DNS_noSca,-1, 0))/(2*DELX)) + ((cr(fP_DNS_noSca, 0, 1) - cr(fP_DNS_noSca, 0,-1))/(2*DELY))
     d_LES = d_LES[::RS,::RS]
 else:
-    d_LES = ((tr(fP_DNS, 1, 0) - tr(fP_DNS,-1, 0))/(2*DELX_LES)) + ((tr(fP_DNS, 0, 1) - tr(fP_DNS, 0,-1))/(2*DELY_LES))
+    d_LES = ((cr(fP_DNS, 1, 0) - cr(fP_DNS,-1, 0))/(2*DELX_LES)) + ((cr(fP_DNS, 0, 1) - cr(fP_DNS, 0,-1))/(2*DELY_LES))
 
 # plot
 filename = Z0_DIR_WL + "plots_filterProperty_conservation.png"

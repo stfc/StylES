@@ -374,10 +374,10 @@ for tv, tollDNS in enumerate(tollDNSValues):
         plot_spectrum_2d_3v_noPlots(U_DNS, V_DNS, L, filename)
 
 
-        tU_DNS = tf.convert_to_tensor(U_DNS_t)
-        tV_DNS = tf.convert_to_tensor(V_DNS_t)
-        tP_DNS = tf.convert_to_tensor(P_DNS_t)
-        tW_DNS = tf.convert_to_tensor(W_DNS_t)
+        tU_DNS = tf.convert_to_tensor(U_DNS_t, dtype=DTYPE)
+        tV_DNS = tf.convert_to_tensor(V_DNS_t, dtype=DTYPE)
+        tP_DNS = tf.convert_to_tensor(P_DNS_t, dtype=DTYPE)
+        tW_DNS = tf.convert_to_tensor(W_DNS_t, dtype=DTYPE)
 
         U_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
         V_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]

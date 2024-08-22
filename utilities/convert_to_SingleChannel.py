@@ -19,10 +19,12 @@
 #
 #-----------------------------------------------------------------------------------------------
 import numpy as np
+import matplotlib.pyplot as plt
 import os
+import glob
+import imageio
 import sys
 
-from matplotlib import cm
 from PIL import Image
 
 sys.path.insert(0, '../')
@@ -31,11 +33,11 @@ sys.path.insert(0, '../LES_Solvers/testcases/HIT_2D/')
 
 from LES_plot import *
 from LES_functions  import *
-from HIT_2D import L
 
 N    = 512
+L    = 50.176
 sca  = 1
-PATH = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz_1img/"
+PATH = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/"
 DEST = "./results_convertion_from_npz/"
 os.system("rm -rf " + DEST)
 os.system("mkdir " + DEST)
@@ -78,22 +80,22 @@ for i,file in enumerate(sorted(files)):
     U = nimg[:,:,0]
     V = nimg[:,:,1]
 
-    #W = nimg[:,:,2]
+    W = nimg[:,:,2]
     # W = find_vorticity(U, V)
-    W = find_vorticity_HW(V, L/N*8, L/N*8)
+    #W = find_vorticity_HW(V, L/N*8, L/N*8)
 
 
-    filename = filename=DEST + "/plots_" + str(i) + ".png"
+    filename = DEST + "/plots_" + str(i).zfill(4) + ".png"
     print_fields_3(U, V, W, filename=filename, testcase='HW') #, \
                 # Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
 
     if (i==nfiles-1):
         closePlot=True
 
-    filename = DEST + "/energy_spectrum_" + str(i) + ".png"
-    dVdx = (-cr(V, 2, 0) + 8*cr(V, 1, 0) - 8*cr(V, -1,  0) + cr(V, -2,  0))/(12.0*L/N*8)
-    dVdy = (-cr(V, 0, 2) + 8*cr(V, 0, 1) - 8*cr(V,  0, -1) + cr(V,  0, -2))/(12.0*L/N*8)
-    plot_spectrum_2d_3v(U, dVdx, dVdy, L, filename, label="DNS", close=closePlot)
+    # filename = DEST + "/energy_spectrum_" + str(i) + ".png"
+    # dVdx = (-cr(V, 2, 0) + 8*cr(V, 1, 0) - 8*cr(V, -1,  0) + cr(V, -2,  0))/(12.0*L/N*8)
+    # dVdy = (-cr(V, 0, 2) + 8*cr(V, 0, 1) - 8*cr(V,  0, -1) + cr(V,  0, -2))/(12.0*L/N*8)
+    # plot_spectrum_2d_3v(U, dVdx, dVdy, L, filename, label="DNS", close=closePlot)
 
     # nimg = vor
     #nimg = W - vor
@@ -106,3 +108,16 @@ for i,file in enumerate(sorted(files)):
     # img.save(filename2)
 
     print("done for ", file)
+
+
+anim_file = DEST + "/animation.gif"
+filenames = glob.glob(DEST + "/*.png")
+filenames = sorted(filenames)
+
+with imageio.get_writer(anim_file, mode='I', duration=0.1) as writer:
+    for filename in filenames:
+        print(filename)
+        image = imageio.v2.imread(filename)
+        writer.append_data(image)
+    image = imageio.v2.imread(filename)
+    writer.append_data(image)

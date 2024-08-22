@@ -7,5 +7,5 @@
 #BSUB -gpu "num=1"
 #BSUB -W 12:00
 
-python create_restart.py > output.txt
+python convert_to_SingleChannel.py  > output.txt
 #python check_reconstruction.py > output.txt

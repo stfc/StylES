@@ -144,11 +144,11 @@ def make_pre_synthesis_model():
 
 
     # Building blocks for remaining layers.
-    def block_LES(in_res, in_x):  # res = 3..RES_LOG2
+    def block(in_res, in_x):  # res = 3..RES_LOG2
         in_x = layer_epilogue(
             blur(
                 upscale2d_conv2d(in_x,
-                    fmaps=NUM_CHANNELS,
+                    fmaps=nf(in_res - 1),
                     kernel=3,
                     gain=GAIN,
                     use_wscale=use_wscale,
@@ -160,7 +160,7 @@ def make_pre_synthesis_model():
         in_x = layer_epilogue(
             conv2d(
                 in_x,
-                fmaps=NUM_CHANNELS,
+                fmaps=nf(in_res - 1),
                 kernel=3,
                 gain=GAIN,
                 use_wscale=use_wscale,
@@ -170,40 +170,50 @@ def make_pre_synthesis_model():
         return in_x
 
 
+
     # convert to RGB
-    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
-        in_lod = RES_LOG2 - in_res
-        x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        x_R = define_filter(x[0,0,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        x_G = define_filter(x[0,1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        if (TESTCASE=='HIT_2D'):
-            x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        else:
-            x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
-        x_B = x_B[tf.newaxis,tf.newaxis,:,:]
-        x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = find_centred_fields(x)
-        x = normalize_max(x)
-        return x
+    if (USE_VORTICITY):
+        def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+            in_lod = RES_LOG2 - in_res
+            x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+            bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+            x = bias(x)
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=2)
+            U_DNS   = x[:,0:1,:,:]
+            V_DNS   = x[:,1:2,:,:]
+            rs      = OUTPUT_DIM/(2**in_res)
+            P_DNS   = find_vorticity_HW(V_DNS, DELX*rs, DELY*rs)
+            x       = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+            x       = find_centred_fields(x)
+            x, _    = normalize_max(x)
+            return x
+    else:
+        def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+            in_lod = RES_LOG2 - in_res
+            x = conv2d(in_x, fmaps=3, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+            bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+            x = bias(x)
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
+            x = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x
 
 
     # Finally, arrange the computations for the layers
     images_out = []  # list will contain the output images at different resolutions
     images_out.append(torgb(2, x))
     for res in range(3, RES_LOG2-FIL):
-        x = block_LES(res, x)
+        x = block(res, x)
         images_out.append(torgb(res, x))
 
-
-    # LES layer
     res = RES_LOG2-FIL
-    x = block_LES(res, x)
-    x = torgb(res, x)
-    images_out.append(x)
+    x_out = block(res, x)
+    images_out.append(torgb(res, x_out))
 
-    pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+    if (USE_LESStyleGAN):
+        pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+    else:
+        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, x_out])
 
     return pre_synthesis_model
 
@@ -228,9 +238,13 @@ def make_synthesis_model():
 
     # Inputs
     dlatents = tf.keras.Input(shape=([G_LAYERS, LATENT_SIZE]), dtype=DTYPE)
+
     images_in = []
     for res in range(2,RES_LOG2-FIL+1):
         images_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
+
+    if (not USE_LESStyleGAN):
+        xblock_in = tf.keras.Input(shape=([nf(RES_LOG2-FIL - 1), 2**(RES_LOG2-FIL), 2**(RES_LOG2-FIL)]), dtype=DTYPE)
 
 
     # Noise inputs
@@ -303,35 +317,57 @@ def make_synthesis_model():
         )
         return in_x
 
-    # convert to RGB
-    def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
-        in_lod = RES_LOG2 - in_res
-        x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        x_R = define_filter(x[0,0,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        x_G = define_filter(x[0,1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        if (TESTCASE=='HIT_2D'):
-            x_B = define_filter(x[0,2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
-        else:
-            x_B = find_vorticity_HW(x_G[0,0,:,:], LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
-        x_B = x_B[tf.newaxis,tf.newaxis,:,:]
-        x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = find_centred_fields(x)
-        x = normalize_max(x)
-        return x
 
+
+    # convert to RGB
+    if (USE_VORTICITY):
+        def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+            in_lod = RES_LOG2 - in_res
+            x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+            bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+            x = bias(x)
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=2)
+            U_DNS   = x[:,0:1,:,:]
+            V_DNS   = x[:,1:2,:,:]
+            rs      = OUTPUT_DIM/(2**in_res)
+            P_DNS   = find_vorticity_HW(V_DNS, DELX*rs, DELY*rs)
+            x       = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+            x       = find_centred_fields(x)
+            x, _    = normalize_max(x)
+            return x
+    else:
+        def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+            in_lod = RES_LOG2 - in_res
+            x = conv2d(in_x, fmaps=3, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+            bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+            x = bias(x)
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian')
+            x = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x
+    
+    
     # Finally, arrange the computations for the layers
-    x = images_in[-1]
+    if (USE_LESStyleGAN):
+        x = images_in[-1]
+    else:
+        x = xblock_in
     images_out = []
     for layer in range(2, RES_LOG2-FIL+1):
         images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
 
-    for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
+    for res in range(RES_LOG2-FIL+1, RES_LOG2):
         x = block(res, x)
         images_out.append(torgb(res, x))
 
-    synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
+    res = RES_LOG2
+    x = block(res, x)
+    images_out.append(torgb(res, x))
+
+    if (USE_LESStyleGAN):
+        synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
+    else:
+        synthesis_model = Model(inputs=[dlatents, images_in, xblock_in], outputs=images_out)
 
     return synthesis_model
 

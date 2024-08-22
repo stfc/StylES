@@ -111,7 +111,7 @@ for st in range(1,len(wl_synthesis.trainable_variables)):
             clatents = tf.convert_to_tensor(rand0)
             UVW_DNS = find_step(dlatents, clatents)
         else:
-            clatents = tf.convert_to_tensor((1.-i/float(NIP-1))*rand0 + i/float(NIP-1)*rand1) 
+            clatents = tf.convert_to_tensor((1.-i/float(NIP-1))*rand0 + i/float(NIP-1)*rand1, dtype=DTYPE) 
 
             # if (st==0):
             #     nwlatents = tf.concat([clatents, wl_synthesis.trainable_variables[st+1:G_LAYERS]], 0)
