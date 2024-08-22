@@ -49,6 +49,9 @@ from parameters       import *
 from MSG_StyleGAN_tf2 import *
 from functions        import *
 
+from pyevtk.hl import gridToVTK
+
+
 
 
 
@@ -64,8 +67,8 @@ tollLES      = 0.25
 CHKP_DIR     = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL  = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass     = lr_DNS_maxIt
-pPrintFreq   = 0.01
-RUN_DNS      = False
+pPrintFreq   = 1.0
+RUN_DNS      = True
 RESTART_WL   = True
 USE_DIFF_LES = False 
 IMPLICIT     = False  
@@ -119,32 +122,6 @@ else:
     print("Initializing net from scratch.")
 
 
-# create variable synthesis model
-lcnoise = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
-z_in    = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-
-phi_in = tf.keras.Input(shape=([NC2_NOISE_IN, 1]),  dtype=DTYPE)
-wl_z  = lcnoise(z_in, phi_in, scalingNoise=1.0)
-
-img_in = []
-for res in range(2,RES_LOG2-FIL+1):
-    img_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
-wl_dlatents = mapping(wl_z, training=False)
-if (USE_LESStyleGAN):
-    p_img   = pre_synthesis(wl_dlatents, training=False)
-    if (USE_PREIMGS):
-        outputs = synthesis([wl_dlatents, p_img], training=False)
-    else:
-        outputs = synthesis([wl_dlatents, img_in], training=False)
-else:
-    p_img, xb = pre_synthesis(wl_dlatents, training=False)
-    if (USE_PREIMGS):    
-        outputs = synthesis([wl_dlatents, img_in, xb], training=False)
-    else:
-        outputs = synthesis([wl_dlatents, p_img, xb], training=False)
-
-wl_synthesis = tf.keras.Model(inputs=[phi_in, img_in], outputs=[outputs, wl_dlatents])
-
 
 
 # create filter model
@@ -164,18 +141,11 @@ else:
     gfilter     = filters[IFIL]
 
 
-# define checkpoints wl_synthesis and filter
-checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
-managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
-
 
 # add latent space to trainable variables
 if (not TUNE_NOISE):
     ltv_DNS = []
     
-for variable in lcnoise.trainable_variables:
-    ltv_DNS.append(variable)
-
 print("\n kDNS variables:")
 for variable in ltv_DNS:
     print(variable.name, variable.shape)
@@ -186,37 +156,27 @@ for variable in ltv_DNS:
 LES_all0 = []
 if (RESTART_WL):
 
-    # loading wl_synthesis checkpoint and zlatents
-    if managerCheckpoint_wl.latest_checkpoint:
-        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
-    else:
-        print("Initializing wl_synthesis from scratch.")
-
     filename = PATH_StylES + "/bout_interfaces/restart_fromGAN/z0.npz"
                 
     data = np.load(filename)
 
     z0         = data["z0"]
+    dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
     nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
-    noise_in   = data["noise_in"]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
+    print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
     print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
-    print("noise_in",     noise_in.shape, np.min(noise_in),   np.max(noise_in))
 
     # assign variables
     z0         = tf.convert_to_tensor(z0, dtype=DTYPE)
     LES_in0    = tf.convert_to_tensor(LES_in0, dtype=DTYPE)
 
     UVP_max = np.concatenate([nUVP_amaxo, fUVP_amaxo], 0)
-
-    for nvars in range(len(noise_in)):
-        tnoise_in = tf.convert_to_tensor(noise_in[nvars], dtype=DTYPE)
-        lcnoise.trainable_variables[nvars].assign(tnoise_in)
 
     # assign variable noise
     if (TUNE_NOISE):
@@ -234,20 +194,30 @@ if (RESTART_WL):
         rs = 2**(RES_LOG2-FIL-res)
         LES_all0.append(LES_in0[:,:,::rs,::rs])
 
-# else:
+else:
 
-#     # set z
-#     #z0 = tf.random.uniform(shape=[BATCH_SIZE, 1+2*(G_LAYERS-M_LAYERS), LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-#     z0 = tf.random.uniform(shape=[BATCH_SIZE, 1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+    # set z
+    if (DIMS_3D):
+        z0a = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        z0b = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        z0 = z0a
+        for i in range(1,BATCH_SIZE):
+            wi = np.cos(i/float(BATCH_SIZE-1)*2.0*np.pi)
+            zi = z0a*wi + z0b*(1.0-wi)
+            z0 = tf.concat([z0, zi], axis=0)
+    else:
+        z0 = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        
+    dlatents = mapping(z0, training=False)
 
-#     UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(fwl_synthesis, gfilter, z0, UVP_max)
+    if (not USE_IMGSLES):
+        pre_img  = pre_synthesis(dlatents, training = False)
+        LES_in0  = pre_img[-1] 
 
-#     # set LES_in fields
-#     LES_in0 = predictions[RES_LOG2-FIL-2]
-#     LES_all0 = []
-#     for res in range(2,RES_LOG2-FIL):
-#         rs = 2**(RES_LOG2-FIL-res)
-#         LES_all0.append(LES_in0[:,:,::rs,::rs])
+    for res in range(2,RES_LOG2-FIL+1):
+        rs = 2**(RES_LOG2-FIL-res)
+        if (res != RES_LOG2-FIL):
+            LES_all0.append(LES_in0[:,:,::rs,::rs])
 
 LES_all = [LES_all0, LES_in0]
 
@@ -255,11 +225,11 @@ LES_all = [LES_all0, LES_in0]
 
 #--------------------------- load DNS field and prepare LES_in
 # load numpy array
-UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS, predictions = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
 
-U_DNS = UVP_DNS[NY2,0,:,:].numpy()
-V_DNS = UVP_DNS[NY2,1,:,:].numpy()
-P_DNS = UVP_DNS[NY2,2,:,:].numpy()
+U_DNS = UVP_DNS[0,0,:,:].numpy()
+V_DNS = UVP_DNS[0,1,:,:].numpy()
+P_DNS = UVP_DNS[0,2,:,:].numpy()
 
 filename = "plots_DNS.png"
 print_fields_3(U_DNS, V_DNS, P_DNS, filename=filename, testcase=TESTCASE) #, \
@@ -286,7 +256,28 @@ if (USE_DIFF_LES):
     LES_ino = predictions[RES_LOG2-FIL-2]
     nfimgAo = tf.identity(nfimgA)
 
+if (RUN_DNS):
+    file = open("./data/BOUT.inp", 'r')
+else:
+    file = open("./data_DNS/BOUT.inp", 'r')
+for line in file:
+    if "nx =" in line:
+        NX = int(line.split()[2]) - 4
+    if "ny =" in line:
+        NY = int(line.split()[2])
+    if "nz =" in line:
+        NZ = int(line.split()[2])
+    if "Lx =" in line:
+        LX = float(line.split()[2])
+    if "Ly =" in line:
+        LY = float(line.split()[2])
+    if "Lz =" in line:
+        LZ = float(line.split()[2])
 
+x = np.linspace(0,LX,NX)
+y = np.linspace(0,LY,NY)
+z = np.linspace(0,LZ,NZ)
+X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
 
 
@@ -462,7 +453,7 @@ def findLESTerms(pLES):
 
         
     #--------------------------- find reconstructed field
-    UVP_DNS = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max, find_fDNS=False)
+    UVP_DNS = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max, find_fDNS=False)
     # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
     # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
@@ -539,9 +530,18 @@ def findLESTerms(pLES):
         V_DNS = UVP_DNS[:,1,:,:].numpy()
         P_DNS = UVP_DNS[:,2,:,:].numpy()
 
-        # save
+        # transpose 
+        U_DNS = np.transpose(U_DNS, (1,0,2))
+        V_DNS = np.transpose(V_DNS, (1,0,2))
+        P_DNS = np.transpose(P_DNS, (1,0,2))
+        U_DNS = np.ascontiguousarray(U_DNS)
+        V_DNS = np.ascontiguousarray(V_DNS)
+        P_DNS = np.ascontiguousarray(P_DNS)
+
+        # save as vts
         filename = "./results_StylES/fields/fields_DNS_" + str(pStep).zfill(7)
-        np.savez(filename, pStep=pStep, simtime=simtime, U=U_DNS, V=V_DNS, P=P_DNS)
+        gridToVTK(filename, X, Y, Z, pointData={"n": U_DNS, "phi": V_DNS, "vort": P_DNS})
+    
 
     if (PROFILE_BOUT):
         print("saving ", time.time() - tstart)

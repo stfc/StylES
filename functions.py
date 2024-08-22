@@ -953,7 +953,7 @@ def find_centred_fields(UVP):
 def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
     # find predictions
-    predictions, wn = synthesis(z, training=False)
+    predictions = synthesis(z, training=False)
 
     UVP_DNS = predictions[RES_LOG2-2]
     UVP_DNS = rescale_max(UVP_DNS, UVP_max[0])
@@ -987,7 +987,7 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
             fP_DNS   = fUVP_DNS[:,2:3,:,:]
         fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-        return UVP_DNS, UVP_LES, fUVP_DNS, wn, predictions
+        return UVP_DNS, UVP_LES, fUVP_DNS, predictions
     else:
         return UVP_DNS
 

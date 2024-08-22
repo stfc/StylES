@@ -25,21 +25,21 @@ from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/results_StylES_m1/fields/"
+MODE        = 'READ_NUMPY'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
+PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = False
+FIND_MIXMAX = 2   # " 0) yes, 1) use INIT_SCA, 2) use None "
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 100 # skip between STIME, FTIME, ITIME
-USE_VKT     = False
+ITIME       = 1 # skip between STIME, FTIME, ITIME
+USE_VKT     = True
 SAVE_FIELDS = False
 
 useLogSca   = True
@@ -55,7 +55,11 @@ delx        = L/N
 dely        = L/N
 
 if (DIMS_3D):
-    file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/BOUT.inp", 'r')
+    if (MODE=='READ_NETCDF'):
+        file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/BOUT.inp", 'r')
+    elif (MODE=='READ_NUMPY'):
+        file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/BOUT.inp", 'r')
+        
     for line in file:
         if "nx =" in line:
             NX = int(line.split()[2]) - 4
@@ -125,13 +129,22 @@ elif (MODE=='MAKE_ANIMATION'):
 
 print("There are " + str(FTIME) + " files")
 
-min_U = -INIT_SCA
-max_U =  INIT_SCA
-min_V = -INIT_SCA
-max_V =  INIT_SCA
-min_P = -INIT_SCA
-max_P =  INIT_SCA
-
+if (FIND_MIXMAX==1):
+    min_U = -INIT_SCA
+    max_U =  INIT_SCA
+    min_V = -INIT_SCA
+    max_V =  INIT_SCA
+    min_P = -INIT_SCA
+    max_P =  INIT_SCA
+else:
+    min_U = None
+    max_U = None
+    min_V = None
+    max_V = None
+    min_P = None
+    max_P = None
+    
+    
 # delete folders
 if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
     os.system("rm -rf results/plots/*")
@@ -208,7 +221,7 @@ if (MODE=='READ_NETCDF'):
     t_phi  = collect("phi",  xguards=False, info=False)
     t_vort = collect("vort", xguards=False, info=False)
     
-    if (FIND_MIXMAX):
+    if (FIND_MIXMAX==0):
         min_U = np.min(t_n)
         max_U = np.max(t_n)
         min_V = np.min(t_phi)
@@ -251,7 +264,12 @@ if (MODE=='READ_NETCDF'):
 
         time.append(TGAP + t*DELT)
         E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)
+        E1 = 0.5*L**2*np.sum(dVdx**2)
+        E2 = 0.5*L**2*np.sum(dVdy**2)
         Energy.append(E)
+        
+        print(E, E1, E2)
+            
         
         # spectra
         closePlot=False
@@ -261,14 +279,14 @@ if (MODE=='READ_NETCDF'):
             filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + tail + ".png"
             plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
         
-        print("done for file time step", t)
+        #print("done for file time step", t)
 
     os.chdir("../../../../../StylES/bout_interfaces/")
     
 elif (MODE=='READ_NUMPY'):
 
     #------------ dry-run to find min/max
-    if (FIND_MIXMAX):
+    if (FIND_MIXMAX==0):
         print("Finding min/max accross all data...")
         
         min_U = 1e10
@@ -341,8 +359,8 @@ elif (MODE=='READ_NUMPY'):
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
 
             # energy
-            dVdx = (-cr(phi, 2, 0) + 8*cr(phi, 1, 0) - 8*cr(phi, -1,  0) + cr(phi, -2,  0))/(12.0*DELX_LES)
-            dVdy = (-cr(phi, 0, 2) + 8*cr(phi, 0, 1) - 8*cr(phi,  0, -1) + cr(phi,  0, -2))/(12.0*DELY_LES)
+            dVdx = (-cr(phi, 2, 0) + 8*cr(phi, 1, 0) - 8*cr(phi, -1,  0) + cr(phi, -2,  0))/(12.0*DELX)
+            dVdy = (-cr(phi, 0, 2) + 8*cr(phi, 0, 1) - 8*cr(phi,  0, -1) + cr(phi,  0, -2))/(12.0*DELY)
 
             time.append(simtime)
             E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)

@@ -68,7 +68,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 512 
+OUTPUT_DIM        = 512
 BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
 DIMS_3D           = True
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
@@ -94,9 +94,8 @@ BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-USE_LESStyleGAN   = True
 USE_VORTICITY     = False
-USE_PREIMGS       = True
+USE_IMGSLES       = True
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
@@ -144,14 +143,14 @@ DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES
 DELY_LES        = LEN_DOMAIN/N_LES
-INIT_SCA        = 3.0  # 5 10, 15
+INIT_SCA        = 2.0  # 5 10, 15
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
 FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
 FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_run0_time298.npz"
 FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
-FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz_3D/fields_run0_time298.npz"
+FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz_3D/fields_run0_time200.npz"
 
 
 # learning rate for latent space optimizer

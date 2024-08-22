@@ -210,10 +210,7 @@ def make_pre_synthesis_model():
     x_out = block(res, x)
     images_out.append(torgb(res, x_out))
 
-    if (USE_LESStyleGAN):
-        pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
-    else:
-        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, x_out])
+    pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
 
     return pre_synthesis_model
 
@@ -242,9 +239,6 @@ def make_synthesis_model():
     images_in = []
     for res in range(2,RES_LOG2-FIL+1):
         images_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
-
-    if (not USE_LESStyleGAN):
-        xblock_in = tf.keras.Input(shape=([nf(RES_LOG2-FIL - 1), 2**(RES_LOG2-FIL), 2**(RES_LOG2-FIL)]), dtype=DTYPE)
 
 
     # Noise inputs
@@ -348,10 +342,7 @@ def make_synthesis_model():
     
     
     # Finally, arrange the computations for the layers
-    if (USE_LESStyleGAN):
-        x = images_in[-1]
-    else:
-        x = xblock_in
+    x = images_in[-1]
     images_out = []
     for layer in range(2, RES_LOG2-FIL+1):
         images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
@@ -364,10 +355,7 @@ def make_synthesis_model():
     x = block(res, x)
     images_out.append(torgb(res, x))
 
-    if (USE_LESStyleGAN):
-        synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
-    else:
-        synthesis_model = Model(inputs=[dlatents, images_in, xblock_in], outputs=images_out)
+    synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
 
     return synthesis_model
 

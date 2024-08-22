@@ -42,7 +42,7 @@ FILE_DNS    = FILE_DNS_N512_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
-RESTART_WL  = False
+RESTART_WL  = True
 
  
 # check that randomization is off
@@ -100,34 +100,6 @@ time.sleep(3)
 
 
 
-# create variable synthesis model
-lcnoise = layer_create_noise([1, LATENT_SIZE], 0, randomize_noise=False, nc_noise=NC_NOISE_IN, name="input_layer_noise")
-z_in    = tf.random.uniform(shape=[BATCH_SIZE, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-
-phi_in = tf.keras.Input(shape=([NC2_NOISE_IN, 1]),  dtype=DTYPE)
-wl_z  = lcnoise(z_in, phi_in, scalingNoise=1.0)
-
-img_in = []
-for res in range(2,RES_LOG2-FIL+1):
-    img_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
-wl_dlatents = mapping(wl_z, training=False)
-if (USE_LESStyleGAN):
-    p_img   = pre_synthesis(wl_dlatents, training=False)
-    if (USE_PREIMGS):
-        outputs = synthesis([wl_dlatents, p_img], training=False)
-    else:
-        outputs = synthesis([wl_dlatents, img_in], training=False)
-else:
-    p_img, xb = pre_synthesis(wl_dlatents, training=False)
-    if (USE_PREIMGS):    
-        outputs = synthesis([wl_dlatents, img_in, xb], training=False)
-    else:
-        outputs = synthesis([wl_dlatents, p_img, xb], training=False)
-
-wl_synthesis = tf.keras.Model(inputs=[phi_in, img_in], outputs=[outputs, wl_dlatents])
-
-
-
 # create filter model
 if (GAUSSIAN_FILTER):
     x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
@@ -145,18 +117,11 @@ else:
     gfilter = filters[IFIL]
 
 
-# define checkpoints wl_synthesis and filter
-checkpoint_wl        = tf.train.Checkpoint(wl_synthesis=wl_synthesis)
-managerCheckpoint_wl = tf.train.CheckpointManager(checkpoint_wl, CHKP_DIR_WL, max_to_keep=1)
-
 
 # add latent space to trainable variables
 if (not TUNE_NOISE):
     ltv_DNS = []
     
-for variable in lcnoise.trainable_variables:
-    ltv_DNS.append(variable)
-
 print("\n kDNS variables:")
 for variable in ltv_DNS:
     print(variable.name, variable.shape)
@@ -244,28 +209,29 @@ UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 
 # filter image
-rs = 2
-for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
-    res = 2**reslog
-    if (reslog==RES_LOG2):
-        fUVP_DNS = nUVP_DNS
-    else:
-        fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian')
-        U_DNS    = fUVP_DNS[:,0:1,:,:]
-        V_DNS    = fUVP_DNS[:,1:2,:,:]
-        if (USE_VORTICITY):        
-            P_DNS    = find_vorticity_HW(V_DNS, DELX*OUTPUT_DIM/res, DELY*OUTPUT_DIM/res)
-            fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+if (USE_IMGSLES):
+    rs = 2
+    for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
+        res = 2**reslog
+        if (reslog==RES_LOG2):
+            fUVP_DNS = nUVP_DNS
         else:
-            P_DNS    = fUVP_DNS[:,2:3,:,:]
-        fUVP_DNS = find_centred_fields(fUVP_DNS)
-        fUVP_DNS, _ = normalize_max(fUVP_DNS)
+            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian')
+            U_DNS    = fUVP_DNS[:,0:1,:,:]
+            V_DNS    = fUVP_DNS[:,1:2,:,:]
+            if (USE_VORTICITY):        
+                P_DNS    = find_vorticity_HW(V_DNS, DELX*OUTPUT_DIM/res, DELY*OUTPUT_DIM/res)
+                fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+            else:
+                P_DNS    = fUVP_DNS[:,2:3,:,:]
+            fUVP_DNS = find_centred_fields(fUVP_DNS)
+            fUVP_DNS, _ = normalize_max(fUVP_DNS)
 
-    # normalize the data
-    fUVP_DNS, _ = normalize_max(fUVP_DNS)
-       
-# save LES_in0
-LES_in0 = tf.identity(fUVP_DNS)
+        # normalize the data
+        fUVP_DNS, _ = normalize_max(fUVP_DNS)
+        
+    # save LES_in0
+    LES_in0 = tf.identity(fUVP_DNS)
 
 
 
@@ -273,37 +239,27 @@ LES_in0 = tf.identity(fUVP_DNS)
 LES_all0 = []
 if (RESTART_WL):
 
-    # loading wl_synthesis checkpoint and zlatents
-    if managerCheckpoint_wl.latest_checkpoint:
-        print("wl_synthesis restored from {}".format(managerCheckpoint_wl.latest_checkpoint, max_to_keep=1))
-    else:
-        print("Initializing wl_synthesis from scratch.")
-
     filename = Z0_DIR_WL + "z0.npz"
                 
     data = np.load(filename)
 
     z0         = data["z0"]
+    dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
     nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
-    noise_in   = data["noise_in"]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
+    print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
     print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
-    print("noise_in",     noise_in.shape, np.min(noise_in),   np.max(noise_in))
 
     # assign variables
     z0         = tf.convert_to_tensor(z0, dtype=DTYPE)
     LES_in0    = tf.convert_to_tensor(LES_in0, dtype=DTYPE)
 
     UVP_max = np.concatenate([nUVP_amaxo, fUVP_amaxo], 0)
-
-    for nvars in range(len(noise_in)):
-        tnoise_in = tf.convert_to_tensor(noise_in[nvars], dtype=DTYPE)
-        lcnoise.trainable_variables[nvars].assign(tnoise_in)
 
     # assign variable noise
     if (TUNE_NOISE):
@@ -324,35 +280,29 @@ if (RESTART_WL):
 else:
 
     # set z
-    z0 = tf.random.uniform(shape=[BATCH_SIZE, NC2_NOISE_IN, 1], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-
-    if (USE_PREIMGS):
-        if (USE_LESStyleGAN):
-            p_img = pre_synthesis(wl_dlatents, training = True)
-            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, p_img], UVP_max)    
-        else:
-            p_img, b_in = pre_synthesis(wl_dlatents, training = True)
-            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, p_img, b_in], UVP_max)
+    if (DIMS_3D):
+        z0a = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        z0b = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        z0 = z0a
+        for i in range(1,BATCH_SIZE):
+            wi = np.cos(i/float(BATCH_SIZE-1)*2.0*np.pi)
+            zi = z0a*wi + z0b*(1.0-wi)
+            z0 = tf.concat([z0, zi], axis=0)
     else:
-        for res in range(2,RES_LOG2-FIL+1):
-            rs = 2**(RES_LOG2-FIL-res)
-            if (res != RES_LOG2-FIL):
-                img_LES = LES_in0[:,:,::rs,::rs]
-                LES_all0.append(img_LES)
+        z0 = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+        
+    dlatents = mapping(z0, training=False)
 
-        LES_all = [LES_all0, LES_in0]
-        if (USE_LESStyleGAN):
-            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
-        else:
-            p_img, b_in = pre_synthesis(wl_dlatents, training = True)
-            UVP_DNS, UVP_LES, fUVP_DNS, _, predictions = find_predictions(wl_synthesis, gfilter, [z0, LES_all, b_in], UVP_max)
+    if (not USE_IMGSLES):
+        pre_img  = pre_synthesis(dlatents, training = False)
+        LES_in0  = pre_img[-1] 
 
-    LES_in0 = predictions[RES_LOG2-FIL-2]
-
-
+    for res in range(2,RES_LOG2-FIL+1):
+        rs = 2**(RES_LOG2-FIL-res)
+        if (res != RES_LOG2-FIL):
+            LES_all0.append(LES_in0[:,:,::rs,::rs])
 
 LES_all = [LES_all0, LES_in0]
-
 
 
 print ("============================Completed setup!\n\n")
@@ -361,12 +311,12 @@ print ("============================Completed setup!\n\n")
 
 #------------------------------------------------------ find initial residuals
 # find inference...
-UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
 
 # #... and correct it with new LES_in0
 # LES_in0, _ = normalize_max(fUVP_DNS)
 # LES_all = [LES_all0, LES_in0]
-# UVP_DNS, UVP_LES, fUVP_DNS, _, _ = find_predictions(wl_synthesis, gfilter, [z0, LES_all], UVP_max)
+# UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [z0, LES_all], UVP_max)
 
 
 # find residuals
@@ -445,14 +395,9 @@ if (TUNE):
 
 #------------------------------------------------------ save NN configuration
 if (not RESTART_WL):
-    managerCheckpoint_wl.save()
 
     # save z
     z0 = z0.numpy()
-
-    noise_in = []
-    for nvars in range(len(lcnoise.trainable_variables[:])):
-        noise_in.append(lcnoise.trainable_variables[nvars].numpy())
 
     # load noise
     if (TUNE_NOISE):
@@ -465,7 +410,7 @@ if (not RESTART_WL):
         filename =  Z0_DIR_WL + "z0.npz"
         np.savez(filename,
                 z0         = z0, \
-                noise_in   = noise_in, \
+                dlatents   = dlatents, \
                 LES_in0    = LES_all[-1], \
                 nUVP_amaxo = nUVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo, \
@@ -474,7 +419,7 @@ if (not RESTART_WL):
         filename =  Z0_DIR_WL + "z0.npz"
         np.savez(filename,
                 z0       = z0, \
-                noise_in = noise_in, \
+                dlatents   = dlatents, \
                 LES_in0  = LES_all[-1], \
                 nUVP_amaxo = nUVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo)
