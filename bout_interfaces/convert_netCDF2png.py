@@ -25,21 +25,22 @@ from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NUMPY'   #'READ_NUMPY', 'MAKE_ANIMATION', 'READ_NETCDF'
+MODE        = 'READ_NETCDF'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
 PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/results_StylES_m1/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/"
+PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = True
+FIND_MIXMAX = False
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
 ITIME       = 100 # skip between STIME, FTIME, ITIME
-USE_VKT     = True
+USE_VKT     = False
+SAVE_FIELDS = False
 
 useLogSca   = True
 xLogLim     = [1.0e-2, 100]   # to do: to make nmore general
@@ -124,12 +125,12 @@ elif (MODE=='MAKE_ANIMATION'):
 
 print("There are " + str(FTIME) + " files")
 
-min_U       = None
-max_U       = None
-min_V       = None
-max_V       = None
-min_P       = None
-max_P       = None
+min_U = -INIT_SCA
+max_U =  INIT_SCA
+min_V = -INIT_SCA
+max_V =  INIT_SCA
+min_P = -INIT_SCA
+max_P =  INIT_SCA
 
 # delete folders
 if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
@@ -198,99 +199,68 @@ if (MODE=='READ_NETCDF'):
         os.system(cmd)
 
 
-    #------------ dry-run to find min-max
-    if (FIND_MIXMAX):
-        os.chdir(PATH_NETCDF)
-
-        print("Finding min/max accross all data...")
-
-        min_U = 1e10
-        max_U = 1e-10
-        min_V = 1e10
-        max_V = 1e-10
-        min_P = 1e10
-        max_P = 1e-10
-        
-        n    = collect("n",    xguards=False, info=False)
-        phi  = collect("phi",  xguards=False, info=False)
-        vort = collect("vort", xguards=False, info=False)
-
-        for t in range(STIME,FTIME,ITIME):
-            Img_n = n[t,:,0,:]
-            min_U = min(np.min(Img_n), min_U)
-            max_U = max(np.max(Img_n), max_U)
-
-            Img_phi = phi[t,:,0,:]
-            min_V = min(np.min(Img_phi), min_V)
-            max_V = max(np.max(Img_phi), max_V)
-
-            Img_vort = vort[t,:,0,:]
-            min_P = min(np.min(Img_vort), min_P)
-            max_P = max(np.max(Img_vort), max_P)
-            
-        os.chdir("../../../../../StylES/bout_interfaces/")
-
-    print(min_U, max_U, min_V, max_V, min_P, max_P)
-
     #------------ run on data
     print("reading " + PATH_NETCDF)
 
     os.chdir(PATH_NETCDF)
     
-    n    = collect("n",    xguards=False, info=False)
-    phi  = collect("phi",  xguards=False, info=False)
-    vort = collect("vort", xguards=False, info=False)
+    t_n    = collect("n",    xguards=False, info=False)
+    t_phi  = collect("phi",  xguards=False, info=False)
+    t_vort = collect("vort", xguards=False, info=False)
+    
+    if (FIND_MIXMAX):
+        min_U = np.min(t_n)
+        max_U = np.max(t_n)
+        min_V = np.min(t_phi)
+        max_V = np.max(t_phi)
+        min_P = np.min(t_vort)
+        max_P = np.max(t_vort)
+    
+    print(min_U, max_U, min_V, max_V, min_P, max_P)
 
     for t in range(STIME,FTIME,ITIME):
-        Img_n = n[t,:,0,:]
-        # maxv = np.max(Img_n)
-        # minv = np.min(Img_n)
-        # Img_n = (Img_n - minv)/(maxv - minv)
-
-        Img_phi = phi[t,:,0,:]
-        # maxv = np.max(Img_phi)
-        # minv = np.min(Img_phi)
-        # Img_phi = (Img_phi - minv)/(maxv - minv)
-
-        Img_vort = vort[t,:,0,:]
-        # maxv = np.max(Img_vort)
-        # minv = np.min(Img_vort)
-        # Img_vort = (Img_vort - minv)/(maxv - minv)
+        n = t_n[t,:,:,:]
+        phi = t_phi[t,:,:,:]
+        vort = t_vort[t,:,:,:]
         
-        filename = "../../../../../StylES/bout_interfaces/results/fields/fields_time" + str(t).zfill(5) + ".npz"
-        save_fields(t, Img_n, Img_phi, Img_vort, filename=filename)
+        dest = "../../../../../StylES/bout_interfaces/results/" 
+        tail = str(t).zfill(5)
+        if (SAVE_FIELDS):
+            filename = dest + "/fields/fields_time" + tail + ".npz"
+            save_fields(t, n, phi, vort, filename=filename)
 
-        if (t%1==0):
+        if (USE_VKT):
+            filename = dest + "/fields/fields_time" + tail
+            gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
 
-            if (DIMS_3D):
-                filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5)
-                gridToVTK(filename, X, Y, Z, pointData={"n": n[t,:,:,:], "phi": phi[t,:,:,:], "vort": vort[t,:,:,:]})
-            else:
-                filename = "../../../../../StylES/bout_interfaces/results/plots/plots_time" + str(t).zfill(5) + ".png"
-                if (FIND_MIXMAX):
-                    print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=True) #, \
-                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
-                        #Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
-                else:
-                    print_fields_3(Img_n, Img_phi, Img_vort, filename=filename, transpose=True) #, \
-                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+        # plot, energy and spectra
+        if (DIMS_3D):
+            n = n[:,0,:]
+            phi = phi[:,0,:]
+            vort = vort[:,0,:]
 
-        dVdx = (-cr(Img_phi, 2, 0) + 8*cr(Img_phi, 1, 0) - 8*cr(Img_phi, -1,  0) + cr(Img_phi, -2,  0))/(12.0*DELX_LES)
-        dVdy = (-cr(Img_phi, 0, 2) + 8*cr(Img_phi, 0, 1) - 8*cr(Img_phi,  0, -1) + cr(Img_phi,  0, -2))/(12.0*DELY_LES)
+        # plot
+        if (not USE_VKT):
+            filename = dest + "/plots/plots_time" + tail + ".png"
+            print_fields_3(n, phi, vort, filename=filename, transpose=True, \
+                Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+
+        # energy
+        dVdx = (-cr(phi, 2, 0) + 8*cr(phi, 1, 0) - 8*cr(phi, -1,  0) + cr(phi, -2,  0))/(12.0*DELX_LES)
+        dVdy = (-cr(phi, 0, 2) + 8*cr(phi, 0, 1) - 8*cr(phi,  0, -1) + cr(phi,  0, -2))/(12.0*DELY_LES)
 
         time.append(TGAP + t*DELT)
-        E = 0.5*L**2*np.sum(Img_n**2 + dVdx**2 + dVdy**2)
+        E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)
         Energy.append(E)
         
+        # spectra
         closePlot=False
         if (t%1==0 or (t+ITIME>FTIME-1)):
             if (t+ITIME>FTIME-1):
                 closePlot=True
-            filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + str(t).zfill(4) + ".png"
-            plot_spectrum_2d_3v(Img_n, dVdx, dVdy, L, filename, label="DNS", close=closePlot)            
+            filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + tail + ".png"
+            plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
         
-        # print("min/max", np.min(Img_n), np.max(Img_n), np.min(Img_phi), np.max(Img_phi), np.min(Img_vort), np.max(Img_vort))
-        # print("average", t, np.mean(Img_n), np.mean(Img_phi), np.mean(Img_vort))
         print("done for file time step", t)
 
     os.chdir("../../../../../StylES/bout_interfaces/")
@@ -310,8 +280,8 @@ elif (MODE=='READ_NUMPY'):
         
         files = os.listdir(PATH_NUMPY)
         nfiles = len(files)
-        for i,file in enumerate(sorted(files)):
-            if (i%ITIME==0):
+        for t,file in enumerate(sorted(files)):
+            if (t%ITIME==0):
                 filename = PATH_NUMPY + file
                 data     = np.load(filename)
                 Img_n    = np.cast[DTYPE](data['U'])
@@ -332,8 +302,8 @@ elif (MODE=='READ_NUMPY'):
     files = os.listdir(PATH_NUMPY)
     nfiles = len(files)
     closePlot=False
-    for i,file in enumerate(sorted(files)):
-        if (i%ITIME==0):
+    for t,file in enumerate(sorted(files)):
+        if (t%ITIME==0):
             filename  = PATH_NUMPY + file
             data      = np.load(filename)
             simtime   = np.cast[DTYPE](data['simtime'])
@@ -341,33 +311,36 @@ elif (MODE=='READ_NUMPY'):
             phi  = np.cast[DTYPE](data['V'])
             vort = np.cast[DTYPE](data['P'])
 
-            file_dest = file.replace("fields","plots")
-            file_dest = file.replace("fields_DNS","plots")
-            file_dest = file.replace(".npz",".png")
-            if (FIND_MIXMAX):
-                if (USE_VKT):
-                    n = np.transpose(n, (1,0,2))
-                    phi = np.transpose(phi, (1,0,2))
-                    vort = np.transpose(vort, (1,0,2))
-                    print(n.shape, phi.shape, vort.shape)
-                    filename = "./results/plots_time" + str(i).zfill(5)
-                    gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
-                else:
-                    filename  = "./results/plots/" + file_dest
-                    print_fields_3(n[0,:,:], phi[0,:,:], vort[0,:,:], filename=filename, transpose=True) #, \
-                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
-            else:
-                if (USE_VKT):
-                    n = np.transpose(n, (1,0,2))
-                    phi = np.transpose(phi, (1,0,2))
-                    vort = np.transpose(vort, (1,0,2))
-                    filename = "./results/plots_time" + str(i).zfill(5)
-                    gridToVTK(filename, X, Y, Z, pointData={"n": n[:,:,:], "phi": phi[:,:,:], "vort": vort[:,:,:]})
-                else:
-                    filename  = "./results/plots/" + file_dest
-                    print_fields_3(n, phi, vort, filename=filename, transpose=True) #, \
-                        #Umin=-INIT_SCA, Umax=INIT_SCA, Vmin=-INIT_SCA, Vmax=INIT_SCA, Pmin=-INIT_SCA, Pmax=INIT_SCA)
+            # adjust this is due to the use of BATCH_SIZE for y dimension...
+            if (DIMS_3D):
+                n    = np.transpose(n, (1,0,2))
+                phi  = np.transpose(phi, (1,0,2))
+                vort = np.transpose(vort, (1,0,2))
+                n    = np.ascontiguousarray(n)
+                phi  = np.ascontiguousarray(phi)
+                vort = np.ascontiguousarray(vort)
 
+            file_dest = file.replace("fields","plots")
+            file_dest = file.replace("fields_DNS_DNS","plots")
+            if (USE_VKT):
+                file_dest = file.replace(".npz","")
+                filename = "./results/fields/" + file_dest
+                gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
+
+            # plot, energy and spectra
+            if (DIMS_3D):
+                n = n[:,0,:]
+                phi = phi[:,0,:]
+                vort = vort[:,0,:]
+        
+            # plot
+            if (not USE_VKT):
+                file_dest = file.replace(".npz",".png")
+                filename  = "./results/plots/" + file_dest
+                print_fields_3(n, phi, vort, filename=filename, transpose=True, \
+                    Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
+
+            # energy
             dVdx = (-cr(phi, 2, 0) + 8*cr(phi, 1, 0) - 8*cr(phi, -1,  0) + cr(phi, -2,  0))/(12.0*DELX_LES)
             dVdy = (-cr(phi, 0, 2) + 8*cr(phi, 0, 1) - 8*cr(phi,  0, -1) + cr(phi,  0, -2))/(12.0*DELY_LES)
 
@@ -375,19 +348,17 @@ elif (MODE=='READ_NUMPY'):
             E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)
             Energy.append(E)
             
-            if (i%1==0 and i!=nfiles-1):
+            # spectra
+            if (t%1==0 and t!=nfiles-1):
                 closePlot=False
 
-            if (i+ITIME>nfiles-1):
+            if (t+ITIME>nfiles-1):
                 closePlot=True
 
-            filename = "./results/energy/Spectrum_" + str(i).zfill(4) + ".png"
-            if (DIMS_3D):
-                plot_spectrum_2d_3v(n[0,:,:], dVdx[0,:,:], dVdy[0,:,:], L, filename, label="StylES", close=closePlot)
-            else:
-                plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
+            filename = "./results/energy/Spectrum_" + str(t).zfill(4) + ".png"
+            plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
                 
-            print ("done step " + str(i) + "/"+ str(nfiles) + " for file " + file_dest)
+            print ("done step " + str(t) + "/"+ str(nfiles) + " for file " + file_dest)
 
 
 
