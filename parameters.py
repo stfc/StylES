@@ -96,7 +96,7 @@ NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 USE_LESStyleGAN   = True
 USE_VORTICITY     = False
-USE_PREIMGS       = False
+USE_PREIMGS       = True
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
