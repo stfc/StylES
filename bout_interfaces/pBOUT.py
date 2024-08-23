@@ -67,8 +67,8 @@ tollLES      = 0.25
 CHKP_DIR     = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL  = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass     = lr_DNS_maxIt
-pPrintFreq   = 1.0
-RUN_DNS      = True
+pPrintFreq   = 0.01
+RUN_DNS      = False
 RESTART_WL   = True
 USE_DIFF_LES = False 
 IMPLICIT     = False  
@@ -256,10 +256,7 @@ if (USE_DIFF_LES):
     LES_ino = predictions[RES_LOG2-FIL-2]
     nfimgAo = tf.identity(nfimgA)
 
-if (RUN_DNS):
-    file = open("./data/BOUT.inp", 'r')
-else:
-    file = open("./data_DNS/BOUT.inp", 'r')
+file = open("./data/BOUT.inp", 'r')
 for line in file:
     if "nx =" in line:
         NX = int(line.split()[2]) - 4
@@ -274,15 +271,24 @@ for line in file:
     if "Lz =" in line:
         LZ = float(line.split()[2])
 
+NX = NX*RS
+NZ = NZ*RS
+
 x = np.linspace(0,LX,NX)
 y = np.linspace(0,LY,NY)
 z = np.linspace(0,LZ,NZ)
 X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 
+print("Grid values NX,NY,NZ,LX,LY,LZ", NX,NY,NZ,LX,LY,LZ)
+
 
 
 #------------------------------------------------------ initialize the flow
 def initFlow(npv):
+
+    if (BATCH_SIZE!=NY):
+        print("=============== Abort!!! BATCH_SIZE not equal to NY dimensions")
+        return(0)
 
     # pass delx and dely
     delx_LES = npv[0]
