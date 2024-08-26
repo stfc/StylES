@@ -73,20 +73,10 @@ def train_step(input, images):
 
         # find inference
         dlatents = mapping(input, training = True)
+        g_pre_images, phi_LES  = pre_synthesis(dlatents, training = True)
+        # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
 
-        if (USE_LESStyleGAN):
-            g_pre_images           = pre_synthesis(dlatents, training = True)
-        else:
-            g_pre_images, block_in = pre_synthesis(dlatents, training = True)
-
-        if (not USE_PREIMGS):
-            g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
-
-        if (USE_LESStyleGAN):
-            g_images = synthesis([dlatents, g_pre_images], training = True)
-        else:
-            g_images = synthesis([dlatents, g_pre_images, block_in], training = True)
-
+        g_images, phi_DNS = synthesis([dlatents, g_pre_images, phi_LES], training = True)
 
         # find losses
         real_output = discriminator(images,   training=True)

@@ -121,7 +121,7 @@ def StyleGAN_load_fields(file_path):
     img_out = []
     for reslog in range(RES_LOG2, 1, -1):
         res = 2**reslog
-        data = np.zeros([3, res, res], dtype=DTYPE)
+        data = np.zeros([NUM_CHANNELS, res, res], dtype=DTYPE)
         if (reslog==RES_LOG2):
             fU_DNS = U_DNS_org
             fV_DNS = V_DNS_org
@@ -145,24 +145,24 @@ def StyleGAN_load_fields(file_path):
             else:
                 fP_DNS = fP_DNS[::rs,::rs]                
 
-        # normalize the data
-        minU = np.min(fU_DNS)
-        maxU = np.max(fU_DNS)
-        amaxU = max(abs(minU), abs(maxU))
-        if (amaxU<SMALL):
-            print("-----------Attention: invalid field!!!")
-            exit(0)
-        else:
-            data[0,:,:] = fU_DNS / amaxU
+        # # normalize the data
+        # minU = np.min(fU_DNS)
+        # maxU = np.max(fU_DNS)
+        # amaxU = max(abs(minU), abs(maxU))
+        # if (amaxU<SMALL):
+        #     print("-----------Attention: invalid field!!!")
+        #     exit(0)
+        # else:
+        #     data[0,:,:] = fU_DNS / amaxU
         
-        minV = np.min(fV_DNS)
-        maxV = np.max(fV_DNS)
-        amaxV = max(abs(minV), abs(maxV))
-        if (amaxV<SMALL):
-            print("-----------Attention: invalid field!!!")
-            exit(0)
-        else:
-            data[1,:,:] = fV_DNS / amaxV
+        # minV = np.min(fV_DNS)
+        # maxV = np.max(fV_DNS)
+        # amaxV = max(abs(minV), abs(maxV))
+        # if (amaxV<SMALL):
+        #     print("-----------Attention: invalid field!!!")
+        #     exit(0)
+        # else:
+        #     data[0,:,:] = fV_DNS / amaxV
 
         minP = np.min(fP_DNS)
         maxP = np.max(fP_DNS)
@@ -171,7 +171,7 @@ def StyleGAN_load_fields(file_path):
             print("-----------Attention: invalid field!!!")
             exit(0)
         else:
-            data[2,:,:] = fP_DNS / amaxP
+            data[0,:,:] = fP_DNS / amaxP
 
 
         img_out = [data] + img_out
@@ -266,34 +266,26 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
     # find inference
     dlatents    = mapping(input[0], training=False)
 
-    if (USE_LESStyleGAN):
-        g_pre_images           = pre_synthesis(dlatents, training = False)
-    else:
-        g_pre_images, block_in = pre_synthesis(dlatents, training = False)
+    g_pre_images, phi_LES = pre_synthesis(dlatents, training = False)
+    #g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
 
-    if (not USE_PREIMGS):
-        g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
-
-    if (USE_LESStyleGAN):
-        g_images = synthesis([dlatents, g_pre_images], training = False)
-    else:
-        g_images = synthesis([dlatents, g_pre_images, block_in], training = False)
+    g_images, phi_DNS = synthesis([dlatents, g_pre_images, phi_LES], training = False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
 
-    colors = plt.cm.jet(np.linspace(0,1,4))
-    lineColor = colors[0]
+    colors = ['hot','Blues','Reds_r','hsv','winter']
 
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
 
         # setup figure size
-        nc = 3
+        nc = NUM_CHANNELS
         fig, axs = plt.subplots(BATCH_SIZE,nc, figsize=(2.5*nc, 2.5*BATCH_SIZE), dpi=DPI)
         plt.subplots_adjust(wspace=0, hspace=0)
-        axs = axs.ravel()
+        if (NUM_CHANNELS>1):
+            axs = axs.ravel()
         img = g_images[reslog]
 
         # save the highest dimension and first image of the batch as numpy array
@@ -302,40 +294,26 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
 
         for i in range(BATCH_SIZE):
 
-            if (NUM_CHANNELS == 3):
-
-                # print divergence
-                if (TESTCASE=='HIT_2D'):
-                    divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
-                else:
-                    divergence = 0.0
-                    dUdt       = 0.0
-                    dVdt       = 0.0
-                div[reslog] = divergence
-                momU[reslog] = dUdt
-                momV[reslog] = dVdt
-
-                axs[i*3+0].axis('off')
-                axs[i*3+1].axis('off')
-                axs[i*3+2].axis('off')
-
-                axs[i*3+0].pcolormesh(img[i,0,:,:], cmap='Blues',  edgecolors='k', linewidths=0.1, shading='gouraud')
-                axs[i*3+1].pcolormesh(img[i,1,:,:], cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud')
-                axs[i*3+2].pcolormesh(img[i,2,:,:], cmap='hot',    edgecolors='k', linewidths=0.1, shading='gouraud')
-
+            # print divergence
+            if (TESTCASE=='HIT_2D'):
+                divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
             else:
+                divergence = 0.0
+                dUdt       = 0.0
+                dVdt       = 0.0
+            div[reslog] = divergence
+            momU[reslog] = dUdt
+            momV[reslog] = dVdt
 
-                nimg = np.zeros([1, res, res], dtype=DTYPE)
-                maxW = np.max(img[i,:,:,:])
-                minW = np.min(img[i,:,:,:])
-                nimg[0,:,:] = (img[i,:,:,:] - minW)/(maxW - minW)
-
-                nimg = np.uint8(nimg*255)
-                nimg = np.transpose(nimg, axes=[1,2,0])
-
-                axs[i].axis('off')
-                axs[i].imshow(nimg,cmap='gray')
-
+            if (NUM_CHANNELS*BATCH_SIZE>1):
+                for j in range(NUM_CHANNELS):
+                    axs[i*3+j].axis('off')
+                    axs[i*3+j].pcolormesh(img[i,0,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
+            else:
+                axs.axis('off')
+                axs.pcolormesh(img[i,0,:,:], cmap=colors[0],  edgecolors='k', linewidths=0.1, shading='gouraud')
+                
+                
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')
 

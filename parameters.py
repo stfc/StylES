@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/'
+DATASET           = '../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -68,7 +68,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 512
+OUTPUT_DIM        = 256
 BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
 DIMS_3D           = True
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
@@ -86,7 +86,7 @@ G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
-NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
+NUM_CHANNELS      = 1      # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
@@ -94,16 +94,16 @@ BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-USE_VORTICITY     = False
+USE_VORTICITY     = True
 USE_IMGSLES       = True
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
-TOT_ITERATIONS = 500000
-PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
+TOT_ITERATIONS = 100000
+PRINT_EVERY    = 100
+IMAGES_EVERY   = 1000
 SAVE_EVERY     = 10000
-IRESTART       = False 
+IRESTART       = False
 
 # learning rates
 LR_GEN           = 7.5e-4

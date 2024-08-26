@@ -25,10 +25,11 @@ from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
-MODE        = 'READ_NUMPY'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
-PATH_NUMPY  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/results_StylES/fields/"
+MODE        = 'READ_NETCDF'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
+PATH        = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d_org/"
+PATH_NUMPY  = PATH + "results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
-PATH_NETCDF = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/"
+PATH_NETCDF = PATH + "data/"
 PATH_ANIMAT_ENERGY = "./results/energy/"
 PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
@@ -55,11 +56,7 @@ delx        = L/N
 dely        = L/N
 
 if (DIMS_3D):
-    if (MODE=='READ_NETCDF'):
-        file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data/BOUT.inp", 'r')
-    elif (MODE=='READ_NUMPY'):
-        file = open("../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/data_DNS/BOUT.inp", 'r')
-        
+    file = open(PATH + "data/BOUT.inp", 'r')
     for line in file:
         if "nx =" in line:
             NX = int(line.split()[2]) - 4
@@ -74,9 +71,14 @@ if (DIMS_3D):
         if "Lz =" in line:
             LZ = float(line.split()[2])
 
+    if (MODE=='READ_NUMPY'):
+        NX = NX*RS
+        NZ = NZ*RS
+    
     DX  = LX/NX
     DY  = LY/NY
     DZ  = LZ/NZ
+    
     NY2 = int(NY/2)-1
 
     print("System sizes are: Lx,Ly,Lz,dx,dy,dz,nx,ny,nz =", LX,LY,LZ,DX,DY,DZ,NX,NY,NZ)
@@ -217,10 +219,6 @@ if (MODE=='READ_NETCDF'):
 
     os.chdir(PATH_NETCDF)
     
-    t_n    = collect("n",    xguards=False, info=False)
-    t_phi  = collect("phi",  xguards=False, info=False)
-    t_vort = collect("vort", xguards=False, info=False)
-    
     if (FIND_MIXMAX==0):
         min_U = np.min(t_n)
         max_U = np.max(t_n)
@@ -232,9 +230,13 @@ if (MODE=='READ_NETCDF'):
     print(min_U, max_U, min_V, max_V, min_P, max_P)
 
     for t in range(STIME,FTIME,ITIME):
-        n = t_n[t,:,:,:]
-        phi = t_phi[t,:,:,:]
-        vort = t_vort[t,:,:,:]
+        t_n    = collect("n",    tind=t, xguards=False, info=False)
+        t_phi  = collect("phi",  tind=t, xguards=False, info=False)
+        t_vort = collect("vort", tind=t, xguards=False, info=False)
+
+        n = t_n[0,:,:,:]
+        phi = t_phi[0,:,:,:]
+        vort = t_vort[0,:,:,:]
         
         dest = "../../../../../StylES/bout_interfaces/results/" 
         tail = str(t).zfill(5)
@@ -264,13 +266,9 @@ if (MODE=='READ_NETCDF'):
 
         time.append(TGAP + t*DELT)
         E = 0.5*L**2*np.sum(n**2 + dVdx**2 + dVdy**2)
-        E1 = 0.5*L**2*np.sum(dVdx**2)
-        E2 = 0.5*L**2*np.sum(dVdy**2)
         Energy.append(E)
         
-        print(E, E1, E2)
-            
-        
+       
         # spectra
         closePlot=False
         if (t%1==0 or (t+ITIME>FTIME-1)):
@@ -279,7 +277,7 @@ if (MODE=='READ_NETCDF'):
             filename = "../../../../../StylES/bout_interfaces/results/energy/Spectrum_" + tail + ".png"
             plot_spectrum_2d_3v(n, dVdx, dVdy, L, filename, label="StylES", close=closePlot)
         
-        #print("done for file time step", t)
+        print("done for file time step", t)
 
     os.chdir("../../../../../StylES/bout_interfaces/")
     
