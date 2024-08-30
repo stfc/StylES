@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float64"        # Data type to use for activations and outputs.
+DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -47,7 +47,7 @@ tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true.
 
 
 TESTCASE          = 'HW' 
-DATASET           = '../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/'
+DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -68,7 +68,7 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 64
 BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
 DIMS_3D           = False
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
@@ -80,7 +80,7 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-FIL               = 3 # number of layers below the DNS  
+FIL               = 1 # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
@@ -99,8 +99,8 @@ RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
-PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
+PRINT_EVERY    = 100
+IMAGES_EVERY   = 1000
 SAVE_EVERY     = 10000
 IRESTART       = False
 
