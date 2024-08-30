@@ -38,7 +38,7 @@ tf.random.set_seed(seed=SEED_RESTART)
 
 
 #------------------------------------------------------ parameters
-FILE_DNS    = FILE_DNS_N512_3D
+FILE_DNS    = FILE_DNS_N1024
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
@@ -171,7 +171,7 @@ if (rsin>1):
         P_DNS = UVP_DNS[:,2:3,:,:]
     UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
-UVP_LES_org = apply_filter_NCH(UVP_DNS_org, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
+UVP_LES_org = apply_filter_NCH(UVP_DNS_org, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=3)
 
 
 # print values
@@ -216,7 +216,7 @@ if (USE_IMGSLES):
         if (reslog==RES_LOG2):
             fUVP_DNS = nUVP_DNS
         else:
-            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian')
+            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
             U_DNS    = fUVP_DNS[:,0:1,:,:]
             V_DNS    = fUVP_DNS[:,1:2,:,:]
             if (USE_VORTICITY):        
@@ -233,6 +233,11 @@ if (USE_IMGSLES):
     # save LES_in0
     LES_in0 = tf.identity(fUVP_DNS)
 
+
+# use single channel
+LES_in0 = LES_in0[:,1:2,:,:]
+print("aaa")
+exit()
 
 
 # set LES_all0
@@ -311,7 +316,7 @@ print ("============================Completed setup!\n\n")
 
 #------------------------------------------------------ find initial residuals
 # find inference...
-UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all0, LES_in0], UVP_max)
 
 # #... and correct it with new LES_in0
 # LES_in0, _ = normalize_max(fUVP_DNS)

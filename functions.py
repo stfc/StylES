@@ -896,7 +896,10 @@ def np_find_vorticity_HW(V_DNS, DELX, DELY, order=4):
 
 
 def find_vorticity_HW(V_DNS, DELX, DELY, order=4):
-    if (order==2):
+    if (order==1):
+        cP_DNS = (V_DNS - tr(V_DNS,-1, 0))/(DELX) \
+               + (V_DNS - tr(V_DNS, 0,-1))/(DELY)
+    elif (order==2):
         cP_DNS = (tr(V_DNS, 1, 0) - 2*V_DNS + tr(V_DNS,-1, 0))/(DELX**2) \
                + (tr(V_DNS, 0, 1) - 2*V_DNS + tr(V_DNS, 0,-1))/(DELY**2)
     elif (order==4):

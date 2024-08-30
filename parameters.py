@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -70,7 +70,7 @@ elif DEVICE_TYPE == 'GPU':
 # Network hyper-parameters
 OUTPUT_DIM        = 256
 BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
-DIMS_3D           = True
+DIMS_3D           = False
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -86,7 +86,7 @@ G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
-NUM_CHANNELS      = 1      # Number of input color channels. Overridden based on dataset.
+NUM_CHANNELS      = 3      # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
@@ -95,13 +95,12 @@ AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 USE_VORTICITY     = True
-USE_IMGSLES       = True
 RANDOMIZE_NOISE   = True
 
 # Training hyper-parameters
-TOT_ITERATIONS = 100000
-PRINT_EVERY    = 100
-IMAGES_EVERY   = 1000
+TOT_ITERATIONS = 500000
+PRINT_EVERY    = 1000
+IMAGES_EVERY   = 10000
 SAVE_EVERY     = 10000
 IRESTART       = False
 

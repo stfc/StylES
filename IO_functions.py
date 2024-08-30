@@ -145,24 +145,24 @@ def StyleGAN_load_fields(file_path):
             else:
                 fP_DNS = fP_DNS[::rs,::rs]                
 
-        # # normalize the data
-        # minU = np.min(fU_DNS)
-        # maxU = np.max(fU_DNS)
-        # amaxU = max(abs(minU), abs(maxU))
-        # if (amaxU<SMALL):
-        #     print("-----------Attention: invalid field!!!")
-        #     exit(0)
-        # else:
-        #     data[0,:,:] = fU_DNS / amaxU
-        
-        # minV = np.min(fV_DNS)
-        # maxV = np.max(fV_DNS)
-        # amaxV = max(abs(minV), abs(maxV))
-        # if (amaxV<SMALL):
-        #     print("-----------Attention: invalid field!!!")
-        #     exit(0)
-        # else:
-        #     data[0,:,:] = fV_DNS / amaxV
+        # normalize the data
+        minU = np.min(fU_DNS)
+        maxU = np.max(fU_DNS)
+        amaxU = max(abs(minU), abs(maxU))
+        if (amaxU<SMALL):
+            print("-----------Attention: invalid field!!!")
+            exit(0)
+        else:
+            data[0,:,:] = fU_DNS / amaxU
+
+        minV = np.min(fV_DNS)
+        maxV = np.max(fV_DNS)
+        amaxV = max(abs(minV), abs(maxV))
+        if (amaxV<SMALL):
+            print("-----------Attention: invalid field!!!")
+            exit(0)
+        else:
+            data[1,:,:] = fV_DNS / amaxV
 
         minP = np.min(fP_DNS)
         maxP = np.max(fP_DNS)
@@ -171,7 +171,7 @@ def StyleGAN_load_fields(file_path):
             print("-----------Attention: invalid field!!!")
             exit(0)
         else:
-            data[0,:,:] = fP_DNS / amaxP
+            data[2,:,:] = fP_DNS / amaxP
 
 
         img_out = [data] + img_out
@@ -266,10 +266,10 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
     # find inference
     dlatents    = mapping(input[0], training=False)
 
-    g_pre_images, phi_LES = pre_synthesis(dlatents, training = False)
+    g_pre_images = pre_synthesis(dlatents, training = False)
     #g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
 
-    g_images, phi_DNS = synthesis([dlatents, g_pre_images, phi_LES], training = False)
+    g_images = synthesis([dlatents, g_pre_images], training = False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
@@ -308,7 +308,7 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
             if (NUM_CHANNELS*BATCH_SIZE>1):
                 for j in range(NUM_CHANNELS):
                     axs[i*3+j].axis('off')
-                    axs[i*3+j].pcolormesh(img[i,0,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
+                    axs[i*3+j].pcolormesh(img[i,j,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
             else:
                 axs.axis('off')
                 axs.pcolormesh(img[i,0,:,:], cmap=colors[0],  edgecolors='k', linewidths=0.1, shading='gouraud')
