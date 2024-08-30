@@ -275,7 +275,7 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
 
-    colors = ['hot','Blues','Reds_r','hsv','winter']
+    colors = ['Reds_r','Blues','hot','hsv','winter']
 
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
