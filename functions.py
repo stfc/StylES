@@ -956,24 +956,9 @@ def find_centred_fields(UVP):
 def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
     # find predictions
-    LES_U = []
-    LES_V = []
-    LES_P = []
-    for res in range(2,RES_LOG2-FIL):
-        LES_U.append(z[1][0][res-2][:,0:1,:,:])
-        LES_V.append(z[1][0][res-2][:,1:2,:,:])
-        LES_P.append(z[1][0][res-2][:,2:3,:,:])
-    LES_U = [LES_U, z[1][1][:,0:1,:,:]]
-    LES_V = [LES_V, z[1][1][:,1:2,:,:]]
-    LES_P = [LES_P, z[1][1][:,2:3,:,:]]
+    predictions = synthesis(z, training=False)
 
-    pred_U = synthesis([z[0], LES_U], training=False)
-    pred_V = synthesis([z[0], LES_V], training=False)
-    pred_P = synthesis([z[0], LES_P], training=False)
-    predictions = [pred_U, pred_V, pred_P]
-
-    # UVP_DNS = predictions[RES_LOG2-2]
-    UVP_DNS = tf.concat([pred_U[RES_LOG2-2], pred_V[RES_LOG2-2], pred_P[RES_LOG2-2]], axis=1)
+    UVP_DNS = predictions[RES_LOG2-2]
     UVP_DNS = rescale_max(UVP_DNS, UVP_max[0])
     U_DNS   = UVP_DNS[:,0:1,:,:]
     V_DNS   = UVP_DNS[:,1:2,:,:]
@@ -986,8 +971,7 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
     # find filtered fields
     if (find_fDNS):
-        # UVP_LES = predictions[RES_LOG2-FIL-2]
-        UVP_LES = tf.concat([pred_U[RES_LOG2-FIL-2], pred_V[RES_LOG2-FIL-2], pred_P[RES_LOG2-FIL-2]], axis=1)
+        UVP_LES = predictions[RES_LOG2-FIL-2]
         UVP_LES = rescale_max(UVP_LES, UVP_max[1])
         U_LES   = UVP_LES[:,0:1,:,:]
         V_LES   = UVP_LES[:,1:2,:,:]

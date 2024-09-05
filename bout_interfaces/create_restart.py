@@ -38,7 +38,7 @@ tf.random.set_seed(seed=SEED_RESTART)
 
 
 #------------------------------------------------------ parameters
-FILE_DNS    = FILE_DNS_N1024
+FILE_DNS    = FILE_DNS_N512_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
@@ -144,7 +144,9 @@ U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
 V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
 P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
 
-if (DIMS_3D):
+
+if (len(U_DNS.shape)==3):
+    DIMS_3D = True
     U_DNS = tf.transpose(U_DNS, [1,0,2])
     V_DNS = tf.transpose(V_DNS, [1,0,2])
     P_DNS = tf.transpose(P_DNS, [1,0,2])
@@ -152,6 +154,7 @@ if (DIMS_3D):
     V_DNS = V_DNS[:,tf.newaxis,:,:]
     P_DNS = P_DNS[:,tf.newaxis,:,:]
 else:
+    DIMS_3D = False
     U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
     V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
     P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
@@ -210,7 +213,7 @@ UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 # filter image
 if (USE_IMGSLES):
-    rs = 2
+    rs = 2 
     for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
         res = 2**reslog
         if (reslog==RES_LOG2):
@@ -235,12 +238,14 @@ if (USE_IMGSLES):
 
 
 # use single channel
-LES_in0 = LES_in0[:,1:2,:,:]
-print("aaa")
-exit()
+if (NUM_CHANNELS==1):
+    print("make sure channels is right...!!")
+    LES_in0 = LES_in0[:,1:2,:,:]
+    exit(0)
 
 
 # set LES_all0
+LES_all  = []
 LES_all0 = []
 if (RESTART_WL):
 
@@ -306,8 +311,8 @@ else:
         rs = 2**(RES_LOG2-FIL-res)
         if (res != RES_LOG2-FIL):
             LES_all0.append(LES_in0[:,:,::rs,::rs])
+        LES_all.append(LES_in0[:,:,::rs,::rs])
 
-LES_all = [LES_all0, LES_in0]
 
 
 print ("============================Completed setup!\n\n")
@@ -316,7 +321,7 @@ print ("============================Completed setup!\n\n")
 
 #------------------------------------------------------ find initial residuals
 # find inference...
-UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all0, LES_in0], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
 
 # #... and correct it with new LES_in0
 # LES_in0, _ = normalize_max(fUVP_DNS)

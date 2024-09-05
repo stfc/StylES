@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -68,9 +68,8 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 64
-BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
-DIMS_3D           = False
+OUTPUT_DIM        = 512
+BATCH_SIZE        = 16  # remember this shoudl NOT be bigger than dataset length!
 DPI               = 100*max(1,int(OUTPUT_DIM/256))
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -80,7 +79,7 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-FIL               = 1 # number of layers below the DNS  
+FIL               = 3 # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
@@ -95,7 +94,8 @@ AMP_NOISE_MAX     = 1.0
 NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 USE_VORTICITY     = True
-RANDOMIZE_NOISE   = True
+USE_IMGSLES       = True
+RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
@@ -149,7 +149,8 @@ GAUSSIAN_FILTER = True
 FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
 FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_run0_time298.npz"
 FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
-FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz_3D/fields_run0_time200.npz"
+FILE_DNS_N256_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run6_time400.npz"
+FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run1_time300.npz"
 
 
 # learning rate for latent space optimizer
