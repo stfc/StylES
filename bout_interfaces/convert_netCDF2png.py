@@ -57,7 +57,7 @@ delx        = L/N
 dely        = L/N
 
 if (DIMS_3D):
-    file = open(PATH + "data/BOUT.inp", 'r')
+    file = open(PATH_NETCDF + "/BOUT.inp", 'r')
     for line in file:
         if "nx =" in line:
             NX = int(line.split()[2]) - 4

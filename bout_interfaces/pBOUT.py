@@ -29,6 +29,7 @@ import matplotlib.pyplot as plt
 import scipy as sc
 import numpy as np
 import sys
+import nvtx
 
 RUN_TEST = False
 if (RUN_TEST):
@@ -72,7 +73,7 @@ RUN_DNS      = False
 RESTART_WL   = True
 USE_DIFF_LES = False 
 IMPLICIT     = False  
-PROFILE_BOUT = False
+PROFILE_BOUT = True
 SIZE         = N_LES*BATCH_SIZE*N_LES
 
 tf.random.set_seed(seed=SEED_RESTART)
@@ -348,6 +349,7 @@ def initFlow(npv):
 
 
 #------------------------------------------------------ find LES terms
+@nvtx.annotate("findLESTerms", color="blue")
 def findLESTerms(pLES):
 
     global pPrint, rLES, z0, simtimeo, pStepo
@@ -358,106 +360,108 @@ def findLESTerms(pLES):
 
         
     #--------------------------- pass values from BOUT++
-    if (PROFILE_BOUT):
-        tstart = time.time()
+    with nvtx.annotate("prepare", color="yellow"): 
+        if (PROFILE_BOUT):
+            tstart = time.time()
 
-    pLES = pLES.astype(DTYPE)
-    
-    pStep      = int(pLES[0])
-    pStepStart = int(pLES[1])
-    
-    delx_LES = pLES[2]
-    dely_LES = delx_LES
-    simtime  = pLES[3]
+        pLES = pLES.astype(DTYPE)
+        
+        pStep      = int(pLES[0])
+        pStepStart = int(pLES[1])
+        
+        delx_LES = pLES[2]
+        dely_LES = delx_LES
+        simtime  = pLES[3]
 
-    L = (delx_LES + dely_LES)/2.0*N_LES
+        L = (delx_LES + dely_LES)/2.0*N_LES
 
-    delx = delx_LES*N_LES/N_DNS
-    dely = dely_LES*N_LES/N_DNS
-    
-    if (IMPLICIT):
-        BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
-        BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
-        BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
-        BOUT_pV = pLES[4+3*SIZE:4+4*SIZE]
-        BOUT_pN = pLES[4+4*SIZE:4+5*SIZE]
+        delx = delx_LES*N_LES/N_DNS
+        dely = dely_LES*N_LES/N_DNS
+        
+        if (IMPLICIT):
+            BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
+            BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
+            BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
+            BOUT_pV = pLES[4+3*SIZE:4+4*SIZE]
+            BOUT_pN = pLES[4+4*SIZE:4+5*SIZE]
 
-        fU           = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
-        fV           = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
-        fP           = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
-        pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, BATCH_SIZE, N_LES))
-        pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, BATCH_SIZE, N_LES))        
-    else:
-        BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
-        BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
-        BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
-        fU = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
-        fV = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
-        fP = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
-    
+            fU           = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
+            fV           = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
+            fP           = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
+            pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, BATCH_SIZE, N_LES))
+            pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, BATCH_SIZE, N_LES))        
+        else:
+            BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
+            BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
+            BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
+            fU = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
+            fV = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
+            fP = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
+        
 
-    #--------------------------- prepare LES field in 
-    # normalize
-    U_min = np.min(fU)
-    U_max = np.max(fU)
-    V_min = np.min(fV)
-    V_max = np.max(fV)
-    P_min = np.min(fP)
-    P_max = np.max(fP)
+        #--------------------------- prepare LES field in 
+        # normalize
+        U_min = np.min(fU)
+        U_max = np.max(fU)
+        V_min = np.min(fV)
+        V_max = np.max(fV)
+        P_min = np.min(fP)
+        P_max = np.max(fP)
 
-    fU_amax = max(np.absolute(U_min), np.absolute(U_max))
-    fV_amax = max(np.absolute(V_min), np.absolute(V_max))
-    fP_amax = max(np.absolute(P_min), np.absolute(P_max))
-    
-    nfU = fU/fU_amax
-    nfV = fV/fV_amax
-    nfP = fP/fP_amax
-    if (DIMS_3D):
-        nfU = tf.convert_to_tensor(nfU, dtype=DTYPE)
-        nfV = tf.convert_to_tensor(nfV, dtype=DTYPE)
-        nfP = tf.convert_to_tensor(nfP, dtype=DTYPE)
-        nfU = tf.transpose(nfU, [1,0,2])
-        nfV = tf.transpose(nfV, [1,0,2])
-        nfP = tf.transpose(nfP, [1,0,2])
-        nfU = nfU[:,tf.newaxis,:,:]
-        nfV = nfV[:,tf.newaxis,:,:]
-        nfP = nfP[:,tf.newaxis,:,:]
-        nfimgA = tf.concat([nfU,nfV,nfP], axis=1)
-    else:
-        nfimgA = np.concatenate([nfU[np.newaxis,np.newaxis, :, :], nfV[np.newaxis,np.newaxis,:,:], nfP[np.newaxis,np.newaxis,:,:]], axis=1)
-        nfimgA = tf.convert_to_tensor(nfimgA, dtype=DTYPE)
+        fU_amax = max(np.absolute(U_min), np.absolute(U_max))
+        fV_amax = max(np.absolute(V_min), np.absolute(V_max))
+        fP_amax = max(np.absolute(P_min), np.absolute(P_max))
+        
+        nfU = fU/fU_amax
+        nfV = fV/fV_amax
+        nfP = fP/fP_amax
+        if (DIMS_3D):
+            nfU = tf.convert_to_tensor(nfU, dtype=DTYPE)
+            nfV = tf.convert_to_tensor(nfV, dtype=DTYPE)
+            nfP = tf.convert_to_tensor(nfP, dtype=DTYPE)
+            nfU = tf.transpose(nfU, [1,0,2])
+            nfV = tf.transpose(nfV, [1,0,2])
+            nfP = tf.transpose(nfP, [1,0,2])
+            nfU = nfU[:,tf.newaxis,:,:]
+            nfV = nfV[:,tf.newaxis,:,:]
+            nfP = nfP[:,tf.newaxis,:,:]
+            nfimgA = tf.concat([nfU,nfV,nfP], axis=1)
+        else:
+            nfimgA = np.concatenate([nfU[np.newaxis,np.newaxis, :, :], nfV[np.newaxis,np.newaxis,:,:], nfP[np.newaxis,np.newaxis,:,:]], axis=1)
+            nfimgA = tf.convert_to_tensor(nfimgA, dtype=DTYPE)
 
-    # set new LES_in
-    if (USE_DIFF_LES):
-        LES_diff = nfimgA-nfimgAo
-        LES_in   = LES_ino + LES_diff
-        LES_all  = [LES_all0, LES_in]
-        LES_ino  = tf.identity(LES_in)
-        nfimgAo  = tf.identity(nfimgA)
-    else:    
-        LES_all = [LES_all0, nfimgA]
+        # set new LES_in
+        if (USE_DIFF_LES):
+            LES_diff = nfimgA-nfimgAo
+            LES_in   = LES_ino + LES_diff
+            LES_all  = [LES_all0, LES_in]
+            LES_ino  = tf.identity(LES_in)
+            nfimgAo  = tf.identity(nfimgA)
+        else:    
+            LES_all = [LES_all0, nfimgA]
 
-    # # find new scaling
-    # fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo, kUVP_max = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter_sub)
-    # UVP_max = [kUVP_max*nUVP_amaxo] + [fUVP_amaxo]
+        # # find new scaling
+        # fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo, kUVP_max = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter_sub)
+        # UVP_max = [kUVP_max*nUVP_amaxo] + [fUVP_amaxo]
 
-    # end prepare phase
-    if (PROFILE_BOUT):
-        print("prepare ", time.time() - tstart)
-        tstart = time.time()
+        # end prepare phase
+        if (PROFILE_BOUT):
+            print("StylES timing prepare   ", time.time() - tstart)
+            tstart = time.time()
 
-    zAll = [dlatents, LES_all, nfimgA]
+        zAll = [dlatents, LES_all, nfimgA]
 
     
     #--------------------------- find reconstructed field
-    UVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max, find_fDNS=False)
-    # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
-    # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
-    #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
+    with nvtx.annotate("prediction", color="purple"): 
+        UVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max, find_fDNS=False)
+        # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
+        # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
+        #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
 
     if (PROFILE_BOUT):
-        print("inference ", time.time() - tstart)
+        print("StylES timing inference ", time.time() - tstart)
         tstart = time.time()
 
 
@@ -478,48 +482,59 @@ def findLESTerms(pLES):
    
     
     #--------------------------- find poisson terms
-    spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
-    F = UVP_DNS[:, 1:2, :, :]
-    G = UVP_DNS[:, 2:3, :, :]
-    fpPhiVort_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
-    G = UVP_DNS[:, 0:1, :, :]
-    fpPhiN_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
+    with nvtx.annotate("Poisson", color="red"):   
+        spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
+        F = UVP_DNS[:, 1:2, :, :]
+        G = UVP_DNS[:, 2:3, :, :]
+        fpPhiVort_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
+        G = UVP_DNS[:, 0:1, :, :]
+        fpPhiN_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
 
-    
-    if (IMPLICIT):
-        tauPhiVort = - (fpPhiVort_DNS - pPhiVort_LES) # find sub-grid scale model and use in the implicit diffusion
-        tauPhiN    = - (fpPhiN_DNS    - pPhiN_LES)
-    else:
-        tauPhiVort = fpPhiVort_DNS  # fully explicit
-        tauPhiN    = fpPhiN_DNS
+        
+        if (IMPLICIT):
+            tauPhiVort = - (fpPhiVort_DNS - pPhiVort_LES) # find sub-grid scale model and use in the implicit diffusion
+            tauPhiN    = - (fpPhiN_DNS    - pPhiN_LES)
+        else:
+            tauPhiVort = fpPhiVort_DNS  # fully explicit
+            tauPhiN    = fpPhiN_DNS
 
     # convective explicit and sub-grid scale model implicit
 
     if (PROFILE_BOUT):
-        print("bracket ", time.time() - tstart)
+        print("StylES timing Poisson ", time.time() - tstart)
         tstart = time.time()
 
 
     #--------------------------- pass back diffusion terms
 
-    # transpose 
-    tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
-    tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
+    val = tf.cast(tauPhiVort, dtype="float64")
+    LES_it = val[0:1,0,0,0].numpy()
+    #LES_it = np.asarray([0], dtype="float64")
 
-    tauPhiVort = tf.reshape(tauPhiVort, [-1])
-    tauPhiN    = tf.reshape(tauPhiN,    [-1])
-    
-    tauPhiVort = tf.cast(tauPhiVort, dtype="float64")
-    tauPhiN    = tf.cast(tauPhiN, dtype="float64")
+    # transpose
+    with nvtx.annotate("transpose", color="green"):    
+        tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
+        tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
 
-    tauPhiVort = tauPhiVort.numpy()
-    tauPhiN    = tauPhiN.numpy()
+    # transpose
+    with nvtx.annotate("concatenate", color="cyan"):    
+        tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
+        tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
 
-    LES_it = np.asarray([0], dtype="float64")
-    rLES = np.concatenate((LES_it, tauPhiVort, tauPhiN), axis=0)
+        tauPhiVort = tf.reshape(tauPhiVort, [-1])
+        tauPhiN    = tf.reshape(tauPhiN,    [-1])
+
+        tauPhiVort = tf.cast(tauPhiVort, dtype="float64")
+        tauPhiN    = tf.cast(tauPhiN, dtype="float64")
+
+        tauPhiVort = tauPhiVort.numpy()
+        tauPhiN    = tauPhiN.numpy()
+
+        #LES_it = np.asarray([0], dtype="float64")
+        rLES = np.concatenate((LES_it, tauPhiVort, tauPhiN), axis=0)
 
     if (PROFILE_BOUT):
-        print("concatenate ", time.time() - tstart)
+        print("StylES timing concatenate ", time.time() - tstart)
         tstart = time.time()
 
 
@@ -545,8 +560,8 @@ def findLESTerms(pLES):
         gridToVTK(filename, X, Y, Z, pointData={"n": U_DNS, "phi": V_DNS, "vort": P_DNS})
     
 
-    if (PROFILE_BOUT):
-        print("saving ", time.time() - tstart)
+        if (PROFILE_BOUT):
+            print("StylES timing saving  ", time.time() - tstart)
 
 
     return rLES
