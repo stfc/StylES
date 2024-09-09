@@ -145,34 +145,46 @@ def StyleGAN_load_fields(file_path):
             else:
                 fP_DNS = fP_DNS[::rs,::rs]                
 
-        # normalize the data
-        minU = np.min(fU_DNS)
-        maxU = np.max(fU_DNS)
-        amaxU = max(abs(minU), abs(maxU))
-        if (amaxU<SMALL):
-            print("-----------Attention: invalid field!!!")
-            exit(0)
-        else:
-            data[0,:,:] = fU_DNS / amaxU
+        if (NUM_CHANNELS==1):
 
-        minV = np.min(fV_DNS)
-        maxV = np.max(fV_DNS)
-        amaxV = max(abs(minV), abs(maxV))
-        if (amaxV<SMALL):
-            print("-----------Attention: invalid field!!!")
-            exit(0)
-        else:
-            data[1,:,:] = fV_DNS / amaxV
+            minP = np.min(fP_DNS)
+            maxP = np.max(fP_DNS)
+            amaxP = max(abs(minP), abs(maxP))
+            if (amaxP<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[0,:,:] = fP_DNS / amaxP
 
-        minP = np.min(fP_DNS)
-        maxP = np.max(fP_DNS)
-        amaxP = max(abs(minP), abs(maxP))
-        if (amaxP<SMALL):
-            print("-----------Attention: invalid field!!!")
-            exit(0)
         else:
-            data[2,:,:] = fP_DNS / amaxP
 
+            # normalize the data
+            minU = np.min(fU_DNS)
+            maxU = np.max(fU_DNS)
+            amaxU = max(abs(minU), abs(maxU))
+            if (amaxU<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[0,:,:] = fU_DNS / amaxU
+
+            minV = np.min(fV_DNS)
+            maxV = np.max(fV_DNS)
+            amaxV = max(abs(minV), abs(maxV))
+            if (amaxV<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[1,:,:] = fV_DNS / amaxV
+
+            minP = np.min(fP_DNS)
+            maxP = np.max(fP_DNS)
+            amaxP = max(abs(minP), abs(maxP))
+            if (amaxP<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[2,:,:] = fP_DNS / amaxP
 
         img_out = [data] + img_out
 
@@ -269,7 +281,10 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
     g_pre_images = pre_synthesis(dlatents, training = False)
     #g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
 
-    g_images = synthesis([dlatents, g_pre_images], training = False)
+    if (NUM_CHANNELS==1):
+        g_images, _ = synthesis([dlatents, g_pre_images], training = False)
+    else:
+        g_images = synthesis([dlatents, g_pre_images], training = False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)

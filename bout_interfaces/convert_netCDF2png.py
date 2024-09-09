@@ -26,7 +26,7 @@ from isoturb import generate_isotropic_turbulence_2d
 
 #----------------------------- parameters
 MODE        = 'READ_NETCDF'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
-PATH        = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d_org/"
+PATH        = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/"
 PATH_NUMPY  = PATH + "results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
 PATH_NETCDF = PATH + "data/"
@@ -40,7 +40,8 @@ DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
 ITIME       = 1 # skip between STIME, FTIME, ITIME
-USE_VKT     = True
+PLOT_2D     = True
+PLOT_VTK    = True
 SAVE_FIELDS = False
 
 useLogSca   = True
@@ -244,7 +245,7 @@ if (MODE=='READ_NETCDF'):
             filename = dest + "/fields/fields_time" + tail + ".npz"
             save_fields(t, n, phi, vort, filename=filename)
 
-        if (USE_VKT):
+        if (PLOT_VTK):
             filename = dest + "/fields/fields_time" + tail
             gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
 
@@ -255,7 +256,7 @@ if (MODE=='READ_NETCDF'):
             vort = vort[:,0,:]
 
         # plot
-        if (not USE_VKT):
+        if (PLOT_2D):
             filename = dest + "/plots/plots_time" + tail + ".png"
             print_fields_3(n, phi, vort, filename=filename, transpose=True, \
                 Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
@@ -338,7 +339,7 @@ elif (MODE=='READ_NUMPY'):
 
             file_dest = file.replace("fields","plots")
             file_dest = file.replace("fields_DNS_DNS","plots")
-            if (USE_VKT):
+            if (PLOT_VTK):
                 file_dest = file.replace(".npz","")
                 filename = "./results/fields/" + file_dest
                 gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
@@ -350,7 +351,7 @@ elif (MODE=='READ_NUMPY'):
                 vort = vort[:,0,:]
         
             # plot
-            if (not USE_VKT):
+            if (PLOT_2D):
                 file_dest = file.replace(".npz",".png")
                 filename  = "./results/plots/" + file_dest
                 print_fields_3(n, phi, vort, filename=filename, transpose=True, \
@@ -389,7 +390,7 @@ if (MODE=='READ_NETCDF' or MODE=='READ_NUMPY'):
 
 
 #----------------------------- make animation fields
-if (not USE_VKT):
+if (PLOT_2D):
     anim_file = './results/animation_plots.gif'
     filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
     filenames = sorted(filenames)

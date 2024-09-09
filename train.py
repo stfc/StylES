@@ -76,8 +76,11 @@ def train_step(input, images):
         g_pre_images  = pre_synthesis(dlatents, training = True)
         # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
 
-        g_images = synthesis([dlatents, g_pre_images], training = True)
-
+        if (NUM_CHANNELS==1):
+            g_images, _ = synthesis([dlatents, g_pre_images], training = True)
+        else:
+            g_images = synthesis([dlatents, g_pre_images], training = True)
+            
         # find losses
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
@@ -113,7 +116,7 @@ def train_step(input, images):
 def train(dataset, train_summary_writer):
 
     # Load latest checkpoint, if restarting
-    managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=2)
+    managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=None)
     if (IRESTART):
         checkpoint.restore(managerCheckpoint.latest_checkpoint)
 

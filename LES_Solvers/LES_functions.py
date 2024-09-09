@@ -101,7 +101,7 @@ def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3]
 
 
 
-def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e1], useLogSca=True):
+def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, None], useLogSca=True):
     U_cpu = convert(U)
     V_cpu = convert(V)
     Z_cpu = convert(Z)
@@ -122,7 +122,7 @@ def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1e-2
     # yLinLim    = [0.0e0, 0.1]
 
     # plt.xlim(xlim)
-    # plt.ylim(ylim) 
+    plt.ylim(ylim) 
 
     if (label is not None):
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)

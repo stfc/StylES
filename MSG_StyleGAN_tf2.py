@@ -148,7 +148,7 @@ def make_pre_synthesis_model():
         in_x = layer_epilogue(
             blur(
                 upscale2d_conv2d(in_x,
-                    fmaps=NUM_CHANNELS,
+                    fmaps=nf(in_res - 1),
                     kernel=3,
                     gain=GAIN,
                     use_wscale=use_wscale,
@@ -160,7 +160,7 @@ def make_pre_synthesis_model():
         in_x = layer_epilogue(
             conv2d(
                 in_x,
-                fmaps=NUM_CHANNELS,
+                fmaps=nf(in_res - 1),
                 kernel=3,
                 gain=GAIN,
                 use_wscale=use_wscale,
@@ -170,42 +170,63 @@ def make_pre_synthesis_model():
         return in_x
 
 
-    # convert to RGB
     def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
         in_lod = RES_LOG2 - in_res
-        if (USE_VORTICITY):
-            x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        else:
-            x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        if (USE_VORTICITY):
-            x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+        x  = bias(x)
+        if (NUM_CHANNELS==1):
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x  = find_centred_fields(x)
+            phi, _ = normalize_max(x)
+            rs = OUTPUT_DIM/(2**in_res)
+            x  = find_vorticity_HW(phi, DELX*rs, DELY*rs)
+            x  = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x, phi
         else:
-            x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = find_centred_fields(x)
-        x, _ = normalize_max(x)
-        return x
-
+            x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            if (USE_VORTICITY):
+                x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+            else:
+                x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x = tf.concat([x_R, x_G, x_B], axis=1)
+            x = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x
+    
 
     # Finally, arrange the computations for the layers
     images_out = []  # list will contain the output images at different resolutions
-    images_out.append(torgb(2, x))
-    for res in range(3, RES_LOG2-FIL):
+
+    if (NUM_CHANNELS==1):
+        images_out.append(torgb(2, x)[0])
+        for res in range(3, RES_LOG2-FIL):
+            x = block(res, x)
+            images_out.append(torgb(res, x)[0])
+
+        # last block save phi_LES
+        res = RES_LOG2-FIL
         x = block(res, x)
-        images_out.append(torgb(res, x))
+        vort_LES, phi_LES = torgb(res, x)
+        images_out.append(vort_LES)
+        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, phi_LES])
+    else:
+        images_out.append(torgb(2, x))
+        for res in range(3, RES_LOG2-FIL):
+            x = block(res, x)
+            images_out.append(torgb(res, x))
 
 
-    # LES layer
-    res = RES_LOG2-FIL
-    x = block(res, x)
-    x = torgb(res, x)
-    images_out.append(x)
+        # LES layer
+        res = RES_LOG2-FIL
+        x = block(res, x)
+        x = torgb(res, x)
+        images_out.append(x)
 
-    pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+        pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+
 
     return pre_synthesis_model
 
@@ -235,6 +256,8 @@ def make_synthesis_model():
     for res in range(2,RES_LOG2-FIL+1):
         images_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
 
+    if (NUM_CHANNELS==1):
+        phi_LES = tf.keras.Input(shape=([1, 2**res, 2**res]), dtype=DTYPE)
 
     # Noise inputs
     noise_inputs = []
@@ -309,35 +332,64 @@ def make_synthesis_model():
     # convert to RGB
     def torgb(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
         in_lod = RES_LOG2 - in_res
-        if (USE_VORTICITY):
-            x = conv2d(in_x, fmaps=2, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
-        else:
-            x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
         bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
-        x = bias(x)
-        x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        if (USE_VORTICITY):
-            x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+        x  = bias(x)
+        if (NUM_CHANNELS==1):
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x  = find_centred_fields(x)
+            phi, _ = normalize_max(x)
+            rs = OUTPUT_DIM/(2**in_res)
+            x  = find_vorticity_HW(phi, DELX*rs, DELY*rs)
+            x  = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x, phi
         else:
-            x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-        x = tf.concat([x_R, x_G, x_B], axis=1)
-        x = find_centred_fields(x)
-        x, _ = normalize_max(x)
-        return x
+            x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            if (USE_VORTICITY):
+                x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+            else:
+                x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x = tf.concat([x_R, x_G, x_B], axis=1)
+            x = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x
 
 
     # Finally, arrange the computations for the layers
-    x = images_in[-1]
-    images_out = []
-    for layer in range(2, RES_LOG2-FIL+1):
-        images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
+    if (NUM_CHANNELS==1):
 
-    for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
+        x = phi_LES
+        images_out = []
+        for layer in range(2, RES_LOG2-FIL+1):
+            images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
+
+        for res in range(RES_LOG2-FIL+1, RES_LOG2):
+            x = block(res, x)
+            images_out.append(torgb(res, x)[0])
+
+        # last block save phi_DNS
+        res = RES_LOG2-FIL
         x = block(res, x)
-        images_out.append(torgb(res, x))
+        vort_DNS, phi_DNS = torgb(res, x)
+        images_out.append(vort_DNS)
 
-    synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
+        synthesis_model = Model(inputs=[dlatents, images_in, phi_LES], outputs=[images_out, phi_DNS])
+
+    else:
+
+        x = images_in[-1]
+        images_out = []
+        for layer in range(2, RES_LOG2-FIL+1):
+            images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
+
+        for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
+            x = block(res, x)
+            images_out.append(torgb(res, x))
+
+        synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
+
 
     return synthesis_model
 

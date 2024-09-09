@@ -38,7 +38,7 @@ tf.random.set_seed(seed=SEED_RESTART)
 
 
 #------------------------------------------------------ parameters
-FILE_DNS    = FILE_DNS_N512_3D
+FILE_DNS    = FILE_DNS_N256_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3
@@ -103,16 +103,20 @@ time.sleep(3)
 # create filter model
 if (GAUSSIAN_FILTER):
     x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
+    out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=NUM_CHANNELS)
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
-    x_in        = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out         = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
-    gfilter_1ch = tf.keras.Model(inputs=x_in, outputs=out)
+    x_1ch       = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out_1ch     = apply_filter_NCH(x_1ch, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=1)
+    gfilter_1ch = tf.keras.Model(inputs=x_1ch, outputs=out_1ch)
 
-    x_in              = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out               = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, type='Gaussian')
-    gfilter_noScaling = tf.keras.Model(inputs=x_in, outputs=out)
+    x_sub       = tf.keras.Input(shape=([1, RS+1, RS+1]), dtype=DTYPE)
+    out_sub     = apply_filter_NCH(x_sub, size=4*RS, rsca=1, mean=0.0, delta=RS, subsection=True, type='Gaussian', NCH=1)
+    gfilter_sub = tf.keras.Model(inputs=x_sub, outputs=out_sub)
+    
+    x_noScaling       = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out_noScaling     = apply_filter_NCH(x_noScaling, size=4*RS, rsca=1, mean=0.0, delta=RS, type='Gaussian', NCH=1)
+    gfilter_noScaling = tf.keras.Model(inputs=x_noScaling, outputs=out_noScaling)
 else:
     gfilter = filters[IFIL]
 
@@ -130,54 +134,120 @@ for variable in ltv_DNS:
 time.sleep(3)
 
 
-#------------------------------------------------------ load values
-# load reference DNS
+#------------------------------------------------------ set reference DNS
 
-# load numpy array
-U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_DNS)
-U_DNS = np.cast[DTYPE](U_DNS)
-V_DNS = np.cast[DTYPE](V_DNS)
-P_DNS = np.cast[DTYPE](P_DNS)
-
-# convert to tf
-U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
-V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
-P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
-
-
-if (len(U_DNS.shape)==3):
-    DIMS_3D = True
-    U_DNS = tf.transpose(U_DNS, [1,0,2])
-    V_DNS = tf.transpose(V_DNS, [1,0,2])
-    P_DNS = tf.transpose(P_DNS, [1,0,2])
-    U_DNS = U_DNS[:,tf.newaxis,:,:]
-    V_DNS = V_DNS[:,tf.newaxis,:,:]
-    P_DNS = P_DNS[:,tf.newaxis,:,:]
-else:
-    DIMS_3D = False
-    U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
-    V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
-    P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+if (LOAD_DNS):
     
-UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+    # load numpy array
+    U_DNS, V_DNS, P_DNS, _ = load_fields(FILE_DNS)
+    U_DNS = np.cast[DTYPE](U_DNS)
+    V_DNS = np.cast[DTYPE](V_DNS)
+    P_DNS = np.cast[DTYPE](P_DNS)
 
-# filter and dowscale if needed
-NX_DNS = len(U_DNS[0,0,0,:])
-rsin = int(NX_DNS/OUTPUT_DIM)
-if (rsin>1):
-    UVP_DNS     = apply_filter_NCH(UVP_DNS_org, size=4*rsin, rsca=rsin, mean=0.0, delta=rsin, type='Gaussian', NCH=3)
-    U_DNS       = UVP_DNS[:,0:1,:,:]
-    V_DNS       = UVP_DNS[:,1:2,:,:]
-    if (USE_VORTICITY):
-        P_DNS = find_vorticity_HW(V_DNS, DELX*rsin, DELY*rsin)
+    # convert to tf
+    U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+    V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+    P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
+
+    if (DIMS_3D):
+        U_DNS = tf.transpose(U_DNS, [1,0,2])
+        V_DNS = tf.transpose(V_DNS, [1,0,2])
+        P_DNS = tf.transpose(P_DNS, [1,0,2])
+        U_DNS = U_DNS[:,tf.newaxis,:,:]
+        V_DNS = V_DNS[:,tf.newaxis,:,:]
+        P_DNS = P_DNS[:,tf.newaxis,:,:]
     else:
-        P_DNS = UVP_DNS[:,2:3,:,:]
+        U_DNS = U_DNS[tf.newaxis,tf.newaxis,:,:]
+        V_DNS = V_DNS[tf.newaxis,tf.newaxis,:,:]
+        P_DNS = P_DNS[tf.newaxis,tf.newaxis,:,:]
+        
     UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
 
-UVP_LES_org = apply_filter_NCH(UVP_DNS_org, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=3)
+    # filter and dowscale if needed
+    NX_DNS = len(U_DNS[0,0,0,:])
+    rsin = int(NX_DNS/OUTPUT_DIM)
+    if (rsin>1):
+        UVP_DNS     = apply_filter_NCH(UVP_DNS_org, size=4*rsin, rsca=rsin, mean=0.0, delta=rsin, type='Gaussian', NCH=3)
+        U_DNS       = UVP_DNS[:,0:1,:,:]
+        V_DNS       = UVP_DNS[:,1:2,:,:]
+        if (USE_VORTICITY):
+            P_DNS = find_vorticity_HW(V_DNS, DELX*rsin, DELY*rsin)
+        else:
+            P_DNS = UVP_DNS[:,2:3,:,:]
+        UVP_DNS_org = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+
+    UVP_LES_org = apply_filter_NCH(UVP_DNS_org, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=3)
+
+    # filter image
+    rs = 2 
+    for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
+        res = 2**reslog
+        if (reslog==RES_LOG2):
+            fUVP_DNS = nUVP_DNS
+        else:
+            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
+            U_DNS    = fUVP_DNS[:,0:1,:,:]
+            V_DNS    = fUVP_DNS[:,1:2,:,:]
+            if (USE_VORTICITY):        
+                P_DNS    = find_vorticity_HW(V_DNS, DELX*OUTPUT_DIM/res, DELY*OUTPUT_DIM/res)
+                fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+            else:
+                P_DNS    = fUVP_DNS[:,2:3,:,:]
+            fUVP_DNS = find_centred_fields(fUVP_DNS)
+            fUVP_DNS, _ = normalize_max(fUVP_DNS)
+
+        # normalize the data
+        fUVP_DNS, _ = normalize_max(fUVP_DNS)
+        
+    # save LES_in0
+    LES_in0 = tf.identity(fUVP_DNS)
+
+else:
+    
+    # set z
+    z0 = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
+
+    # set UVP max
+    UVP_max = tf.constant([INIT_SCA], dtype=DTYPE)
+    UVP_max = tf.tile(UVP_max, [3])
+    UVP_max = UVP_max[tf.newaxis, :, tf.newaxis, tf.newaxis]
+    UVP_max = [UVP_max, UVP_max]
+
+    # inference
+    if (NUM_CHANNELS==1):
+        dlatents = mapping(z0, training=False)
+        pre_img, V_LES  = pre_synthesis(dlatents, training = False)
+        U_LES = V_LES
+        P_LES = find_vorticity_HW(V_LES, DELX*RS, DELY*RS)
+        P_LES = find_centred_fields(P_LES)
+        P_LES, _ = normalize_max(P_LES)
+        UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
+        zAll = [dlatents, pre_img, UVP_LES]
+        UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
+    else:
+        dlatents = mapping(z0, training=False)
+        pre_img  = pre_synthesis(dlatents, training = False)
+        zAll = [z0, pre_img]
+        UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
+
+    if (DIMS_3D):
+        UVP_LES = UVP_LES_org
+        UVP_DNS = UVP_DNS_org        
+        for j in range(1, BATCH_SIZE):
+            sinLES = int(np.sin(2*np.pi*j/float(BATCH_SIZE-1))*N_LES2)
+            sinDNS = sinLES*RS
+            UVP_LES = tf.concat([UVP_LES, tr(UVP_LES_org, 0, sinLES)], axis=0)
+            UVP_DNS = tf.concat([UVP_DNS, tr(UVP_DNS_org, 0, sinDNS)], axis=0)
+
+        UVP_LES_org = UVP_LES
+        UVP_DNS_org = UVP_DNS
+
+    LES_in0 = UVP_LES_org
 
 
-# print values
+
+
+# print original plots DNS and LES
 U_DNS = UVP_DNS_org[0,0,:,:].numpy()
 V_DNS = UVP_DNS_org[0,1,:,:].numpy()
 P_DNS = UVP_DNS_org[0,2,:,:].numpy()
@@ -205,44 +275,9 @@ plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename_spectra, label="LES_org", clo
 
 
 # Normalize values
-nUVP_DNS, nUVP_amaxo = normalize_max(UVP_DNS_org)
-nUVP_LES, fUVP_amaxo = normalize_max(UVP_LES_org)
+fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS_org, gfilter_sub)
 UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
-
-
-
-# filter image
-if (USE_IMGSLES):
-    rs = 2 
-    for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
-        res = 2**reslog
-        if (reslog==RES_LOG2):
-            fUVP_DNS = nUVP_DNS
-        else:
-            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
-            U_DNS    = fUVP_DNS[:,0:1,:,:]
-            V_DNS    = fUVP_DNS[:,1:2,:,:]
-            if (USE_VORTICITY):        
-                P_DNS    = find_vorticity_HW(V_DNS, DELX*OUTPUT_DIM/res, DELY*OUTPUT_DIM/res)
-                fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
-            else:
-                P_DNS    = fUVP_DNS[:,2:3,:,:]
-            fUVP_DNS = find_centred_fields(fUVP_DNS)
-            fUVP_DNS, _ = normalize_max(fUVP_DNS)
-
-        # normalize the data
-        fUVP_DNS, _ = normalize_max(fUVP_DNS)
-        
-    # save LES_in0
-    LES_in0 = tf.identity(fUVP_DNS)
-
-
-# use single channel
-if (NUM_CHANNELS==1):
-    print("make sure channels is right...!!")
-    LES_in0 = LES_in0[:,1:2,:,:]
-    exit(0)
-
+       
 
 # set LES_all0
 LES_all  = []
@@ -259,6 +294,8 @@ if (RESTART_WL):
     nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+    
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
@@ -268,8 +305,6 @@ if (RESTART_WL):
     # assign variables
     z0         = tf.convert_to_tensor(z0, dtype=DTYPE)
     LES_in0    = tf.convert_to_tensor(LES_in0, dtype=DTYPE)
-
-    UVP_max = np.concatenate([nUVP_amaxo, fUVP_amaxo], 0)
 
     # assign variable noise
     if (TUNE_NOISE):
@@ -283,29 +318,13 @@ if (RESTART_WL):
                 it=it+1
 
     # set LES_in fields
-    for res in range(2,RES_LOG2-FIL):
+    for res in range(2,RES_LOG2-FIL+1):
         rs = 2**(RES_LOG2-FIL-res)
-        LES_all0.append(LES_in0[:,:,::rs,::rs])
+        if (res!=RES_LOG2-FIL):
+            LES_all0.append(LES_in0[:,:,::rs,::rs])
+        LES_all.append(LES_in0[:,:,::rs,::rs])
 
 else:
-
-    # set z
-    if (DIMS_3D):
-        z0a = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        z0b = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        z0 = z0a
-        for i in range(1,BATCH_SIZE):
-            wi = np.cos(i/float(BATCH_SIZE-1)*2.0*np.pi)
-            zi = z0a*wi + z0b*(1.0-wi)
-            z0 = tf.concat([z0, zi], axis=0)
-    else:
-        z0 = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        
-    dlatents = mapping(z0, training=False)
-
-    if (not USE_IMGSLES):
-        pre_img  = pre_synthesis(dlatents, training = False)
-        LES_in0  = pre_img[-1] 
 
     for res in range(2,RES_LOG2-FIL+1):
         rs = 2**(RES_LOG2-FIL-res)
@@ -318,10 +337,12 @@ else:
 print ("============================Completed setup!\n\n")
 
 
+if (NUM_CHANNELS==1):
+    zAll = [dlatents, LES_all, LES_in0]
 
 #------------------------------------------------------ find initial residuals
 # find inference...
-UVP_DNS, UVP_LES, fUVP_DNS, _ = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
 # #... and correct it with new LES_in0
 # LES_in0, _ = normalize_max(fUVP_DNS)

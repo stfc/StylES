@@ -130,13 +130,13 @@ if (GAUSSIAN_FILTER):
     out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
 
-    x_in_single    = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
-    out_single     = apply_filter_NCH(x_in_single, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=1)
-    gfilter_single = tf.keras.Model(inputs=x_in_single, outputs=out_single)
+    x_1ch       = tf.keras.Input(shape=([1, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
+    out_1ch     = apply_filter_NCH(x_1ch, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=1)
+    gfilter_1ch = tf.keras.Model(inputs=x_1ch, outputs=out_1ch)
 
-    x_in        = tf.keras.Input(shape=([1, RS+1, RS+1]), dtype=DTYPE)
-    out         = apply_filter(x_in[0,0,:,:], size=4*RS, rsca=1, mean=0.0, delta=RS, subsection=True, type='Gaussian')
-    gfilter_sub = tf.keras.Model(inputs=x_in, outputs=out)
+    x_in_sub    = tf.keras.Input(shape=([1, RS+1, RS+1]), dtype=DTYPE)
+    out_sub     = apply_filter_NCH(x_in_sub, size=4*RS, rsca=1, mean=0.0, delta=RS, subsection=True, type='Gaussian', NCH=1)
+    gfilter_sub = tf.keras.Model(inputs=x_in_sub, outputs=out_sub)
 else:
     gfilter     = filters[IFIL]
 
@@ -153,6 +153,7 @@ for variable in ltv_DNS:
 
 
 #--------------------------- restart from defined values
+LES_all = []
 LES_all0 = []
 if (RESTART_WL):
 
@@ -166,6 +167,8 @@ if (RESTART_WL):
     nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+    
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
@@ -175,8 +178,6 @@ if (RESTART_WL):
     # assign variables
     z0         = tf.convert_to_tensor(z0, dtype=DTYPE)
     LES_in0    = tf.convert_to_tensor(LES_in0, dtype=DTYPE)
-
-    UVP_max = np.concatenate([nUVP_amaxo, fUVP_amaxo], 0)
 
     # assign variable noise
     if (TUNE_NOISE):
@@ -190,42 +191,30 @@ if (RESTART_WL):
                 it=it+1
 
     # set LES_in fields
-    for res in range(2,RES_LOG2-FIL):
+    for res in range(2,RES_LOG2-FIL+1):
         rs = 2**(RES_LOG2-FIL-res)
-        LES_all0.append(LES_in0[:,:,::rs,::rs])
+        if (res!=RES_LOG2-FIL):
+            LES_all0.append(LES_in0[:,:,::rs,::rs])
+        LES_all.append(LES_in0[:,:,::rs,::rs])
 
 else:
-
-    # set z
-    if (DIMS_3D):
-        z0a = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        z0b = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        z0 = z0a
-        for i in range(1,BATCH_SIZE):
-            wi = np.cos(i/float(BATCH_SIZE-1)*2.0*np.pi)
-            zi = z0a*wi + z0b*(1.0-wi)
-            z0 = tf.concat([z0, zi], axis=0)
-    else:
-        z0 = tf.random.uniform(shape=[1, LATENT_SIZE], minval=MINVALRAN, maxval=MAXVALRAN, dtype=DTYPE, seed=SEED_RESTART)
-        
-    dlatents = mapping(z0, training=False)
-
-    if (not USE_IMGSLES):
-        pre_img  = pre_synthesis(dlatents, training = False)
-        LES_in0  = pre_img[-1] 
 
     for res in range(2,RES_LOG2-FIL+1):
         rs = 2**(RES_LOG2-FIL-res)
         if (res != RES_LOG2-FIL):
             LES_all0.append(LES_in0[:,:,::rs,::rs])
+        LES_all.append(LES_in0[:,:,::rs,::rs])
 
-LES_all = [LES_all0, LES_in0]
+
+# mix
+if (NUM_CHANNELS==1):
+    zAll = [dlatents, LES_all, LES_in0]
 
 
 
 #--------------------------- load DNS field and prepare LES_in
 # load numpy array
-UVP_DNS, UVP_LES, fUVP_DNS, predictions = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max)
+UVP_DNS, UVP_LES, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
 U_DNS = UVP_DNS[0,0,:,:].numpy()
 V_DNS = UVP_DNS[0,1,:,:].numpy()
@@ -247,9 +236,9 @@ else:
 
 nfimgA = tf.identity(LES_in0)
 
-# set old scaling coefficients
-fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub)
-UVP_max = tf.concat([nUVP_amaxo, fUVP_amaxo], axis=0)
+# # set old scaling coefficients
+# fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub)
+# UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 # prepare old LES_in values
 if (USE_DIFF_LES):
@@ -334,7 +323,7 @@ def initFlow(npv):
             V_LES = fimgA[0, 1, :, :]
             P_LES = fimgA[0, 2, :, :]
 
-    
+
     # pass values back
     U_LES = tf.reshape(U_LES, [-1])
     V_LES = tf.reshape(V_LES, [-1])
@@ -448,23 +437,25 @@ def findLESTerms(pLES):
     else:    
         LES_all = [LES_all0, nfimgA]
 
-    # find new scaling
-    fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo, _ = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter_sub)
-    UVP_max = tf.concat([nUVP_amaxo, fUVP_amaxo], axis=0)
+    # # find new scaling
+    # fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo, kUVP_max = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter_sub)
+    # UVP_max = [kUVP_max*nUVP_amaxo] + [fUVP_amaxo]
 
     # end prepare phase
     if (PROFILE_BOUT):
         print("prepare ", time.time() - tstart)
         tstart = time.time()
 
-        
+    zAll = [dlatents, LES_all, nfimgA]
+
+    
     #--------------------------- find reconstructed field
-    UVP_DNS = find_predictions(synthesis, gfilter, [dlatents, LES_all], UVP_max, find_fDNS=False)
+    UVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max, find_fDNS=False)
     # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
     # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
     #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
 
-    
+
     if (PROFILE_BOUT):
         print("inference ", time.time() - tstart)
         tstart = time.time()
@@ -490,9 +481,9 @@ def findLESTerms(pLES):
     spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
     F = UVP_DNS[:, 1:2, :, :]
     G = UVP_DNS[:, 2:3, :, :]
-    fpPhiVort_DNS = find_bracket(F, G, gfilter_single, spacingFactor)
+    fpPhiVort_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
     G = UVP_DNS[:, 0:1, :, :]
-    fpPhiN_DNS = find_bracket(F, G, gfilter_single, spacingFactor)
+    fpPhiN_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
 
     
     if (IMPLICIT):
@@ -510,6 +501,11 @@ def findLESTerms(pLES):
 
 
     #--------------------------- pass back diffusion terms
+
+    # transpose 
+    tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
+    tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
+
     tauPhiVort = tf.reshape(tauPhiVort, [-1])
     tauPhiN    = tf.reshape(tauPhiN,    [-1])
     
