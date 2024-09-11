@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -41,7 +41,7 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 5
+SEED_RESTART = 1
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
@@ -68,8 +68,8 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 256
-BATCH_SIZE        = 16  # remember this shoudl NOT be bigger than dataset length!
+OUTPUT_DIM        = 1024
+BATCH_SIZE        = 8  # remember this shoudl NOT be bigger than dataset length!
 DIMS_3D           = True
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
@@ -95,7 +95,7 @@ NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
 USE_VORTICITY     = True
 LOAD_DNS          = False
-RANDOMIZE_NOISE   = True
+RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
@@ -149,7 +149,7 @@ DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES
 DELY_LES        = LEN_DOMAIN/N_LES
-INIT_SCA        = 2.0  # 5 10, 15
+INIT_SCA        = 2.0
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True

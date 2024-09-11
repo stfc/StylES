@@ -556,6 +556,11 @@ checkpoint = tf.train.Checkpoint(generator_optimizer=generator_optimizer,
                                     synthesis=synthesis,
                                     discriminator=discriminator)
 
+checkpoint_StylES = tf.train.Checkpoint(mapping=mapping,
+                                        pre_synthesis=pre_synthesis,
+                                        synthesis=synthesis)
+
+
 def gradient_penalty(x):
     with tf.GradientTape() as t:
         t.watch(x)

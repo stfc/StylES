@@ -90,7 +90,7 @@ train_summary_writer = tf.summary.create_file_writer(Z0_DIR_WL_LOGS + "search/")
 
 
 # loading StyleGAN checkpoint and filter
-managerCheckpoint = tf.train.CheckpointManager(checkpoint, '../' + CHKP_DIR, max_to_keep=2)
+managerCheckpoint = tf.train.CheckpointManager(checkpoint_StylES, '../' + CHKP_DIR, max_to_keep=2)
 checkpoint.restore(managerCheckpoint.latest_checkpoint)
 if managerCheckpoint.latest_checkpoint:
     print("Net restored from {}".format(managerCheckpoint.latest_checkpoint, max_to_keep=2))
@@ -134,8 +134,7 @@ for variable in ltv_DNS:
 time.sleep(3)
 
 
-#------------------------------------------------------ set reference DNS
-
+#------------------------------------------------------ set reference DNS and LES
 if (LOAD_DNS):
     
     # load numpy array
@@ -183,7 +182,7 @@ if (LOAD_DNS):
     for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
         res = 2**reslog
         if (reslog==RES_LOG2):
-            fUVP_DNS = nUVP_DNS
+            fUVP_DNS, _ = normalize_max(UVP_DNS_org)
         else:
             fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
             U_DNS    = fUVP_DNS[:,0:1,:,:]
@@ -211,7 +210,7 @@ else:
     UVP_max = tf.constant([INIT_SCA], dtype=DTYPE)
     UVP_max = tf.tile(UVP_max, [3])
     UVP_max = UVP_max[tf.newaxis, :, tf.newaxis, tf.newaxis]
-    UVP_max = [UVP_max, UVP_max]
+    UVP_max = [UVP_max] + [UVP_max]
 
     # inference
     if (NUM_CHANNELS==1):
@@ -221,13 +220,14 @@ else:
         P_LES = find_vorticity_HW(V_LES, DELX*RS, DELY*RS)
         P_LES = find_centred_fields(P_LES)
         P_LES, _ = normalize_max(P_LES)
-        UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
-        zAll = [dlatents, pre_img, UVP_LES]
+        LES_in0 = tf.concat([U_LES, V_LES, P_LES], axis=1)
+        zAll = [dlatents, pre_img, LES_in0]
         UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
     else:
         dlatents = mapping(z0, training=False)
         pre_img  = pre_synthesis(dlatents, training = False)
         zAll = [z0, pre_img]
+        LES_in0 = pre_img[-1]
         UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
     if (DIMS_3D):
@@ -241,9 +241,6 @@ else:
 
         UVP_LES_org = UVP_LES
         UVP_DNS_org = UVP_DNS
-
-    LES_in0 = UVP_LES_org
-
 
 
 
@@ -465,8 +462,8 @@ if (TESTCASE=='HW' or TESTCASE=='mHW'):
 
 #--------------------------- find mean and min/max values
 print("Min/max values in each field :")
-print(np.min(UVP_DNS[0, 0, :, :].numpy()), np.min(UVP_DNS[0, 1, :, :].numpy()), np.min(UVP_DNS[0, 2, :, :].numpy()), \
-      np.max(UVP_DNS[0, 0, :, :].numpy()), np.max(UVP_DNS[0, 1, :, :].numpy()), np.max(UVP_DNS[0, 2, :, :].numpy()))
+print(np.min(UVP_DNS[:, 0, :, :].numpy()), np.min(UVP_DNS[:, 1, :, :].numpy()), np.min(UVP_DNS[:, 2, :, :].numpy()), \
+      np.max(UVP_DNS[:, 0, :, :].numpy()), np.max(UVP_DNS[:, 1, :, :].numpy()), np.max(UVP_DNS[:, 2, :, :].numpy()))
 
 
 
@@ -529,6 +526,7 @@ elif(TESTCASE=='HW' or TESTCASE=='mHW'):
     minf, maxf = find_minmax2(P_LES, fP_DNS)
     filename = Z0_DIR_WL + "plots_diff_LES_fDNS_P.png"
     print_fields_3(P_LES, fP_DNS, fP_DNS-P_LES, filename=filename, testcase=TESTCASE, plot='diff', \
+                labels=["LES", "fDNS", "diff"], \
                 Umin=minf, Umax=maxf, Vmin=minf, Vmax=maxf, Pmin=minf, Pmax=maxf)
 
     cP_DNS = (-cr(V_DNS, 2, 0) + 16*cr(V_DNS, 1, 0) - 30*V_DNS + 16*cr(V_DNS,-1, 0) - cr(V_DNS,-2, 0))/(12*DELX**2) \

@@ -971,11 +971,14 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
         # find filtered fields
         if (find_fDNS):
-            UVP_LES = z[2]
+            U_LES = z[2][:,0:1,:,:]*UVP_max[1][:,0:1,:,:]
+            V_LES = z[2][:,1:2,:,:]*UVP_max[1][:,1:2,:,:]
+            P_LES = find_vorticity_HW(V_LES, DELX_LES, DELY_LES)
+            UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
 
             fU_DNS = filter(U_DNS)
             fV_DNS = filter(V_DNS)
-            fP_DNS = filter(P_DNS)
+            fP_DNS = find_vorticity_HW(fV_DNS, DELX_LES, DELY_LES)
             fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
             return UVP_DNS, UVP_LES, fUVP_DNS
@@ -1247,7 +1250,7 @@ def find_bracket(F, G, filter, spacingFactor):
     fpPhi_DNS = filter(pPhi_DNS, training=False)
     fpPhi_DNS = fpPhi_DNS*spacingFactor
 
-    return fpPhi_DNS
+    return fpPhi_DNS, pPhi_DNS
 
 
 @tf.function

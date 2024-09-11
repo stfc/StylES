@@ -68,13 +68,14 @@ tollLES      = 0.25
 CHKP_DIR     = PATH_StylES + "checkpoints/"
 CHKP_DIR_WL  = PATH_StylES + "bout_interfaces/restart_fromGAN/checkpoints_wl/"
 LES_pass     = lr_DNS_maxIt
-pPrintFreq   = 1.0
+pPrintFreq   = 0.01
 RUN_DNS      = False
 RESTART_WL   = True
-USE_DIFF_LES = False 
+USE_DIFF_LES = False
 IMPLICIT     = False  
-PROFILE_BOUT = True
-SIZE         = N_LES*BATCH_SIZE*N_LES
+PROFILE_BOUT = False
+SIZE_LES     = N_LES*BATCH_SIZE*N_LES
+SIZE_DNS     = N_DNS*BATCH_SIZE*N_DNS
 
 tf.random.set_seed(seed=SEED_RESTART)
 
@@ -115,7 +116,7 @@ opt_kDNS = tf.keras.optimizers.Adamax(learning_rate=lr_schedule_DNS)
 
 
 # loading StyleGAN checkpoint and filter
-managerCheckpoint = tf.train.CheckpointManager(checkpoint, CHKP_DIR, max_to_keep=2)
+managerCheckpoint = tf.train.CheckpointManager(checkpoint_StylES, CHKP_DIR, max_to_keep=2)
 checkpoint.restore(managerCheckpoint.latest_checkpoint)
 if managerCheckpoint.latest_checkpoint:
     print("Net restored from {}".format(managerCheckpoint.latest_checkpoint, max_to_keep=2))
@@ -232,10 +233,12 @@ print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1
 imgA = tf.identity(UVP_DNS)
 if (USE_DIFF_LES):
     fimgA = tf.identity(fUVP_DNS)
+    nfimgA, _ = normalize_max(fUVP_DNS)
 else:
     fimgA = tf.identity(UVP_LES)
+    nfimgA, _ = normalize_max(UVP_LES)
 
-nfimgA = tf.identity(LES_in0)
+
 
 # # set old scaling coefficients
 # fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub)
@@ -243,7 +246,7 @@ nfimgA = tf.identity(LES_in0)
 
 # prepare old LES_in values
 if (USE_DIFF_LES):
-    LES_ino = predictions[RES_LOG2-FIL-2]
+    LES_in0o = tf.identity(LES_in0)
     nfimgAo = tf.identity(nfimgA)
 
 file = open("./data/BOUT.inp", 'r')
@@ -356,7 +359,7 @@ def findLESTerms(pLES):
     global UVP_max, tollDNS
     global nfUVPo, fnUVPo
     global nUVP_amaxo, fUVP_amaxo
-    global LES_ino, nfimgAo, UVP_DNS
+    global LES_in0o, nfimgAo
 
         
     #--------------------------- pass values from BOUT++
@@ -379,11 +382,11 @@ def findLESTerms(pLES):
         dely = dely_LES*N_LES/N_DNS
         
         if (IMPLICIT):
-            BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
-            BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
-            BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
-            BOUT_pV = pLES[4+3*SIZE:4+4*SIZE]
-            BOUT_pN = pLES[4+4*SIZE:4+5*SIZE]
+            BOUT_fU = pLES[4+0*SIZE_LES:4+1*SIZE_LES]
+            BOUT_fV = pLES[4+1*SIZE_LES:4+2*SIZE_LES]
+            BOUT_fP = pLES[4+2*SIZE_LES:4+3*SIZE_LES]
+            BOUT_pV = pLES[4+3*SIZE_LES:4+4*SIZE_LES]
+            BOUT_pN = pLES[4+4*SIZE_LES:4+5*SIZE_LES]
 
             fU           = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
             fV           = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
@@ -391,9 +394,9 @@ def findLESTerms(pLES):
             pPhiVort_LES = np.reshape(BOUT_pV, (N_LES, BATCH_SIZE, N_LES))
             pPhiN_LES    = np.reshape(BOUT_pN, (N_LES, BATCH_SIZE, N_LES))        
         else:
-            BOUT_fU = pLES[4+0*SIZE:4+1*SIZE]
-            BOUT_fV = pLES[4+1*SIZE:4+2*SIZE]
-            BOUT_fP = pLES[4+2*SIZE:4+3*SIZE]
+            BOUT_fU = pLES[4+0*SIZE_LES:4+1*SIZE_LES]
+            BOUT_fV = pLES[4+1*SIZE_LES:4+2*SIZE_LES]
+            BOUT_fP = pLES[4+2*SIZE_LES:4+3*SIZE_LES]
             fU = np.reshape(BOUT_fU, (N_LES, BATCH_SIZE, N_LES))
             fV = np.reshape(BOUT_fV, (N_LES, BATCH_SIZE, N_LES))
             fP = np.reshape(BOUT_fP, (N_LES, BATCH_SIZE, N_LES))
@@ -432,13 +435,10 @@ def findLESTerms(pLES):
 
         # set new LES_in
         if (USE_DIFF_LES):
-            LES_diff = nfimgA-nfimgAo
-            LES_in   = LES_ino + LES_diff
-            LES_all  = [LES_all0, LES_in]
-            LES_ino  = tf.identity(LES_in)
-            nfimgAo  = tf.identity(nfimgA)
-        else:    
-            LES_all = [LES_all0, nfimgA]
+            LES_in0     = LES_in0o*nfimgA/nfimgAo
+            LES_in0, _  = normalize_max(LES_in0)
+            LES_in0o    = tf.identity(LES_in0)
+            nfimgAo     = tf.identity(nfimgA)
 
         # # find new scaling
         # fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo, kUVP_max = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter_sub)
@@ -446,11 +446,13 @@ def findLESTerms(pLES):
 
         # end prepare phase
         if (PROFILE_BOUT):
-            print("StylES timing prepare   ", time.time() - tstart)
+            print("prepare     ", time.time() - tstart)
             tstart = time.time()
 
-        zAll = [dlatents, LES_all, nfimgA]
-
+        if (NUM_CHANNELS==1):
+            zAll = [dlatents, LES_all, nfimgA]
+        else:
+            zAll = [dlatents, LES_all]
     
     #--------------------------- find reconstructed field
     with nvtx.annotate("prediction", color="purple"): 
@@ -461,7 +463,7 @@ def findLESTerms(pLES):
 
 
     if (PROFILE_BOUT):
-        print("StylES timing inference ", time.time() - tstart)
+        print("inference   ", time.time() - tstart)
         tstart = time.time()
 
 
@@ -486,9 +488,9 @@ def findLESTerms(pLES):
         spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
         F = UVP_DNS[:, 1:2, :, :]
         G = UVP_DNS[:, 2:3, :, :]
-        fpPhiVort_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
+        fpPhiVort_DNS, _ = find_bracket(F, G, gfilter_1ch, spacingFactor)
         G = UVP_DNS[:, 0:1, :, :]
-        fpPhiN_DNS = find_bracket(F, G, gfilter_1ch, spacingFactor)
+        fpPhiN_DNS, _ = find_bracket(F, G, gfilter_1ch, spacingFactor)
 
         
         if (IMPLICIT):
@@ -501,20 +503,11 @@ def findLESTerms(pLES):
     # convective explicit and sub-grid scale model implicit
 
     if (PROFILE_BOUT):
-        print("StylES timing Poisson ", time.time() - tstart)
+        print("bracket     ", time.time() - tstart)
         tstart = time.time()
 
 
     #--------------------------- pass back diffusion terms
-
-    val = tf.cast(tauPhiVort, dtype="float64")
-    LES_it = val[0:1,0,0,0].numpy()
-    #LES_it = np.asarray([0], dtype="float64")
-
-    # transpose
-    with nvtx.annotate("transpose", color="green"):    
-        tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
-        tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
 
     # transpose
     with nvtx.annotate("concatenate", color="cyan"):    
@@ -530,11 +523,11 @@ def findLESTerms(pLES):
         tauPhiVort = tauPhiVort.numpy()
         tauPhiN    = tauPhiN.numpy()
 
-        #LES_it = np.asarray([0], dtype="float64")
+        LES_it = np.asarray([0], dtype="float64")
         rLES = np.concatenate((LES_it, tauPhiVort, tauPhiN), axis=0)
 
     if (PROFILE_BOUT):
-        print("StylES timing concatenate ", time.time() - tstart)
+        print("concatenate ", time.time() - tstart)
         tstart = time.time()
 
 
@@ -560,9 +553,74 @@ def findLESTerms(pLES):
         gridToVTK(filename, X, Y, Z, pointData={"n": U_DNS, "phi": V_DNS, "vort": P_DNS})
     
 
-        if (PROFILE_BOUT):
-            print("StylES timing saving  ", time.time() - tstart)
+    if (PROFILE_BOUT):
+        print("saving      ", time.time() - tstart)
 
+
+    return rLES
+
+
+
+
+
+def findLESTerms_DNS(pLES):
+
+    pLES = pLES.astype(DTYPE)
+    
+    pStep      = int(pLES[0])
+    pStepStart = int(pLES[1])
+    
+    delx = pLES[2]
+    dely = delx
+    simtime  = pLES[3]
+
+    BOUT_fU = pLES[4+0*SIZE_DNS:4+1*SIZE_DNS]
+    BOUT_fV = pLES[4+1*SIZE_DNS:4+2*SIZE_DNS]
+    BOUT_fP = pLES[4+2*SIZE_DNS:4+3*SIZE_DNS]
+    U_DNS = np.reshape(BOUT_fU, (N_DNS, BATCH_SIZE, N_DNS))
+    V_DNS = np.reshape(BOUT_fV, (N_DNS, BATCH_SIZE, N_DNS))
+    P_DNS = np.reshape(BOUT_fP, (N_DNS, BATCH_SIZE, N_DNS))
+
+    U_DNS = tf.convert_to_tensor(U_DNS, dtype=DTYPE)
+    V_DNS = tf.convert_to_tensor(V_DNS, dtype=DTYPE)
+    P_DNS = tf.convert_to_tensor(P_DNS, dtype=DTYPE)
+    U_DNS = tf.transpose(U_DNS, [1,0,2])
+    V_DNS = tf.transpose(V_DNS, [1,0,2])
+    P_DNS = tf.transpose(P_DNS, [1,0,2])
+    U_DNS = U_DNS[:,tf.newaxis,:,:]
+    V_DNS = V_DNS[:,tf.newaxis,:,:]
+    P_DNS = P_DNS[:,tf.newaxis,:,:]
+    
+    UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+
+    spacingFactor = tf.constant(1.0/(12.0*delx*dely), dtype=DTYPE)        
+    F = UVP_DNS[:, 1:2, :, :]
+    G = UVP_DNS[:, 2:3, :, :]
+    _, tauPhiVort = find_bracket(F, G, gfilter_1ch, spacingFactor)
+    G = UVP_DNS[:, 0:1, :, :]
+    _, tauPhiN = find_bracket(F, G, gfilter_1ch, spacingFactor)
+
+    tauPhiVort = tf.transpose(tauPhiVort, [1,2,0,3])
+    tauPhiN    = tf.transpose(tauPhiN,    [1,2,0,3])
+
+
+    # save as vts
+    filename = "./results_StylES/fields/fields_Poisson_" + str(pStep).zfill(7)
+    gridToVTK(filename, X, Y, Z, pointData={"tauPhiVort": tauPhiVort[0,:,:,:].numpy(), "tauPhiN": tauPhiN[0,:,:,:].numpy()})
+
+
+    # pass it back to CPU    
+    tauPhiVort = tf.reshape(tauPhiVort, [-1])
+    tauPhiN    = tf.reshape(tauPhiN,    [-1])
+    
+    tauPhiVort = tf.cast(tauPhiVort, dtype="float64")
+    tauPhiN    = tf.cast(tauPhiN, dtype="float64")
+
+    tauPhiVort = tauPhiVort.numpy()
+    tauPhiN    = tauPhiN.numpy()
+
+    LES_it = np.asarray([0], dtype="float64")
+    rLES = np.concatenate((LES_it, tauPhiVort, tauPhiN), axis=0)
 
     return rLES
 

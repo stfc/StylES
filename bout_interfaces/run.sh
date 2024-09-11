@@ -19,5 +19,4 @@
 module load profile/deeplrn
 module load cineca-ai/3.0.0
 
-python convert_netCDF2png.py > output.txt
- 
+mpiexec -np 1 ./hw3d

@@ -35,7 +35,7 @@ PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = 2   # " 0) yes, 1) use INIT_SCA, 2) use None "
+FIND_MIXMAX = 1   # " 0) yes, 1) use INIT_SCA, 2) use None "
 DTYPE       = 'float32'
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
@@ -221,12 +221,28 @@ if (MODE=='READ_NETCDF'):
     os.chdir(PATH_NETCDF)
     
     if (FIND_MIXMAX==0):
+        t_n    = collect("n",    tind=0, xguards=False, info=False)
+        t_phi  = collect("phi",  tind=0, xguards=False, info=False)
+        t_vort = collect("vort", tind=0, xguards=False, info=False)
         min_U = np.min(t_n)
         max_U = np.max(t_n)
         min_V = np.min(t_phi)
         max_V = np.max(t_phi)
         min_P = np.min(t_vort)
         max_P = np.max(t_vort)
+
+        for t in range(STIME,FTIME,ITIME):
+            t_n    = collect("n",    tind=t, xguards=False, info=False)
+            t_phi  = collect("phi",  tind=t, xguards=False, info=False)
+            t_vort = collect("vort", tind=t, xguards=False, info=False)
+
+            min_U = min(np.min(t_n), min_U)
+            max_U = max(np.max(t_n), max_U)
+            min_V = min(np.min(t_phi), min_V)
+            max_V = max(np.max(t_phi), max_V)
+            min_P = min(np.min(t_vort), min_P)
+            max_P = max(np.max(t_vort), max_P)
+            
     
     print(min_U, max_U, min_V, max_V, min_P, max_P)
 
@@ -250,10 +266,9 @@ if (MODE=='READ_NETCDF'):
             gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
 
         # plot, energy and spectra
-        if (DIMS_3D):
-            n = n[:,0,:]
-            phi = phi[:,0,:]
-            vort = vort[:,0,:]
+        n = n[:,0,:]
+        phi = phi[:,0,:]
+        vort = vort[:,0,:]
 
         # plot
         if (PLOT_2D):
@@ -345,10 +360,9 @@ elif (MODE=='READ_NUMPY'):
                 gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
 
             # plot, energy and spectra
-            if (DIMS_3D):
-                n = n[:,0,:]
-                phi = phi[:,0,:]
-                vort = vort[:,0,:]
+            n = n[:,0,:]
+            phi = phi[:,0,:]
+            vort = vort[:,0,:]
         
             # plot
             if (PLOT_2D):
