@@ -222,25 +222,21 @@ else:
         P_LES, _ = normalize_max(P_LES)
         LES_in0 = tf.concat([U_LES, V_LES, P_LES], axis=1)
         zAll = [dlatents, pre_img, LES_in0]
-        UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
     else:
         dlatents = mapping(z0, training=False)
         pre_img  = pre_synthesis(dlatents, training = False)
         zAll = [z0, pre_img]
         LES_in0 = pre_img[-1]
-        UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
     if (DIMS_3D):
-        UVP_LES = UVP_LES_org
-        UVP_DNS = UVP_DNS_org        
+        LES_in0_init = LES_in0[0:1,:,:,:]
+        LES_in0      = LES_in0_init
         for j in range(1, BATCH_SIZE):
             sinLES = int(np.sin(2*np.pi*j/float(BATCH_SIZE-1))*N_LES2)
             sinDNS = sinLES*RS
-            UVP_LES = tf.concat([UVP_LES, tr(UVP_LES_org, 0, sinLES)], axis=0)
-            UVP_DNS = tf.concat([UVP_DNS, tr(UVP_DNS_org, 0, sinDNS)], axis=0)
+            LES_in0 = tf.concat([LES_in0, tr(LES_in0_init, 0, sinLES)], axis=0)
 
-        UVP_LES_org = UVP_LES
-        UVP_DNS_org = UVP_DNS
+    UVP_DNS_org, UVP_LES_org, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
 
 
@@ -462,8 +458,9 @@ if (TESTCASE=='HW' or TESTCASE=='mHW'):
 
 #--------------------------- find mean and min/max values
 print("Min/max values in each field :")
-print(np.min(UVP_DNS[:, 0, :, :].numpy()), np.min(UVP_DNS[:, 1, :, :].numpy()), np.min(UVP_DNS[:, 2, :, :].numpy()), \
-      np.max(UVP_DNS[:, 0, :, :].numpy()), np.max(UVP_DNS[:, 1, :, :].numpy()), np.max(UVP_DNS[:, 2, :, :].numpy()))
+print("Umin Umax ", np.min(UVP_DNS[:, 0, :, :].numpy()), np.max(UVP_DNS[:, 0, :, :].numpy()))
+print("Vmin Vmax ", np.min(UVP_DNS[:, 1, :, :].numpy()), np.max(UVP_DNS[:, 1, :, :].numpy()))
+print("Pmin Pmax ", np.min(UVP_DNS[:, 2, :, :].numpy()), np.max(UVP_DNS[:, 2, :, :].numpy()))
 
 
 
