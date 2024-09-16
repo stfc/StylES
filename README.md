@@ -1,15 +1,4 @@
-<style>
-table {
-    border-collapse: collapse;
-}
-table, th, td {
-   border: none;
-}
-blockquote {
-    border-left: none;
-    padding-left: 10px;
-}
-</style>
+
 
 
 Style Eddy Simulation (StylES) is a procedure to simulate plasma physics turbulence based on the use of Generative Adversarial Network ([SyleGAN](https://github.com/NVlabs/stylegan)) to reconstruct non linear terms in a Large Eddy Simulation (LES).
@@ -52,7 +41,7 @@ You can quickly test StylES with BOUT++ using the weights for an already trained
 
 |    Case     |    NxN      |    alpha    |     k       |   nu=nu     |   Link      |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     |             |
+|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     | [mHW_N1024](https://zenodo.org/uploads/13253846)            |
 
 and the following steps:
 
@@ -65,15 +54,11 @@ and the following steps:
 - 4) run the hasegawa-wakatani-3d test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani-3d/** as ./hw3d
 - 5) generate the results below using the *python convert_netCDF2png.py* from **/StylES/bout_interfaces/**
 
-You will obtain the following animation and plot:
+From paraview, the vts files in the **/StylES/bout_interfaces/results/fields/** will give the following animation:
 
 **Animation vorticity field**
 
 <img src="./bout_interfaces/results/animation_plots.gif" width="1000"/>
-
-**Energy vs time**
-
-<img src="./bout_interfaces/results/energy_vs_time.png" width="400"/>
 
 To make a comparison with the DNS data:
 - 6) go to **/BOUT-dev/examples/hasegawa-wakatani/** and set *int pStepStart = 1000000*
@@ -82,8 +67,6 @@ To make a comparison with the DNS data:
 - 9) modify BOUT.in in **/BOUT-dev/build_release/examples/hasegawa-wakatani/data/** as follows *nx = 1032* and *nx = 1028*
 - 10) repeat step 4
 - 11) run *python plot_comparison.py* from **/StylES/bout_interfaces/**
-
-You will now obtain the following animation in the **/StylES/bout_interfaces/results/** folder:
 
 <!-- **Centre line values**
 
