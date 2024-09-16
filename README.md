@@ -79,7 +79,7 @@ To make a comparison with the DNS data:
 - 10) repeat step 4
 - 11) run *python plot_comparison.py* from **/StylES/bout_interfaces/**
 
-You will now obtain the following animation:
+You will now obtain the following animation in the **/StylES/bout_interfaces/results/** folder:
 
 <!-- **Centre line values**
 
