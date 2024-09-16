@@ -56,77 +56,50 @@ N           = OUTPUT_DIM
 delx        = L/N
 dely        = L/N
 
-if (DIMS_3D):
-    file = open(PATH_NETCDF + "/BOUT.inp", 'r')
-    for line in file:
-        if "nx =" in line:
-            NX = int(line.split()[2]) - 4
-        if "ny =" in line:
-            NY = int(line.split()[2])
-        if "nz =" in line:
-            NZ = int(line.split()[2])
-        if "Lx =" in line:
-            LX = float(line.split()[2])
-        if "Ly =" in line:
-            LY = float(line.split()[2])
-        if "Lz =" in line:
-            LZ = float(line.split()[2])
+file = open(PATH_NETCDF + "/BOUT.inp", 'r')
+for line in file:
+    if "timestep =" in line:
+        DELT = float(line.split()[2])
+    if "nout =" in line:
+        NOUT = int(line.split()[2])
+    if "nx =" in line:
+        NX = int(line.split()[2]) - 4
+    if "ny =" in line:
+        NY = int(line.split()[2])
+    if "nz =" in line:
+        NZ = int(line.split()[2])
+    if "Lx =" in line:
+        LX = float(line.split()[2])
+    if "Ly =" in line:
+        LY = float(line.split()[2])
+    if "Lz =" in line:
+        LZ = float(line.split()[2])
 
-    if (MODE=='READ_NUMPY'):
-        NX = NX*RS
-        NZ = NZ*RS
-    
-    DX  = LX/NX
-    DY  = LY/NY
-    DZ  = LZ/NZ
-    
-    NY2 = int(NY/2)-1
+    TGAP = 0.0
 
-    print("System sizes are: Lx,Ly,Lz,dx,dy,dz,nx,ny,nz =", LX,LY,LZ,DX,DY,DZ,NX,NY,NZ)
+
+if (MODE=='READ_NUMPY'):
+    NX = NX*RS
+    NZ = NZ*RS
+
+DX  = LX/NX
+DY  = LY/NY
+DZ  = LZ/NZ
+
+NY2 = int(NY/2)-1
+
+print("System sizes are: Lx,Ly,Lz,dx,dy,dz,nx,ny,nz =", LX,LY,LZ,DX,DY,DZ,NX,NY,NZ)
 
 
 #----------------------------- initialize
 if (MODE=='READ_NETCDF'):
-
-    # find number of timesteps
-    CWD = os.getcwd()
-    os.chdir(PATH_NETCDF)
-    n = collect("n", xguards=False, info=False)
-    FTIME = len(n)
-    os.chdir(CWD)
-    
-    # find number of initial time
-    # os.chdir(CWD)
-    # data = np.load(FILE_DNS_fromGAN)
-    # TGAP = np.cast[DTYPE](data['simtime'])
-    TGAP = 0.0
+    FTIME = NOUT
     print("starting time ", TGAP)
-
-    # find timestep
-    file = open(PATH_NETCDF + "BOUT.inp", 'r')
-    for line in file:
-        if "timestep" in line:
-            DELT = float(line.split()[2])
-            print("DELT is ", DELT)
-            break
-
 elif (MODE=='READ_NUMPY'):
-
-    # find timestep
-    file = open(PATH_NETCDF + "BOUT.inp", 'r')
-    for line in file:
-        if "timestep" in line:
-            DELT = float(line.split()[2])
-            print("DELT is ", DELT)
-            break
-
     files = os.listdir(PATH_NUMPY)
     FTIME = len(files)
-    TGAP = 0.0
     print("starting time ", TGAP)    
-
 elif (MODE=='MAKE_ANIMATION'):
-
     files = os.listdir(PATH_ANIMAT_PLOTS)
     FTIME = len(files)
 

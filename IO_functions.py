@@ -322,12 +322,12 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
 
             if (NUM_CHANNELS*BATCH_SIZE>1):
                 for j in range(NUM_CHANNELS):
-                    axs[i*3+j].axis('off')
-                    axs[i*3+j].pcolormesh(img[i,j,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
+                    axs[i*NUM_CHANNELS+j].axis('off')
+                    axs[i*NUM_CHANNELS+j].pcolormesh(img[i,j,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
             else:
                 axs.axis('off')
                 axs.pcolormesh(img[i,0,:,:], cmap=colors[0],  edgecolors='k', linewidths=0.1, shading='gouraud')
-                
+                                
                 
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')

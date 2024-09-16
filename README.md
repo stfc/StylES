@@ -40,12 +40,15 @@ You will also need to download the TurboGenPY repo from https://github.com/saadg
 # Quick start
 You can quickly test StylES with BOUT++ using the weights for an already trained StyleGAN according to the following database:
 
+<!-- |    Case     |    NxN      |    alpha    |     k       |   nu=nu     |   Link      |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
+|    HW       | 256x256     |     1.0     |    0.5      |    10-3     | [HW_N256](https://zenodo.org/records/13253301/files/ckpt-50.[comment]:data-00000-of-00001?download=1)
+|    HW       | 512x512     |     1.0     |    1.0      |    10-4     |
+|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     | -->
+
 |    Case     |    NxN      |    alpha    |     k       |   nu=nu     |   Link      |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-|    HW       | 256x256     |     1.0     |    0.5      |    10-3     | [HW_N256](https://zenodo.org/records/13253301/files/ckpt-50.data-00000-of-00001?download=1)
-|    HW       | 512x512     |     1.0     |    1.0      |    10-4     |
-|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     |
-
+|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     |             |
 
 and the following steps:
 
@@ -53,9 +56,9 @@ and the following steps:
 - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.a) cmake -S . -B build_release -DBOUT_BUILD_EXAMPLES=ON
 - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.b) cmake --build /path_to_BOUT/BOUT-dev/build_release -j 16
 - &nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp;&nbsp; 3.c) cmake --build build_release --target hasegawa-wakatani
-- 2) download the 256x256 weights from the link above and save in a folder **/StylES/checkpoints/**
+- 2) download the 1024x1024 weights from the link above and save in a folder **/StylES/checkpoints/**
 - 3) generate the restart point using *python create_restart.py* in the **/StylES/utility/** folder
-- 4) run the hasegawa-wakatani test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani/** as ./hasegawa-wakatani
+- 4) run the hasegawa-wakatani-3d test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani-3d/** as ./hw3d
 - 5) generate the results below using the *python convert_netCDF2png.py* from **/StylES/bout_interfaces/**
 
 You will obtain the following animation and plot:
@@ -76,15 +79,15 @@ To make a comparison with the DNS data:
 - 10) repeat step 4
 - 11) run *python plot_comparison.py* from **/StylES/bout_interfaces/**
 
-You will now obtain the following animations and comparison plots between DNS and StylES:
+You will now obtain the following animation:
 
-**Centre line values**
+<!-- **Centre line values**
 
 <br />    |  <br />  |  <br />
 ----------|----------|----------
-![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_n.png) | ![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_phi.png) | ![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_vort.png)
+![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_n.png) | ![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_phi.png) | ![image info](./bout_interfaces/results_comparison/DNS_vs_StylES_vort.png) -->
 
-**Energy vs time**
+<!-- **Energy vs time**
 
 <br />    |  <br />
 ----------|----------
@@ -98,16 +101,17 @@ You will now obtain the following animations and comparison plots between DNS an
 Animation with comparison to DNS of vorticity $\zeta$
 
 ![image info](./bout_interfaces/results_comparison/plot_diffs/animation_diff_vort.gif)
+ -->
 
 
-
-# Straining StyleGAN
+# Training StyleGAN
 You first need to generate the DNS data using BOUT++ and then you can train StyleGAN:
 - 1) checkout main version of BOUT++
 - 2) generate DNS data and save in a DATASET folder
 - 3) specify the DATASET path in the **/StylES/parameters** file
 - 4) make sure the BUFFER_SIZE is correctly set. For datasets larger than 50GB you need to change the flag **cache** to False in the **/StylES/IO_functions.py** file (and set the BUFFER_SIZE=1). 
-- 5) train styleGAN run *python main.py*. 
+- 5) set the parameter "randomize_noise = True"
+- 6) train styleGAN via *python main.py*. 
 
 
 # Copyright
