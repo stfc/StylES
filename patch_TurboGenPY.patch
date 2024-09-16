@@ -1,0 +1,234 @@
+diff -Naru ../aa/example2d.py ../bb/example2d.py
+--- ../aa/example2d.py	2024-08-07 12:52:49.000000000 +0200
++++ ../bb/example2d.py	2024-08-07 12:52:35.000000000 +0200
+@@ -87,7 +87,7 @@
+ 	print(m)
+ 
+ 
+-# specify which spectrum you want to use. Options are: cbc_spec, vkp_spec, and power_spec
++# specify which spectrum you want to use. Options are: cbc_spec, vkp_spec, power_spec and ld
+ inputspec = 'cbc'
+ if args.spectrum:
+ 	inputspec = args.spectrum
+@@ -96,8 +96,8 @@
+ fileappend = inputspec + '_' + str(nx) + '.' + str(ny) + '_' + str(nmodes) + '_modes'
+ 
+ print('input spec', inputspec)
+-if inputspec != 'cbc' and inputspec != 'vkp' and inputspec != 'kcm':
+-	print('Error: ', inputspec, ' is not a supported spectrum. Supported spectra are: cbc, vkp, and power. Please revise your input.')
++if inputspec != 'cbc' and inputspec != 'vkp' and inputspec != 'kcm' and inputspec != 'ld':
++	print('Error: ', inputspec, ' is not a supported spectrum. Supported spectra are: cbc, vkp, power and ld. Please revise your input.')
+ 	exit()
+ inputspec += '_spectrum'
+ # now given a string name of the spectrum, find the corresponding function with the same name. use locals() because spectrum functions are defined in this module.
+@@ -144,7 +144,7 @@
+ dy = ly / ny
+ 
+ t0 = time.time()
+-u, v = isoturb.generate_isotropic_turbulence(lx, ly, nx, ny, nmodes, wn1, whichspec)
++u, v = isoturb.generate_isotropic_turbulence_2d(lx, ly, nx, ny, nmodes, wn1, whichspec)
+ t1 = time.time()
+ elapsed_time = t1 - t0
+ print('it took me ', elapsed_time, 's to generate the isotropic turbulence.')
+@@ -186,7 +186,7 @@
+ #     print('cells with divergence: ', count)
+ 
+ # verify that the generated velocities fit the spectrum
+-knyquist, wavenumbers, tkespec = compute_tke_spectrum2d(u, v, lx, ly, False)
++knyquist, wavenumbers, tkespec = compute_tke_spectrum2d(u, v, lx, ly, True)
+ # save the generated spectrum to a text file for later post processing
+ np.savetxt('tkespec_' + fileappend + '.txt', np.transpose([wavenumbers, tkespec]))
+ 
+@@ -251,7 +251,7 @@
+ l1, = plt.loglog(wnn, whichspec(wnn), 'k-', label='input')
+ l2, = plt.loglog(wavenumbers[1:6], tkespec[1:6], 'bo--', markersize=3, markerfacecolor='w', markevery=1, label='computed')
+ plt.loglog(wavenumbers[5:], tkespec[5:], 'bo--', markersize=3, markerfacecolor='w', markevery=4, label='computed')
+-plt.axis([8, 10000, 1e-7, 1e-2])
++plt.axis([6.283, 6283, 1e-12, 1e-0])
+ # plt.xticks(fontsize=12)
+ # plt.yticks(fontsize=12)
+ plt.axvline(x=knyquist, linestyle='--', color='black')
+diff -Naru ../aa/spectra.py ../bb/spectra.py
+--- ../aa/spectra.py	2024-08-07 12:52:54.000000000 +0200
++++ ../bb/spectra.py	2024-08-07 12:52:35.000000000 +0200
+@@ -91,3 +91,26 @@
+     kke = k/ke
+     espec = 16.0*uavg*uavg/ke * np.sqrt(2.0/np.pi) * pow(kke,4) * np.exp(-2.0*(kke)*(kke))
+     return espec
++
++
++class ld_spectrum:
++  # # Implements the Lowe & Davidson spectrum (Re=240)
++  # def __init__(self):
++  #   # find max and min wave numbers
++  #   self.Q    = 1.0e-22
++  #   self.kp   = 100*2*np.pi
++
++  #   # find k and E
++  # def evaluate(self, k):
++  #   espec = self.Q*(k**8)*np.exp(-4*(k/self.kp)**2)
++  #   return espec
++
++  def __init__(self):
++    dalspec = np.loadtxt('testcases/HIT_2D/ld_spectrum_0te.txt')
++    kdal=dalspec[:,0]
++    edal=dalspec[:,1]
++    self.especf = interpolate.interp1d(kdal, edal,'linear', fill_value="extrapolate")
++    self.kmin = kdal[0]
++    self.kmax = kdal[len(kdal) - 1]
++  def evaluate(self,k):
++    return self.especf(k)
+diff -Naru ../aa/tkespec.py ../bb/tkespec.py
+--- ../aa/tkespec.py	2024-08-07 12:53:00.000000000 +0200
++++ ../bb/tkespec.py	2024-08-07 12:52:35.000000000 +0200
+@@ -91,6 +91,13 @@
+ 
+     tke_spectrum = tke_spectrum / knorm
+ 
++    sumTke = 0.0e0
++    for k in range(nx-1):
++       sumTke = sumTke + tke_spectrum[k]*(wave_numbers[k+1] - wave_numbers[k])
++
++    print("Turbulent Kinetical energy is", sumTke)
++
++
+     if smooth:
+         tkespecsmooth = movingaverage(tke_spectrum, 5)  # smooth the spectrum
+         tkespecsmooth[0:4] = tke_spectrum[0:4]  # get the first 4 values from the original data
+@@ -133,9 +140,9 @@
+     smooth: boolean
+       A boolean to smooth the computed spectrum for nice visualization.
+     """
+-    nx = len(u[:, 0, 0])
+-    ny = len(v[0, :, 0])
+-    nz = len(w[0, 0, :])
++    nx = len(u[:, 0])
++    ny = len(v[0, :])
++    nz = len(w[0, :])
+ 
+     nt = nx * ny * nz
+     n = nx  # int(np.round(np.power(nt,1.0/3.0)))
+@@ -200,7 +207,6 @@
+     return knyquist, wave_numbers, tke_spectrum
+ 
+ # ------------------------------------------------------------------------------
+-
+ def compute_tke_spectrum2d(u, v, lx, ly, smooth):
+     """
+     Given a velocity field u, v, w, this function computes the kinetic energy
+@@ -240,13 +246,13 @@
+     uh = fftn(u) / nt
+     vh = fftn(v) / nt
+ 
+-    tkeh = 0.5 * (uh * conj(uh) + vh * conj(vh))
++    tkeh = 0.5 * (uh * conj(uh) + vh * conj(vh)).real
+ 
+     k0x = 2.0 * pi / lx
+     k0y = 2.0 * pi / ly
+ 
+     knorm = (k0x + k0y) / 2.0
+-    print('knorm = ', knorm)
++    #print('knorm = ', knorm)
+ 
+     kxmax = nx / 2
+     kymax = ny / 2
+@@ -262,7 +268,7 @@
+         for ky in range(-ny//2, ny//2-1):
+         	rk = sqrt(kx**2 + ky**2)
+         	k = int(np.round(rk))
+-        	tke_spectrum[k] += tkeh[kx, ky]
++        	tke_spectrum[k] += tkeh[kx, ky].real
+     tke_spectrum = tke_spectrum / knorm
+ 
+     #  tke_spectrum = tke_spectrum[1:]
+@@ -275,8 +281,90 @@
+     knyquist = knorm * min(nx, ny) / 2
+ 
+     return knyquist, wave_numbers, tke_spectrum
++
++
++
+ # ------------------------------------------------------------------------------
++def compute_tke_spectrum2d_3v(u, v, z, lx, ly, lz, smooth):
++    """
++    Given a velocity field u, v, w, this function computes the kinetic energy
++    spectrum of that velocity field in spectral space. This procedure consists of the
++    following steps:
++    1. Compute the spectral representation of u, v, and w using a fast Fourier transform.
++    This returns uf, vf, and wf (the f stands for Fourier)
++    2. Compute the point-wise kinetic energy Ef (kx, ky, kz) = 1/2 * (uf, vf, wf)* conjugate(uf, vf, wf)
++    3. For every wave number triplet (kx, ky, kz) we have a corresponding spectral kinetic energy
++    Ef(kx, ky, kz). To extract a one dimensional spectrum, E(k), we integrate Ef(kx,ky,kz) over
++    the surface of a sphere of radius k = sqrt(kx^2 + ky^2 + kz^2). In other words
++    E(k) = sum( E(kx,ky,kz), for all (kx,ky,kz) such that k = sqrt(kx^2 + ky^2 + kz^2) ).
+ 
++    Parameters:
++    -----------
++    u: 3D array
++      The x-velocity component.
++    v: 3D array
++      The y-velocity component.
++    w: 3D array
++      The z-velocity component.
++    lx: float
++      The domain size in the x-direction.
++    ly: float
++      The domain size in the y-direction.
++    lz: float
++      The domain size in the z-direction.
++    smooth: boolean
++      A boolean to smooth the computed spectrum for nice visualization.
++    """
++    nx = len(u[:, 0])
++    ny = len(v[0, :])
++
++    nt = nx * ny
++    n = nx  # int(np.round(np.power(nt,1.0/3.0)))
++
++    uh = fftn(u) / nt
++    vh = fftn(v) / nt
++    zh = fftn(z) / nt    
++
++    tkeh = 0.5 * (uh * conj(uh) + vh * conj(vh) + zh * conj(zh)).real
++
++    k0x = 2.0 * pi / lx
++    k0y = 2.0 * pi / ly
++    k0z = 2.0 * pi / lz    
++
++    knorm = (k0x + k0y + k0z) / 3.0
++    #print('knorm = ', knorm)
++
++    kxmax = nx / 2
++    kymax = ny / 2
++
++    # dk = (knorm - kmax)/n
++    # wn = knorm + 0.5 * dk + arange(0, nmodes) * dk
++
++    wave_numbers = knorm * arange(0, n)
++
++    tke_spectrum = zeros(len(wave_numbers))
++
++    for kx in range(-nx//2, nx//2-1):
++        for ky in range(-ny//2, ny//2-1):
++        	rk = sqrt(kx**2 + ky**2)
++        	k = int(np.round(rk))
++        	tke_spectrum[k] += tkeh[kx, ky].real
++    tke_spectrum = tke_spectrum / knorm
++
++    #  tke_spectrum = tke_spectrum[1:]
++    #  wave_numbers = wave_numbers[1:]
++    if smooth:
++        tkespecsmooth = movingaverage(tke_spectrum, 5)  # smooth the spectrum
++        tkespecsmooth[0:4] = tke_spectrum[0:4]  # get the first 4 values from the original data
++        tke_spectrum = tkespecsmooth
++
++    knyquist = knorm * min(nx, ny) / 2
++
++    return knyquist, wave_numbers, tke_spectrum
++
++
++
++# ------------------------------------------------------------------------------
+ def compute_tke_spectrum_flatarrays(u, v, w, nx, ny, nz, lx, ly, lz, smooth):
+     unew = u.reshape([nx, ny, nz])
+     vnew = v.reshape([nx, ny, nz])

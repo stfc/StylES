@@ -14,8 +14,3 @@ alphaP     = 0.1e0      # pressure relaxation factor
 alphaUV    = 0.1e0       # velocity relaxation factor
 uRef       = 100.0e0
 useLogSca  = True
-xLogLim    = [1.0e0, 1000]
-yLogLim    = [1.e-8, 0.1]
-xLinLim    = [0.0e0, 600]
-yLinLim    = [0.0e0, 0.1]
-

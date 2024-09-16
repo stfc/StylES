@@ -8,6 +8,9 @@ from LES_functions  import *
 
 from testcases.HIT_2D.HIT_2D import *
 
+plt.matplotlib.rcParams.update({'font.size': 16})
+plt.matplotlib.rcParams.update({'figure.autolayout': True})
+
 
 def print_fields(U_, V_, P_, W_, N, filename, \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
@@ -186,28 +189,35 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 
 
-def print_fields_3(U_, V_, P_, N, filename, testcase='HIT_2D', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None):
+def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
+    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=True):
 
     if (testcase=='HIT_2D'):
-        labelR = r'$u$'
-        labelG = r'$v$'
-        labelB = r'$\omega$'
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
 
     if (testcase=='HW' or testcase=='mHW'):
-        labelR = r'$n$'
-        labelG = r'$\phi$'
-        labelB = r'$\zeta$'
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
 
     #---------------------------------- convert to numpy arrays
     U = convert(U_)
     V = convert(V_)
     P = convert(P_)
+    
+    # Transpose to match i=x and j=y
+    if (transpose):
+        U = np.transpose(U)
+        V = np.transpose(V)
+        P = np.transpose(P)
 
     N = len(U[0,:])
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(2, 3, figsize=(20,10))
+    fig, axs = plt.subplots(2, 3, figsize=(20,10), dpi=dpi)
     fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0,0]
@@ -217,17 +227,43 @@ def print_fields_3(U_, V_, P_, N, filename, testcase='HIT_2D', \
     ax5 = axs[0,2]
     ax6 = axs[1,2]
 
-    velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    cmap1 = 'Blues'
+    cmap2 = 'Reds_r'
+    cmap3 = 'hot'
+    
+    if (plot=='diff'):
+        cmap1 = 'hot'
+        cmap2 = 'hot'
+        cmap3 = 'bwr'
+    elif (plot=='same'):
+        cmap1 = 'hot'
+        cmap2 = 'hot'
+        cmap3 = 'hot'
+    
+
+    if (geomR is not None):
+        velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    else:
+        velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+        
     fig.colorbar(velx, ax=ax1)
     ax1.title.set_text(labelR)
     ax1.set_aspect(1)
 
-    vely = ax3.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    if (geomR is not None):
+        vely = ax3.pcolormesh(geomR, geomZ, V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    else:
+        vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+        
     fig.colorbar(vely, ax=ax3)
     ax3.title.set_text(labelG)
     ax3.set_aspect(1)
 
-    pres = ax5.pcolormesh(P, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    if (geomR is not None):
+        pres = ax5.pcolormesh(geomR, geomZ, P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    else:
+        pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+        
     fig.colorbar(pres, ax=ax5)
     ax5.title.set_text(labelB)
     ax5.set_aspect(1)
@@ -287,74 +323,9 @@ def print_fields_3(U_, V_, P_, N, filename, testcase='HIT_2D', \
 
     # save images
     plt.suptitle(filename)
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
+    #plt.savefig(filename, bbox_inches='tight', pad_inches=0)
+    plt.savefig(filename, pad_inches=0)
     plt.close()
-
-
-
-
-
-
-
-
-
-def print_fields_3_diff(U_, V_, P_, N, filename, testcase='HIT_2D', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None):
-
-    
-    labelR = r'DNS'
-    labelG = r'StyLES'
-    labelB = r'differences'
-
-    #---------------------------------- convert to numpy arrays
-    U = convert(U_)
-    V = convert(V_)
-    P = convert(P_)
-
-    N = len(U[0,:])
-
-    #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(1, 3, figsize=(20,10))
-    fig.subplots_adjust(hspace=0.25)
-
-    ax1 = axs[0]
-    ax2 = axs[1]
-    ax3 = axs[2]
-
-
-    velx = ax1.pcolormesh(U, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
-    ax1x = ax1.get_position().x0
-    ax1y = ax1.get_position().y0
-    ax1h = ax1.get_position().height    
-    cax1 = fig.add_axes([ax1x-0.055, ax1y*2.4 , 0.02, ax1h*0.6])
-    fig.colorbar(velx, cax=cax1, ax=ax1)
-    ax1.title.set_text(labelR)
-    ax1.set_aspect(1)
-    ax1.tick_params(axis='both', which='both', bottom=False, top=False, left=False, right=False, labelbottom=False, labelleft=False)
-
-
-    vely = ax2.pcolormesh(V, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
-    ax2.title.set_text(labelG)
-    ax2.set_aspect(1)
-    ax2.tick_params(axis='both', which='both', bottom=False, top=False, left=False, right=False, labelbottom=False, labelleft=False)
-
-    pres = ax3.pcolormesh(P, cmap='jet', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
-    ax3x = ax3.get_position().x1
-    ax3y = ax3.get_position().y0
-    ax3h = ax3.get_position().height    
-    cax3 = fig.add_axes([ax3x+0.005, ax3y*2.4 , 0.02, ax3h*0.6])
-    fig.colorbar(pres, cax=cax3, ax=ax3)
-    ax3.title.set_text(labelB)
-    ax3.set_aspect(1)
-    ax3.tick_params(axis='both', which='both', bottom=False, top=False, left=False, right=False, labelbottom=False, labelleft=False)
-    ax3.autoscale_view()
-
-    # save images
-    plt.suptitle(filename)
-    plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
-    plt.close()
-
-
 
 
 
@@ -374,9 +345,9 @@ def print_fields_4_diff(U_DNS_, U_LES_, U_, diff_, N, filename, testcase='HIT_2D
     U     = convert(U_)
     diff  = convert(diff_)    
 
-    N = len(U[0,:])
+    N     = len(U[0,:])
     N_LES = len(U_LES[0,:])
-    r = int(N/N_LES)
+    r     = int(N/N_LES)
 
     #---------------------------------- plot surfaces
     fig, axs = plt.subplots(1, 4, figsize=(20,10), gridspec_kw={'width_ratios': [r, 1, r, r]})
@@ -429,43 +400,28 @@ def print_fields_4_diff(U_DNS_, U_LES_, U_, diff_, N, filename, testcase='HIT_2D
 
 
 
-def print_fields_2(U_LES_, U_, N, filename, testcase='HIT_2D', \
-    Umin=None, Umax=None, Vmin=None, Vmax=None):
+def print_fields_2(U_, V_, filename, Umin=None, Umax=None, Vmin=None, Vmax=None):
 
-   
-    labelL = r'LES'
-    labelG = r'StyLES'
+    U = convert(U_)
+    V = convert(V_)
 
-    #---------------------------------- convert to numpy arrays
-    U_LES = convert(U_LES_)
-    U     = convert(U_)
-
-    N = len(U[0,:])
-    N_LES = len(U_LES[0,:])
-    r = int(N/N_LES)
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(1, 2, figsize=(20,10), gridspec_kw={'width_ratios': [1, 1]})
+    fig, axs = plt.subplots(1, 2, figsize=(20,10))
     fig.subplots_adjust(hspace=0.25)
 
     ax1 = axs[0]
     ax2 = axs[1]
-
-    velx = ax1.pcolormesh(U_LES, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
-    #fig.colorbar(velx, ax=ax1)
-    ax1.title.set_text(labelL)
+ 
+    velx = ax1.pcolormesh(U, cmap='Blues', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    fig.colorbar(velx, ax=ax1)
+    ax1.title.set_text('X-vel')
     ax1.set_aspect(1)
-    ax1.axes.xaxis.set_visible(False)
-    ax1.axes.yaxis.set_visible(False)
-    ax1.axis('off')
 
-    vely = ax2.pcolormesh(U, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud')
-    #fig.colorbar(vely, ax=ax2)
-    ax2.title.set_text(labelG)
+    vely = ax2.pcolormesh(V, cmap='Reds_r', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    fig.colorbar(vely, ax=ax2)
+    ax2.title.set_text('Y-vel')
     ax2.set_aspect(1)
-    ax2.axes.xaxis.set_visible(False)
-    ax2.axes.yaxis.set_visible(False)
-    ax2.axis('off')
 
     # save images
     plt.suptitle(filename)
@@ -492,7 +448,7 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
         ax1.title.set_text(r'\omega')
         plt.suptitle(filename)
     else:
-            ax1.axis("off")
+        ax1.axis("off")
 
     # save images
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    
@@ -500,3 +456,96 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
 
 
 
+
+
+
+def print_fields_3new(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
+    Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, labels=None):
+
+    if (labels==None):
+        if (testcase=='HIT_2D'):
+            if (diff):
+                labelR = r'$A$'
+                labelG = r'$B$'
+                labelB = r'$diff$'
+            else:
+                labelR = r'$u$'
+                labelG = r'$v$'
+                labelB = r'$\omega$'
+
+        if (testcase=='HW' or testcase=='mHW'):
+            if (diff):
+                labelR = r'$A$'
+                labelG = r'$B$'
+                labelB = r'$diff$'
+            else:
+                labelR = r'$n$'
+                labelG = r'$\phi$'
+                labelB = r'$\zeta$'
+    else:
+        labelR = labels[0]
+        labelG = labels[1]
+        labelB = labels[2]
+        
+    #---------------------------------- convert to numpy arrays
+    U = convert(U_)
+    V = convert(V_)
+    P = convert(P_)
+
+    N = len(U[0,:])
+
+    #---------------------------------- plot surfaces
+    fig, axs = plt.subplots(1, 3, figsize=(20,10))
+    fig.subplots_adjust(hspace=0.25)
+
+    ax1 = axs[0]
+    ax3 = axs[1]
+    ax5 = axs[2]
+
+    cmap1 = 'Blues'
+    cmap2 = 'Reds_r'
+    cmap3 = 'hot'
+    
+    if (diff):
+        cmap1 = 'hot'
+        cmap2 = 'hot'
+        cmap3 = 'jet'
+
+    if (geomR is not None):
+        velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+    else:
+        velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
+        
+    cbar1 = fig.colorbar(velx, ax=ax1, fraction=0.046)
+    cbar1.ax.tick_params(labelsize=26)
+    ax1.set_title(labelR, fontsize=30)
+    ax1.set_aspect(1)
+
+    if (geomR is not None):
+        vely = ax3.pcolormesh(geomR, geomZ, V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+    else:
+        vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
+        
+    cbar3 = fig.colorbar(vely, ax=ax3, fraction=0.046)
+    cbar3.ax.tick_params(labelsize=26)
+    ax3.set_title(labelG, fontsize=30)
+    ax3.set_aspect(1)
+
+    if (geomR is not None):
+        pres = ax5.pcolormesh(geomR, geomZ, P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    else:
+        pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+    
+    cbar5 = fig.colorbar(pres, ax=ax5, fraction=0.046)
+    cbar5.ax.tick_params(labelsize=26)
+    ax5.set_title(labelB, fontsize=30)
+    ax5.set_aspect(1)
+
+
+    ax1.set_axis_off()
+    ax3.set_axis_off()
+    ax5.set_axis_off()
+
+    # save images
+    plt.savefig(filename, pad_inches=0)
+    plt.close()

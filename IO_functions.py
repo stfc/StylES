@@ -37,13 +37,12 @@ from PIL import Image
 U = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 V = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 P = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
-W = np.zeros([OUTPUT_DIM,OUTPUT_DIM], dtype=DTYPE)
 
 
 # define data augmentation
 data_augmentation = tf.keras.Sequential([
-    tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical"),
-    tf.keras.layers.experimental.preprocessing.RandomRotation(factor=1.0, fill_mode='wrap', interpolation='bilinear'),
+    #tf.keras.layers.experimental.preprocessing.RandomFlip("horizontal_and_vertical"),
+    #tf.keras.layers.experimental.preprocessing.RandomRotation(factor=1.0, fill_mode='wrap', interpolation='bilinear'),
 ])
 
 
@@ -76,6 +75,8 @@ def decode_img(img):
     
     return img_out
 
+
+
 def process_path(file_path):
     img = tf.io.read_file(file_path)
     img = decode_img(img)
@@ -85,69 +86,111 @@ def process_path(file_path):
 
 # functions for processing and decoding numpy arrays
 def StyleGAN_load_fields(file_path):
-    data = np.load(file_path)
-    U = data['U']
-    V = data['V']
+    data_org = np.load(file_path)
+    U_DNS_org = np.cast[DTYPE](data_org['U'])
+    V_DNS_org = np.cast[DTYPE](data_org['V'])
+    P_DNS_org = np.cast[DTYPE](data_org['P'])
 
-    if (TESTCASE=='HIT_2D'):
-        P = tf_find_vorticity(U, V)
-    else:
-        P = data['P']
-
-    U = np.cast[DTYPE](U)
-    V = np.cast[DTYPE](V)
-    P = np.cast[DTYPE](P)
-    DIM_DATA, _ = U.shape
-
-    # normalize the data
-    maxU = np.max(U)
-    minU = np.min(U)
-    if (maxU!=minU):
-        U = 2.0*(U - minU)/(maxU - minU) - 1.0
-    else:
-        U = U
-    
-    maxV = np.max(V)
-    minV = np.min(V)
-    if (maxV!=minV):
-        V = 2.0*(V - minV)/(maxV - minV) - 1.0
-    else:
-        V = V
-
-    maxP = np.max(P)
-    minP = np.min(P)
-    if (maxP!=minP):
-        P = 2.0*(P - minP)/(maxP - minP) - 1.0
-    else:
-        P = P
-
-    # downscale
-    img_out = []
-    for reslog in range(RES_LOG2-1):
-        res = 2**(reslog+2)
-        data = np.zeros([3, res, res], dtype=DTYPE)
-        s = res/DIM_DATA
-        rs = int(DIM_DATA/res)
-        if (rs==1):
-            data[0,:,:] = U
-            data[1,:,:] = V
-            data[2,:,:] = P
+    NX_DNS = len(U_DNS_org[0,:])
+    rsin = int(NX_DNS/OUTPUT_DIM)
+    if (rsin>1):
+        if (TESTCASE=='mHW'):
+            U_DNS_org = sc.ndimage.gaussian_filter(U_DNS_org, rsin, mode=['constant','wrap'])
+            V_DNS_org = sc.ndimage.gaussian_filter(V_DNS_org, rsin, mode=['constant','wrap'])
+            if (not USE_VORTICITY):
+                P_DNS_org = sc.ndimage.gaussian_filter(P_DNS_org, rsin, mode=['constant','wrap'])
         else:
-            if (TESTCASE=='HW'):
-                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode=['constant','wrap'])
-                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode=['constant','wrap'])
-                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode=['constant','wrap'])
+            U_DNS_org = sc.ndimage.gaussian_filter(U_DNS_org, rsin, mode='wrap')
+            V_DNS_org = sc.ndimage.gaussian_filter(V_DNS_org, rsin, mode='wrap')
+            if (not USE_VORTICITY):
+                P_DNS_org = sc.ndimage.gaussian_filter(P_DNS_org, rsin, mode='wrap')
+        
+        U_DNS_org = U_DNS_org[::rsin,::rsin]
+        V_DNS_org = V_DNS_org[::rsin,::rsin]
+        if (USE_VORTICITY):
+            P_DNS_org = np_find_vorticity_HW(V_DNS_org, DELX*rsin, DELY*rsin)
+        else:
+            P_DNS_org = P_DNS_org[::rsin,::rsin]
+            
+    # centralize
+    U_DNS_org = U_DNS_org-np.mean(U_DNS_org)
+    V_DNS_org = V_DNS_org-np.mean(V_DNS_org)
+    P_DNS_org = P_DNS_org-np.mean(P_DNS_org)
+    
+    rs = 2
+    img_out = []
+    for reslog in range(RES_LOG2, 1, -1):
+        res = 2**reslog
+        data = np.zeros([NUM_CHANNELS, res, res], dtype=DTYPE)
+        if (reslog==RES_LOG2):
+            fU_DNS = U_DNS_org
+            fV_DNS = V_DNS_org
+            fP_DNS = P_DNS_org
+        else:
+            if (TESTCASE=='mHW'):
+                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode=['constant','wrap'])
+                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
+                if (not USE_VORTICITY):
+                    fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
             else:
-                U_DNS_g = sc.ndimage.gaussian_filter(U, rs, mode='grid-wrap')
-                V_DNS_g = sc.ndimage.gaussian_filter(V, rs, mode='grid-wrap')
-                P_DNS_g = sc.ndimage.gaussian_filter(P, rs, mode='grid-wrap')
-            data[0,:,:] = U_DNS_g[::rs,::rs]
-            data[1,:,:] = V_DNS_g[::rs,::rs]  
-            data[2,:,:] = P_DNS_g[::rs,::rs]  
+                fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
+                fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
+                if (not USE_VORTICITY):
+                    fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
 
-        img_out.append(data)
+            fU_DNS = fU_DNS[::rs,::rs]
+            fV_DNS = fV_DNS[::rs,::rs]
+            if (USE_VORTICITY):
+                fP_DNS = np_find_vorticity_HW(fV_DNS, DELX*rsin*rs, DELY*rsin*rs)
+            else:
+                fP_DNS = fP_DNS[::rs,::rs]                
+
+        if (NUM_CHANNELS==1):
+
+            minP = np.min(fP_DNS)
+            maxP = np.max(fP_DNS)
+            amaxP = max(abs(minP), abs(maxP))
+            if (amaxP<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[0,:,:] = fP_DNS / amaxP
+
+        else:
+
+            # normalize the data
+            minU = np.min(fU_DNS)
+            maxU = np.max(fU_DNS)
+            amaxU = max(abs(minU), abs(maxU))
+            if (amaxU<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[0,:,:] = fU_DNS / amaxU
+
+            minV = np.min(fV_DNS)
+            maxV = np.max(fV_DNS)
+            amaxV = max(abs(minV), abs(maxV))
+            if (amaxV<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[1,:,:] = fV_DNS / amaxV
+
+            minP = np.min(fP_DNS)
+            maxP = np.max(fP_DNS)
+            amaxP = max(abs(minP), abs(maxP))
+            if (amaxP<SMALL):
+                print("-----------Attention: invalid field!!!")
+                exit(0)
+            else:
+                data[2,:,:] = fP_DNS / amaxP
+
+        img_out = [data] + img_out
 
     return img_out
+
+
 
 def process_path_numpy_arrays(path):
     list = []
@@ -230,212 +273,62 @@ def adjust_dynamic_range(data, drange_in, drange_out):
     return data    
 
 
-def check_divergence(img, res):
-
-    # initialize arrays
-    U = img[0,:,:]
-    V = img[1,:,:]
-    P = img[2,:,:]
-    iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
-
-    delt = 1.0e-4   # this value is from the input file (testcases/HIT_2D)
-    rho  = 1.0e0    # this value is from the input file (testcases/HIT_2D)
-    L    = 0.94049  # this value is from the input file (testcases/HIT_2D)
-    nu   = 1.87e-4  # this value is from the input file (testcases/HIT_2D)
-
-    dl = L/res
-    A = dl
-    Dc = nu/dl*A
-
-    # find Rhie-Chow interpolation (PWIM)
-    Ue = 0.5e0*(U + nr(U, 1, 0))
-    Vn = 0.5e0*(V + nr(V, 1, 0))
-
-    Fw = A*rho*nr(Ue, -1, 0)
-    Fe = A*rho*Ue
-    Fs = A*rho*nr(Vn, 0, -1)
-    Fn = A*rho*Vn
-
-    Aw = Dc + 0.5e0*(np.abs(Fw) + Fw)
-    Ae = Dc + 0.5e0*(np.abs(Fe) - Fe)
-    As = Dc + 0.5e0*(np.abs(Fs) + Fs)
-    An = Dc + 0.5e0*(np.abs(Fn) - Fn)
-    Ao = rho*A*dl/delt
-
-    Ap = Ao + Aw + Ae + As + An + (Fe-Fw) + (Fn-Fs)
-    iApM = 1.e0/Ap
-
-    deltpX1 = 0.5e0*(nr(P, 1, 0) - nr(P, -1, 0))
-    deltpX2 = 0.5e0*(nr(P, 2, 0) - P)    
-    deltpX3 = (P - nr(P,  1, 0))
-
-    deltpY1 = 0.5e0*(nr(P, 0, 1) - nr(P, 0, -1))
-    deltpY2 = 0.5e0*(nr(P, 0, 2) - P)
-    deltpY3 = (P - nr(P, 0,  1))
-
-    Ue = 0.5e0*(nr(U, 1, 0) + U)                 \
-        + 0.5e0*deltpX1*iApM*A                   \
-        + 0.5e0*deltpX2*nr(iApM, 1, 0)*A         \
-        + 0.5e0*deltpX3*(nr(iApM, 1, 0) + iApM)*A
-
-    Vn = 0.5e0*(nr(V, 0, 1) + V)                 \
-        + 0.5e0*deltpY1*iApM*A                   \
-        + 0.5e0*deltpY2*nr(iApM, 0, 1)*A         \
-        + 0.5e0*deltpY3*(nr(iApM, 0, 1) + iApM)*A
-
-    # check divergence
-    div = rho*A*np.sum(np.abs(nr(Ue, -1, 0) - Ue + nr(Vn, 0, -1) - Vn))
-    div = div*iNN
-
-    # find dU/dt term
-    sU = - 0.5e0*(nr(P, 1, 0) - nr(P, -1, 0))*A
-    dUdt = np.sum(np.abs(sU + Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1)))
-    dUdt = dUdt*iNN
-
-    # find dV/dt term
-    sV = - 0.5e0*(nr(P, 0, 1) - nr(P, 0, -1))*A
-    dVdt = np.sum(np.abs(sV + Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1)))
-    dVdt = dVdt*iNN
-
-    return div, dUdt, dVdt
-
-
-def check_divergence_staggered(img, res):
-    
-    # initialize arrays
-    U = img[0,:,:]
-    V = img[1,:,:]
-    P = img[2,:,:]
-    iNN  = 1.0e0/(OUTPUT_DIM*OUTPUT_DIM)
-
-    delt = 1.0e-4   # this value is from the input file (testcases/HIT_2D)
-    rho  = 1.0e0    # this value is from the input file (testcases/HIT_2D)
-    L    = 0.94049  # this value is from the input file (testcases/HIT_2D)
-    nu   = 1.87e-4  # this value is from the input file (testcases/HIT_2D)
-
-    dl = L/res
-    A = dl
-    Dc = nu/dl*A
-
-    # check divergence
-    div = rho*A*np.sum(np.abs(nr(U, 1, 0) - U + nr(V, 0, 1) - V))
-    div = div*iNN
-
-    # x-direction
-    Fw = A*rho*0.5e0*(U            + nr(U, -1, 0))
-    Fe = A*rho*0.5e0*(nr(U,  1, 0) + U           )
-    Fs = A*rho*0.5e0*(V            + nr(V, -1, 0))
-    Fn = A*rho*0.5e0*(nr(V,  0, 1) + nr(V, -1, 1))
-
-    Aw = Dc + 0.5e0*Fw #0.5e0*(np.abs(Fw) + Fw)
-    Ae = Dc - 0.5e0*Fe #0.5e0*(np.abs(Fe) - Fe)
-    As = Dc + 0.5e0*Fs #0.5e0*(np.abs(Fs) + Fs)
-    An = Dc - 0.5e0*Fn #0.5e0*(np.abs(Fn) - Fn)
-    dUdt = np.sum(np.abs(Aw*nr(U, -1, 0) + Ae*nr(U, 1, 0) + As*nr(U, 0, -1) + An*nr(U, 0, 1) - (P - nr(P, -1, 0))*A))
-    dUdt = dUdt*iNN
-
-    # y-direction
-    Fw = A*rho*0.5e0*(U             + nr(U, 0, -1))
-    Fe = A*rho*0.5e0*(nr(U,  1,  0) + nr(U, 1, -1))
-    Fs = A*rho*0.5e0*(nr(V,  0, -1) + V           )
-    Fn = A*rho*0.5e0*(V             + nr(V, 0,  1))
-
-    Aw = Dc + 0.5e0*Fw #0.5e0*(np.abs(Fw) + Fw)
-    Ae = Dc - 0.5e0*Fe #0.5e0*(np.abs(Fe) - Fe)
-    As = Dc + 0.5e0*Fs #0.5e0*(np.abs(Fs) + Fs)
-    An = Dc - 0.5e0*Fn #0.5e0*(np.abs(Fn) - Fn)
-    dVdt = np.sum(np.abs(Aw*nr(V, -1, 0) + Ae*nr(V, 1, 0) + As*nr(V, 0, -1) + An*nr(V, 0, 1) - (P - nr(P, 0, -1))*A))
-    dVdt = dVdt*iNN
-
-    return div, dUdt, dVdt
-
-
 def generate_and_save_images(mapping, synthesis, input, iteration):
-    dlatents    = mapping(input, training=False)
-    predictions = synthesis(dlatents, training=False)
+
+    # find inference
+    dlatents    = mapping(input[0], training=False)
+
+    g_pre_images = pre_synthesis(dlatents, training = False)
+    #g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
+
+    if (NUM_CHANNELS==1):
+        g_images, _ = synthesis([dlatents, g_pre_images], training = False)
+    else:
+        g_images = synthesis([dlatents, g_pre_images], training = False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
 
-    colors = plt.cm.jet(np.linspace(0,1,4))
-    lineColor = colors[0]
+    colors = ['Reds_r','Blues','hot','hsv','winter']
 
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)
 
         # setup figure size
-        nr = NEXAMPLES
-        nc = 4
-        dpi = 100  # scale to a 512 pixel on a 1024x1024 image
-        fig, axs = plt.subplots(nr,nc, figsize=(2.5*nc, 10), dpi=dpi)
+        nc = NUM_CHANNELS
+        fig, axs = plt.subplots(BATCH_SIZE,nc, figsize=(2.5*nc, 2.5*BATCH_SIZE), dpi=DPI)
         plt.subplots_adjust(wspace=0, hspace=0)
-        axs = axs.ravel()
-        img = predictions[reslog]
+        if (NUM_CHANNELS>1):
+            axs = axs.ravel()
+        img = g_images[reslog]
 
         # save the highest dimension and first image of the batch as numpy array
         if (res==OUTPUT_DIM and SAVE_NUMPY_ARRAYS):
             StyleGAN_save_fields(iteration, img[0,0,:,:], img[0,1,:,:], img[0,2,:,:])
 
-        for i in range(NEXAMPLES):
+        for i in range(BATCH_SIZE):
 
-            if (NUM_CHANNELS == 3):
-
-                # print divergence
+            # print divergence
+            if (TESTCASE=='HIT_2D'):
                 divergence, dUdt, dVdt = check_divergence_staggered(img[i,:,:,:], res)
-                div[reslog] = divergence
-                momU[reslog] = dUdt
-                momV[reslog] = dVdt
-
-                # save image after normalization
-                nimg = np.zeros([3, res, res], dtype=DTYPE)
-
-                maxUVW = np.max(img[i,:,:,:])
-                minUVW = np.min(img[i,:,:,:])
-                nimg = (img[i,:,:,:] - minUVW)/(maxUVW - minUVW)
-
-                nimg = np.uint8(nimg*255)
-                nimg = np.transpose(nimg, axes=[2,1,0])
-
-                axs[i*4+0].axis('off')
-                axs[i*4+1].axis('off')
-                axs[i*4+2].axis('off')
-                axs[i*4+3].axis('off')
-
-                # x = list(range(res))
-                # hdim = res//2
-                # yU = nimg[:,hdim,0]
-                # yV = nimg[:,hdim,1]
-                # yW = nimg[:,hdim,2]
-
-                # axs[i*4+0].plot(x, yU, linewidth=0.1, color=colors[0])
-                # axs[i*4+1].plot(x, yV, linewidth=0.1, color=colors[1])
-                # axs[i*4+2].plot(x, yW, linewidth=0.1, color=colors[2])
-                # axs[i*4+3].plot(x, yW, linewidth=0.1, color=colors[3])
-
-                # axs[i*4+0].imshow(nimg[res/2,:,0],cmap='Blues')
-                # axs[i*4+1].imshow(nimg[res/2,:,1],cmap='Reds_r')
-                # axs[i*4+2].imshow(nimg[res/2,:,2],cmap='RdBu')
-                # axs[i*4+3].imshow(nimg,cmap='jet')
-
-                axs[i*4+0].imshow(nimg[:,:,0],cmap='Blues')
-                axs[i*4+1].imshow(nimg[:,:,1],cmap='Reds_r')
-                axs[i*4+2].imshow(nimg[:,:,2],cmap='hot')
-                axs[i*4+3].imshow(nimg,cmap='jet')
-
             else:
+                divergence = 0.0
+                dUdt       = 0.0
+                dVdt       = 0.0
+            div[reslog] = divergence
+            momU[reslog] = dUdt
+            momV[reslog] = dVdt
 
-                nimg = np.zeros([1, res, res], dtype=DTYPE)
-                maxW = np.max(img[i,:,:,:])
-                minW = np.min(img[i,:,:,:])
-                nimg[0,:,:] = (img[i,:,:,:] - minW)/(maxW - minW)
-
-                nimg = np.uint8(nimg*255)
-                nimg = np.transpose(nimg, axes=[2,1,0])
-
-                axs[i].axis('off')
-                axs[i].imshow(nimg,cmap='gray')
-
+            if (NUM_CHANNELS*BATCH_SIZE>1):
+                for j in range(NUM_CHANNELS):
+                    axs[i*NUM_CHANNELS+j].axis('off')
+                    axs[i*NUM_CHANNELS+j].pcolormesh(img[i,j,:,:], cmap=colors[j],  edgecolors='k', linewidths=0.1, shading='gouraud')
+            else:
+                axs.axis('off')
+                axs.pcolormesh(img[i,0,:,:], cmap=colors[0],  edgecolors='k', linewidths=0.1, shading='gouraud')
+                                
+                
         fig.savefig('images/image_{:d}x{:d}/it_{:06d}.png'.format(res,res,iteration), bbox_inches='tight', pad_inches=0)
         plt.close('all')
 

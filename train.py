@@ -38,7 +38,7 @@ from IO_functions import *
 iNN = 1.0/(OUTPUT_DIM*OUTPUT_DIM)
 
 
-def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_images, images):
+def compute_losses(real_output_per_sample, fake_output_per_sample, images):
 
     # discriminator loss
     loss_real_per_sample  = tf.math.softplus(-real_output_per_sample)
@@ -49,24 +49,16 @@ def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_i
     # generator loss
     loss_gen_per_sample = tf.math.softplus(-fake_output_per_sample)
 
-    # filter loss
-    loss_fil_per_sample = []
-    for fil in range(RES_LOG2-RES_LOG2_FIL):
-        loss_fil_per_sample.append(tf.math.squared_difference(f_images[fil], g_images[RES_LOG2 -(fil+1) -2]))
-
+    # mean losses
     loss_real   = tf.math.reduce_mean(loss_real_per_sample)
     loss_fake   = tf.math.reduce_mean(loss_fake_per_sample)
     loss_gen    = tf.math.reduce_mean(loss_gen_per_sample)
-
-    loss_fil = []
-    for fil in range(RES_LOG2-RES_LOG2_FIL):
-        loss_fil.append(tf.math.reduce_mean(loss_fil_per_sample[fil]))
 
     r1_penalty  = tf.math.reduce_mean(r1_penalty_per_sample)
     real_output = tf.math.reduce_mean(real_output_per_sample)
     fake_output = tf.math.reduce_mean(fake_output_per_sample)
 
-    return loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output
+    return loss_real, loss_fake, loss_gen, r1_penalty, real_output, fake_output
 
  
 
@@ -75,57 +67,47 @@ def compute_losses(real_output_per_sample, fake_output_per_sample, f_images, g_i
 @tf.function
 def train_step(input, images):
     with tf.GradientTape() as map_tape, \
+        tf.GradientTape() as pre_syn_tape, \
         tf.GradientTape() as syn_tape, \
-        tf.GradientTape() as fil_tape_128, \
-        tf.GradientTape() as fil_tape_64, \
-        tf.GradientTape() as fil_tape_32, \
-        tf.GradientTape() as fil_tape_16, \
-        tf.GradientTape() as disc_tape:
+        tf.GradientTape() as dis_tape:
+
+        # find inference
         dlatents = mapping(input, training = True)
-        g_images = synthesis(dlatents, training = True)
+        g_pre_images  = pre_synthesis(dlatents, training = True)
+        # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
 
-        f_images = []
-        for fil in range(RES_LOG2-RES_LOG2_FIL):
-            f_images.append(filter[fil](g_images[RES_LOG2-2], training = True))
-
+        if (NUM_CHANNELS==1):
+            g_images, _ = synthesis([dlatents, g_pre_images], training = True)
+        else:
+            g_images = synthesis([dlatents, g_pre_images], training = True)
+            
+        # find losses
         real_output = discriminator(images,   training=True)
         fake_output = discriminator(g_images, training=True)
 
-        # find losses
-        loss_real, loss_fake, loss_gen, loss_fil, r1_penalty, real_output, fake_output = compute_losses(real_output, fake_output, f_images, g_images, images)
+        loss_real, loss_fake, loss_gen, r1_penalty, real_output, fake_output \
+            = compute_losses(real_output, fake_output, images)
 
         # find loss discriminator
-        loss_disc  = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5)  #10.0 is the gradient penalty weight
+        loss_dis = loss_real + loss_fake + r1_penalty * (R1_GAMMA * 0.5) #10.0 gradient penalty weight
 
     #apply gradients
-    gradients_of_mapping       = map_tape.gradient(loss_gen,   mapping.trainable_variables)
-    gradients_of_synthetis     = syn_tape.gradient(loss_gen,   synthesis.trainable_variables)
+    gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
+    gradients_of_pre_synthesis = pre_syn_tape.gradient(loss_gen, pre_synthesis.trainable_variables)
+    gradients_of_synthesis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
+    gradients_of_discriminator = dis_tape.gradient(loss_dis, discriminator.trainable_variables)
 
-    gradients_of_filter = []
-    gradients_of_filter.append(fil_tape_128.gradient(loss_fil[0], filter[0].trainable_variables))
-    gradients_of_filter.append(fil_tape_64.gradient(loss_fil[1],  filter[1].trainable_variables))
-    gradients_of_filter.append(fil_tape_32.gradient(loss_fil[2],  filter[2].trainable_variables))
-    gradients_of_filter.append(fil_tape_16.gradient(loss_fil[3],  filter[3].trainable_variables))
-
-    gradients_of_discriminator = disc_tape.gradient(loss_disc, discriminator.trainable_variables)
-
-    gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping ]
-    gradients_of_synthetis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthetis ]
-
-    for fil in range(RES_LOG2-RES_LOG2_FIL):
-        gradients_of_filter[fil] = [g if g is not None else tf.zeros_like(g) for g in gradients_of_filter[fil] ]
-
-    gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator ]
+    gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping]
+    gradients_of_pre_synthesis = [g if g is not None else tf.zeros_like(g) for g in gradients_of_pre_synthesis]
+    gradients_of_synthesis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthesis]
+    gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator]
 
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
-    generator_optimizer.apply_gradients(zip(gradients_of_synthetis,         synthesis.trainable_variables))
-
-    for fil in range(RES_LOG2-RES_LOG2_FIL):
-        filter_optimizer.apply_gradients(zip(gradients_of_filter[fil],  filter[fil].trainable_variables))
-
+    generator_optimizer.apply_gradients(zip(gradients_of_pre_synthesis,     pre_synthesis.trainable_variables))
+    generator_optimizer.apply_gradients(zip(gradients_of_synthesis,         synthesis.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 
-    metrics = [loss_disc, loss_gen, loss_fil, r1_penalty, real_output, fake_output]
+    metrics = [loss_dis, loss_gen, r1_penalty, real_output, fake_output]
 
     return metrics
 
@@ -138,24 +120,26 @@ def train(dataset, train_summary_writer):
     if (IRESTART):
         checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
-
     # Create noise for sample images
-    tf.random.set_seed(1)
+    tf.random.set_seed(SEED)
     input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
+    image_batch0 = next(iter(dataset))[RES_LOG2-FIL-2]
+
     mtr = np.zeros([5], dtype=DTYPE)
 
 
     #save first images
-    div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, 0)
-    with train_summary_writer.as_default():
-        for res in range(RES_LOG2-1):
-            pow = 2**(res+2)
-            var_name = "b/divergence_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, div[res], step=0)
-            var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, momU[res], step=0)
-            var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
-            tf.summary.scalar(var_name, momV[res], step=0)
+    div, momU, momV = generate_and_save_images(mapping, synthesis, [input_latent, image_batch0], 0)
+    if (TESTCASE=='HIT_2D'):
+        with train_summary_writer.as_default():
+            for res in range(RES_LOG2-1):
+                pow = 2**(res+2)
+                var_name = "b/divergence_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, div[res], step=0)
+                var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, momU[res], step=0)
+                var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
+                tf.summary.scalar(var_name, momV[res], step=0)
 
     tstart = time.time()
     tint   = tstart
@@ -174,19 +158,17 @@ def train(dataset, train_summary_writer):
             print ('Total time {0:3.2f} h, Iteration {1:8d}, Time Step {2:6.2f} s, ' \
                 'ld {3:6.2e}, ' \
                 'lg {4:6.2e}, ' \
-                'lf {5:6.2e}, ' \
-                'r1 {6:6.2e}, ' \
-                'sr {7:6.2e}, ' \
-                'sf {8:6.2e}, ' \
-                'lr_gen {9:6.2e}, ' \
-                'lr_dis {10:6.2e}, ' \
+                'r1 {5:6.2e}, ' \
+                'sr {6: 6.2e}, ' \
+                'sf {7: 6.2e}, ' \
+                'lr_gen {8: 6.2e}, ' \
+                'lr_dis {9: 6.2e}, ' \
                 .format((tend-tstart)/3600, it, tend-tint, \
                 mtr[0], \
                 mtr[1], \
-                mtr[2][RES_LOG2-RES_LOG2_FIL-1], \
+                mtr[2], \
                 mtr[3], \
                 mtr[4], \
-                mtr[5], \
                 lr_gen, \
                 lr_dis))
             tint = tend
@@ -195,29 +177,27 @@ def train(dataset, train_summary_writer):
             with train_summary_writer.as_default():
                 tf.summary.scalar('a/loss_disc',   mtr[0], step=it)
                 tf.summary.scalar('a/loss_gen',    mtr[1], step=it)
-                for fil in range(RES_LOG2-RES_LOG2_FIL):
-                    res = 2**(RES_LOG2_FIL+fil)
-                    tf.summary.scalar('a/loss_filter ' +str(res), mtr[2][fil], step=it)
-                tf.summary.scalar('a/r1_penalty',  mtr[3], step=it)
-                tf.summary.scalar('a/score_real',  mtr[4], step=it)
-                tf.summary.scalar('a/score_fake',  mtr[5], step=it)
+                tf.summary.scalar('a/r1_penalty',  mtr[2], step=it)
+                tf.summary.scalar('a/score_real',  mtr[3], step=it)
+                tf.summary.scalar('a/score_fake',  mtr[4], step=it)
                 tf.summary.scalar('a/lr_gen',      lr_gen, step=it)
                 tf.summary.scalar('a/lr_dis',      lr_dis, step=it)                
 
 
         # print images
         if (it+1) % IMAGES_EVERY == 0:
-            div, momU, momV = generate_and_save_images(mapping, synthesis, input_latent, it+1)
+            div, momU, momV = generate_and_save_images(mapping, synthesis, [input_latent, image_batch0], it+1)
 
-            with train_summary_writer.as_default():
-                for res in range(RES_LOG2-1):
-                    pow = 2**(res+2)
-                    var_name = "b/divergence_" + str(pow) + "x" + str(pow)
-                    tf.summary.scalar(var_name, div[res], step=it)
-                    var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
-                    tf.summary.scalar(var_name, momU[res], step=it)
-                    var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
-                    tf.summary.scalar(var_name, momV[res], step=it)
+            if (TESTCASE=='HIT_2D'):
+                with train_summary_writer.as_default():
+                    for res in range(RES_LOG2-1):
+                        pow = 2**(res+2)
+                        var_name = "b/divergence_" + str(pow) + "x" + str(pow)
+                        tf.summary.scalar(var_name, div[res], step=it)
+                        var_name = "c/dUdt_" + str(pow) + "x" + str(pow)
+                        tf.summary.scalar(var_name, momU[res], step=it)
+                        var_name = "d/dVdt_" + str(pow) + "x" + str(pow)
+                        tf.summary.scalar(var_name, momV[res], step=it)
 
         #save the model
         if (it+1) % SAVE_EVERY == 0:    
@@ -225,10 +205,11 @@ def train(dataset, train_summary_writer):
 
 
     # end of the training
-    print("Total divergencies, dUdt and dVdt for each resolution are:")
-    for reslog in range(RES_LOG2-1):
-        res = 2**(reslog+2)
-        print("{:4d}x{:4d}:   {:03e}   {:03e}   {:03e}".format(res, res, div[reslog], momU[reslog], momV[reslog]))
+    if (TESTCASE=='HIT_2D'):
+        print("Total divergencies, dUdt and dVdt for each resolution are:")
+        for reslog in range(RES_LOG2-1):
+            res = 2**(reslog+2)
+            print("{:4d}x{:4d}:   {:03e}   {:03e}   {:03e}".format(res, res, div[reslog], momU[reslog], momV[reslog]))
     print("\n")
 
 

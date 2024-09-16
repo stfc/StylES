@@ -249,7 +249,7 @@ def step_find_latents_LES(latents, fimgA, ltv):
         UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], 1)
 
         # filter        
-        fUVP_DNS = filter[FIL-1](UVP_DNS, training=False)
+        fUVP_DNS = filters[IFIL](UVP_DNS, training=False)
 
         # find residuals
         resDNS = tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, fimgA))
@@ -349,7 +349,7 @@ while (resREC>tollLES and it<lr_LES_maxIt):
 
             filename = "results_reconstruction/plots/Plots_DNS_fromGAN.png"
             # filename = "results_reconstruction/plots/Plots_DNS_fromGAN_" + str(it) + ".png"
-            print_fields_3(U_DNS, V_DNS, P_DNS, N_DNS, filename, \
+            print_fields_3(U_DNS, V_DNS, P_DNS, N=N_DNS, filename=filename, \
                     Umin=-1.0, Umax=1.0, Vmin=-1.0, Vmax=1.0, Pmin=-1.0, Pmax=1.0)
 
     it = it+1
@@ -452,8 +452,8 @@ while (tstep<totSteps and totTime<finalTime):
 
 
     # filter them
-    tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
-    NL = filter[FIL](tNL_DNS, training=False)
+    tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
+    NL = filters[IFIL](tNL_DNS, training=False)
     fUU = NL[0, 0, :, :].numpy()
     fUV = NL[0, 1, :, :].numpy()
     fVV = NL[0, 2, :, :].numpy()
@@ -638,17 +638,17 @@ while (tstep<totSteps and totTime<finalTime):
             newP = UVP[0, 2, :, :].numpy()
 
         elif (FILTER=="StyleGAN_layer"):
-            newU = predictions[RES_LOG2_FIL-2][0, 0, :, :].numpy()
-            newV = predictions[RES_LOG2_FIL-2][0, 1, :, :].numpy()
-            newP = predictions[RES_LOG2_FIL-2][0, 2, :, :].numpy()
+            newU = predictions[RES_LOG2-FIL-2][0, 0, :, :].numpy()
+            newV = predictions[RES_LOG2-FIL-2][0, 1, :, :].numpy()
+            newP = predictions[RES_LOG2-FIL-2][0, 2, :, :].numpy()
 
         elif (FILTER=="Gaussian_tf"):
 
             # separate DNS fields
             rs = SIG
-            U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis])
-            V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis])
-            P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis])
+            U_DNS_t = tf.convert_to_tensor(U_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+            V_DNS_t = tf.convert_to_tensor(V_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
+            P_DNS_t = tf.convert_to_tensor(P_DNS[tf.newaxis,:,:,tf.newaxis], dtype=DTYPE)
 
             # preprare Gaussian Kernel
             gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -683,9 +683,9 @@ while (tstep<totSteps and totTime<finalTime):
                 newV = V_DNS[:,:]
                 newP = P_DNS[:,:]
             else:
-                fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='grid-wrap')
-                fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='grid-wrap')
-                fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='grid-wrap')
+                fU = sc.ndimage.gaussian_filter(U_DNS, rs, mode='wrap')
+                fV = sc.ndimage.gaussian_filter(V_DNS, rs, mode='wrap')
+                fP = sc.ndimage.gaussian_filter(P_DNS, rs, mode='wrap')
                 
                 newU = fU[::DW,::DW]
                 newV = fV[::DW,::DW]
@@ -733,7 +733,7 @@ while (tstep<totSteps and totTime<finalTime):
             # # filter them
             # if (FILTER=="Trained_filter"):
 
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
             #     NL = filter(tNL_DNS, training=False)
             #     fUU = NL[0, 0, :, :].numpy()
             #     fUV = NL[0, 1, :, :].numpy()
@@ -744,7 +744,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     pad = 4*rs
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
 
             #     # preprare Gaussian Kernel
             #     gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -762,7 +762,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     pad = 4*rs
-            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis])
+            #     tNL_DNS = tf.convert_to_tensor(NL_DNS[:,:,:,tf.newaxis], dtype=DTYPE)
 
             #     # preprare Gaussian Kernel
             #     gauss_kernel = gaussian_kernel(4*rs, 0.0, rs)
@@ -780,7 +780,7 @@ while (tstep<totSteps and totTime<finalTime):
             #     # prepare fields
             #     rs = SIG
             #     for i in range(16):
-            #         NL_DNS[i,:,:] = sc.ndimage.gaussian_filter(NL_DNS[i,:,:], rs, mode='grid-wrap')
+            #         NL_DNS[i,:,:] = sc.ndimage.gaussian_filter(NL_DNS[i,:,:], rs, mode='wrap')
             #         NL[i,:,:] = NL_DNS[i,::DW,::DW]
         
             # # find Tau_SGS
@@ -801,7 +801,7 @@ while (tstep<totSteps and totTime<finalTime):
         minMaxUVP[0,3] = np.min(V_DNS)
         minMaxUVP[0,4] = np.max(P_DNS)
         minMaxUVP[0,5] = np.min(P_DNS)
-        tminMaxUVP = tf.convert_to_tensor(minMaxUVP)
+        tminMaxUVP = tf.convert_to_tensor(minMaxUVP, dtype=DTYPE)
 
         maxU = np.max(U)
         minU = np.min(U)
@@ -893,7 +893,7 @@ while (tstep<totSteps and totTime<finalTime):
 
         #     # Create noise for sample images
         #     if (firstRetrain):
-        #         tf.random.set_seed(1)
+        #         tf.random.set_seed(SEED)        
         #         input_latent = tf.random.uniform([BATCH_SIZE, LATENT_SIZE], dtype=DTYPE, minval=MINVALRAN, maxval=MAXVALRAN)
         #         inputVariances = tf.constant(1.0, shape=(1, G_LAYERS), dtype=DTYPE)
         #         lr = LR
@@ -1080,8 +1080,8 @@ while (tstep<totSteps and totTime<finalTime):
                     print_fields(U,     V,     P,     W,     N_LES,"plots/plots_LES_"         + str(te[s]) + "te.png")
 
                     #print spectrum
-                    plot_spectrum(U_DNS, V_DNS, L, "energy/energy_DNS_fromGAN_" + str(te[s]) + "te.txt")
-                    plot_spectrum(U, V, L,         "energy/energy_LES_"         + str(te[s]) + "te.txt")
+                    plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_DNS_fromGAN_" + str(te[s]) + "te.txt")
+                    plot_spectrum_2d_3v(U, V, L,         "energy/energy_LES_"         + str(te[s]) + "te.txt")
         else:
     
             tail = "it{0:d}".format(tstep)
@@ -1101,8 +1101,8 @@ while (tstep<totSteps and totTime<finalTime):
 
             # print spectrum
             if (tstep%print_spe == 0):
-                plot_spectrum(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
-                plot_spectrum(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
+                plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
+                plot_spectrum_2d_3v(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
 
 
 # end of the simulation
@@ -1123,8 +1123,8 @@ if (len(te)==0):
     save_fields(totTime, U, V, P, C, B, W, "fields/fields_" + tail + ".npz")
 
     # print spectrum
-    plot_spectrum(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
-    plot_spectrum(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
+    plot_spectrum_2d_3v(U_DNS, V_DNS, L, "energy/energy_spectrum_DNS_fromGAN_" + tail + ".txt")
+    plot_spectrum_2d_3v(U,     V,     L, "energy/energy_spectrum_LES_"         + tail + ".txt")
 
 # save center values
 filename = "DNS_fromGAN_center_values.txt"

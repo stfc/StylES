@@ -7,19 +7,19 @@ __pycache__
 .env
 
 #Result unless specified and usual test outputs from bjobs
-*nergy_spectrum*.txt
 test.out
 test.err
 output.txt
-DNS_center_values.txt
-Plots.png
-Uvw.png
-*.npz
 
 #folders
 images
-checkpoints
-fields
-plots
-energy
-uvw
+checkpoints/ckpt-*
+bout_interfaces/results/plots/plots*
+bout_interfaces/results/fields/plots*
+bout_interfaces/results_comparison/plot_diffs/diff*
+utilities/results_latentSpace/plots/
+utilities/results_latentSpace/fields/
+utilities/results_latentSpace/energy/
+utilities/results_reconstruction/plots/
+utilities/results_reconstruction/fields/
+utilities/results_reconstruction/energy/

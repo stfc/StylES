@@ -80,11 +80,11 @@ os.system("mkdir -p results_compare_profiles/energy_org")
 
 dir_log = 'logs/'
 train_summary_writer = tf.summary.create_file_writer(dir_log)
-tf.random.set_seed(0)
+tf.random.set_seed(SEED)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 
 N_DNS = 2**RES_LOG2
-N_LES = 2**RES_LOG2_FIL
+N_LES = 2**RES_LOG2-FIL
 C_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 B_DNS = np.zeros([N_DNS,N_DNS], dtype=DTYPE)
 C_LES = np.zeros([N_LES, N_LES], dtype=DTYPE)
@@ -237,7 +237,7 @@ def find_latent_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthe
 def find_latent_LES_step(latent, minMaxUVP, imgA, list_trainable_variables=wl_synthesis.trainable_variables):
     with tf.GradientTape() as tape_DNS:
         predictions, UVP_DNS = wl_synthesis([latent, minMaxUVP], training=False)
-        UVP_LES     = predictions[RES_LOG2_FIL-2]
+        UVP_LES     = predictions[RES_LOG2-FIL-2]
 
         fimg = filter(imgA)
         fUVP_LES = filter(UVP_DNS)
@@ -313,7 +313,6 @@ for tv, tollDNS in enumerate(tollDNSValues):
     checkpoint.restore(managerCheckpoint.latest_checkpoint)
 
     # set latent spaces
-    tf.random.set_seed(0)
     if (USE_DLATENTS):
         zlatent = tf.random.uniform([1, LATENT_SIZE])
         latent  = mapping(zlatent, training=False)
@@ -371,14 +370,14 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_DNS_" + str(k) + ".npz"
         save_fields(0, U_DNS, V_DNS, V_DNS, V_DNS, V_DNS, W_DNS, filename)
 
-        filename = "energy_spectrum_compare_DNS_" + str(k) + ".txt"
-        plot_spectrum_noPlots(U_DNS, V_DNS, L, filename)
+        filename = "energy_spectrum_compare_DNS_" + str(k) + ".png"
+        plot_spectrum_2d_3v_noPlots(U_DNS, V_DNS, L, filename)
 
 
-        tU_DNS = tf.convert_to_tensor(U_DNS_t)
-        tV_DNS = tf.convert_to_tensor(V_DNS_t)
-        tP_DNS = tf.convert_to_tensor(P_DNS_t)
-        tW_DNS = tf.convert_to_tensor(W_DNS_t)
+        tU_DNS = tf.convert_to_tensor(U_DNS_t, dtype=DTYPE)
+        tV_DNS = tf.convert_to_tensor(V_DNS_t, dtype=DTYPE)
+        tP_DNS = tf.convert_to_tensor(P_DNS_t, dtype=DTYPE)
+        tW_DNS = tf.convert_to_tensor(W_DNS_t, dtype=DTYPE)
 
         U_DNS = tU_DNS[np.newaxis,np.newaxis,:,:]
         V_DNS = tV_DNS[np.newaxis,np.newaxis,:,:]
@@ -444,8 +443,8 @@ for tv, tollDNS in enumerate(tollDNSValues):
         filename = "fields_compare_" + str(k) + ".npz"
         save_fields(0, U_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, V_DNS_t, W_DNS_t, filename)
 
-        filename = "energy_spectrum_compare_" + str(k) + ".txt"
-        plot_spectrum_noPlots(U_DNS_t, V_DNS_t, L, filename)
+        filename = "energy_spectrum_compare_" + str(k) + ".png"
+        plot_spectrum_2d_3v_noPlots(U_DNS_t, V_DNS_t, L, filename)
 
         if (k==1):
             lineColor = 'k'

@@ -42,14 +42,17 @@ from skimage.metrics import structural_similarity as ssim
 from testcases.HIT_2D.HIT_2D import L, rho
 
 os.chdir('../')
-from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS, TESTCASE
+from parameters import DTYPE, OUTPUT_DIM, NUM_CHANNELS, TESTCASE, RES_LOG2
 from IO_functions import StyleGAN_load_fields
 os.chdir('./utilities')
 
 
 #-------------------------------- local variables, initialization and functions
-FILE_REAL  = "./results_latentSpace/fields_org/fields_lat_0_res_256.npz"
-FILE_STYLE = "./results_latentSpace/fields/fields_lat_0_res_256.npz"
+N_DNS = 2**RES_LOG2
+
+FILE_PATH  = "../bout_interfaces/results_DNS/fields/"
+FILE_REAL  = FILE_PATH + "fields_time00001.npz"
+FILE_STYLE = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/results_StylES_m3/fields/fields_DNS_0003011.npz"
 
 os.system("rm Plots_DNS_diff.png")
 
@@ -69,6 +72,18 @@ if (TESTCASE=='HW' or TESTCASE=='mHW'):
 def cr(phi, i, j):
     return np.roll(phi, (-i, -j), axis=(0,1))
 
+def compare_SSIM(imageA, imageB, title):
+    # compute SSIM only
+
+    # index for the images
+    m = np.mean((imageA - imageB)**2)   # Mean Square Error
+    if (NUM_CHANNELS==1):
+        s = ssim(imageA, imageB, multichannel=False)
+    else:
+        s = ssim(imageA, imageB, multichannel=True, channel_axis=2, data_range=2)
+
+    return s
+
 
 def compare_images(imageA, imageB, title):
     # compute the mean squared error and structural similarity
@@ -79,7 +94,7 @@ def compare_images(imageA, imageB, title):
         s = ssim(imageA, imageB, multichannel=False)
     else:
         s = ssim(imageA, imageB, multichannel=True, channel_axis=2, data_range=2)
-
+    print("mean and SSIM are ", m, s)
 
     # check divergence for DNS image
     U = imageA[:,:,0]
@@ -104,8 +119,6 @@ def compare_images(imageA, imageB, title):
     print("Divergence for StyleGAN image", div)
 
     # find differences and min-max
-    imageD = imageA - imageB
-
     minUA = np.min(imageA[:,:,0])
     minUB = np.min(imageB[:,:,0])
     minU  = min(minUA, minUB)
@@ -126,6 +139,13 @@ def compare_images(imageA, imageB, title):
     maxWB = np.max(imageB[:,:,2])
     maxW  = max(maxWA, maxWB)
 
+    imageD = imageA - imageB
+    print(np.min(imageD), np.max(imageD))
+    # imageD[:,:,0] = imageD[:,:,0]/(np.max(imageD[:,:,0]) - np.min(imageD[:,:,0]))*100
+    # imageD[:,:,1] = imageD[:,:,1]/(np.max(imageD[:,:,1]) - np.min(imageD[:,:,1]))*100
+    # imageD[:,:,2] = imageD[:,:,2]/(np.max(imageD[:,:,2]) - np.min(imageD[:,:,2]))*100
+    print(np.min(imageD), np.max(imageD))
+
     # setup figures
     fig, ax = plt.subplots(3, 3, figsize=(15,15))
 
@@ -134,7 +154,7 @@ def compare_images(imageA, imageB, title):
     im = sub.imshow(imageA[:,:,0], cmap="Blues", vmin=minU, vmax=maxU)
     sub.axis("off")
     sub.set_title("DNS "+ labelR)
-    plt.colorbar(im, ax=sub)
+    plt.colorbar(im, ax=sub, fraction=0.02)
 
     sub = ax[1,0]
     im = sub.imshow(imageA[:,:,1], cmap="RdBu", vmin=minV, vmax=maxV)
@@ -189,7 +209,7 @@ def compare_images(imageA, imageB, title):
     plt.colorbar(im, ax=sub)
 
     sub = ax[1,2]
-    im = sub.imshow(imageD[:,:,1], cmap="jet")
+    im = sub.imshow(imageD[:,:,1], cmap="jet", vmin=-1, vmax=1)
     sub.axis("off")
     sub.set_title("diff " + labelG)
     plt.colorbar(im, ax=sub)
@@ -222,67 +242,116 @@ def trim(im):
 
 
 #-------------------------------- starts comparison
-if (FILE_REAL.endswith('.npz')):
+def load_images(file_real, file_Style):
+    if (file_real.endswith('.npz')):
 
-    # load numpy array
-    orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
-    img_in = StyleGAN_load_fields(FILE_REAL)
-    orig[:,:,0] = img_in[-1][0,:,:]
-    orig[:,:,1] = img_in[-1][1,:,:]
-    orig[:,:,2] = img_in[-1][2,:,:]
-    orig = np.cast[DTYPE](orig)
+        # load numpy array
+        orig = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+        img_in = StyleGAN_load_fields(file_real)
+        orig[:,:,0] = img_in[-1][0,:,:]
+        orig[:,:,1] = img_in[-1][1,:,:]
+        orig[:,:,2] = img_in[-1][2,:,:]
+        orig = np.cast[DTYPE](orig)
 
-elif (FILE_REAL.endswith('.png')):
+        # # normalize
+        # orig[:,:,0] = (orig[:,:,0] - np.min(orig[:,:,0]))/(np.max(orig[:,:,0]) - np.min(orig[:,:,0]))
+        # orig[:,:,1] = (orig[:,:,1] - np.min(orig[:,:,1]))/(np.max(orig[:,:,1]) - np.min(orig[:,:,1]))
+        # orig[:,:,2] = (orig[:,:,2] - np.min(orig[:,:,2]))/(np.max(orig[:,:,2]) - np.min(orig[:,:,2]))
+        
+        # # calc grad phi
+        # V_DNS_org = orig[:,:,1]
+                
+        # DELX = 50.176/1024
+        # DELY = 50.176/1024
+        # orig[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+        #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 
-    # load image
-    orig = Image.open(FILE_REAL).convert('RGB')
+    elif (file_real.endswith('.png')):
 
-    # convert to black and white, if needed
-    if (NUM_CHANNELS==1):
-        orig = orig.convert("L")
+        # load image
+        orig = Image.open(file_real).convert('RGB')
 
-    # remove white spaces
-    #orig = trim(orig)
+        # convert to black and white, if needed
+        if (NUM_CHANNELS==1):
+            orig = orig.convert("L")
 
-    # resize images
-    orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
+        # remove white spaces
+        #orig = trim(orig)
 
-    # convert to numpy array
-    orig = np.asarray(orig, dtype=DTYPE)
-    orig = orig/255.0
+        # resize images
+        orig = orig.resize((OUTPUT_DIM,OUTPUT_DIM))
 
-
-# load style images
-if (FILE_STYLE.endswith('.npz')):
-
-    style = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
-    img_in = StyleGAN_load_fields(FILE_STYLE)
-    style[:,:,0] = img_in[-1][0,:,:]
-    style[:,:,1] = img_in[-1][1,:,:]
-    style[:,:,2] = img_in[-1][2,:,:]
-    style = np.cast[DTYPE](style)
-
-else:
-
-    # load image
-    style = Image.open(FILE_STYLE).convert('RGB')
-
-    # convert to black and white, if needed
-    if (NUM_CHANNELS==1):
-        style = style.convert("L")
-
-    # remove white spaces
-    #style = trim(style)
-
-    # resize images
-    style = style.resize((OUTPUT_DIM,OUTPUT_DIM))
-
-    # convert to numpy array
-    style = np.asarray(style, dtype=DTYPE)
-    style = style/255.0
+        # convert to numpy array
+        orig = np.asarray(orig, dtype=DTYPE)
+        orig = orig/255.0
 
 
+    # load style images
+    if (file_Style.endswith('.npz')):
+
+        style = np.zeros([OUTPUT_DIM,OUTPUT_DIM, 3], dtype=DTYPE)
+        img_in = StyleGAN_load_fields(file_Style)
+        style[:,:,0] = img_in[-1][0,:,:]
+        style[:,:,1] = img_in[-1][1,:,:]
+        style[:,:,2] = img_in[-1][2,:,:]
+        style = np.cast[DTYPE](style)
+        
+        # # normalize
+        # style[:,:,0] = (style[:,:,0] - np.min(style[:,:,0]))/(np.max(style[:,:,0]) - np.min(style[:,:,0]))
+        # style[:,:,1] = (style[:,:,1] - np.min(style[:,:,1]))/(np.max(style[:,:,1]) - np.min(style[:,:,1]))
+        # style[:,:,2] = (style[:,:,2] - np.min(style[:,:,2]))/(np.max(style[:,:,2]) - np.min(style[:,:,2]))
+        
+        # # calc grad phi
+        # V_DNS_org = style[:,:,1]
+                
+        # DELX = 50.176/1024
+        # DELY = 50.176/1024
+        # style[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
+        #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
+
+    else:
+
+        # load image
+        style = Image.open(file_Style).convert('RGB')
+
+        # convert to black and white, if needed
+        if (NUM_CHANNELS==1):
+            style = style.convert("L")
+
+        # remove white spaces
+        #style = trim(style)
+
+        # resize images
+        style = style.resize((OUTPUT_DIM,OUTPUT_DIM))
+
+        # convert to numpy array
+        style = np.asarray(style, dtype=DTYPE)
+        style = style/255.0
+
+    return orig, style
+
+
+# # compute SSIM for all fiels in the folder
+# files = os.listdir(FILE_PATH)
+# nfiles = len(files)
+# minSSIM = 1.0
+# maxSSIM = 0.0
+
+# for rr in range(100):
+#     for tt in range(501,981,10):
+#         curr = "fields_run" + str(rr) + "_time" + str(tt).zfill(3) + ".npz"
+#         next = "fields_run" + str(rr) + "_time" + str(tt+20).zfill(3) + ".npz"
+#         file_curr = FILE_PATH + curr
+#         file_next = FILE_PATH + next
+#         print(file_curr, file_next)
+#         curr, next = load_images(file_curr, file_next)
+#         s = compare_SSIM(curr, next, "results_latentSpace/Plots_DNS_diff.png")
+#         minSSIM = min(s, minSSIM)
+#         maxSSIM = max(s, maxSSIM)
+
+# print("minSSIM, maxSSIM values are: ", minSSIM, maxSSIM)
 
 # compare the images
+orig, style = load_images(FILE_REAL, FILE_STYLE)
 compare_images(orig, style, "results_latentSpace/Plots_DNS_diff.png")
 

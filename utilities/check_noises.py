@@ -57,7 +57,7 @@ os.system("mkdir energy")
 
 
 dir_log = 'logs/'
-tf.random.set_seed(1)
+tf.random.set_seed(SEED)
 iOUTDIM22 = one/(2*OUTPUT_DIM*OUTPUT_DIM)  # 2 because we sum U and V residuals  
 P_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
 C_DNS_t = np.zeros([OUTPUT_DIM, OUTPUT_DIM])
@@ -111,7 +111,7 @@ for st in range(1,len(wl_synthesis.trainable_variables)):
             clatents = tf.convert_to_tensor(rand0)
             UVW_DNS = find_step(dlatents, clatents)
         else:
-            clatents = tf.convert_to_tensor((1.-i/float(NIP-1))*rand0 + i/float(NIP-1)*rand1) 
+            clatents = tf.convert_to_tensor((1.-i/float(NIP-1))*rand0 + i/float(NIP-1)*rand1, dtype=DTYPE) 
 
             # if (st==0):
             #     nwlatents = tf.concat([clatents, wl_synthesis.trainable_variables[st+1:G_LAYERS]], 0)
@@ -130,10 +130,10 @@ for st in range(1,len(wl_synthesis.trainable_variables)):
             print_fields(U_DNS_t, V_DNS_t, P_DNS_t, W_DNS_t, OUTPUT_DIM, filename)
             # Umin=UMIN, Umax=UMAX, Vmin=VMIN, Vmax=VMAX, Pmin=PMIN, Pmax=PMAX, Wmin=WMIN, Wmax=WMAX)
 
-            filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".txt"
+            filename = "energy/energy_spectrum_sty_" + str(st) + "_lev_" + str(i) + ".png"
             if (i == NIP-1):
                 closePlot=True
-            plot_spectrum(U_DNS_t, V_DNS_t, L, filename, closePlot)
+            plot_spectrum_2d_3v(U_DNS_t, V_DNS_t, L, filename, closePlot)
 
         print("done for style " + str(st) + " i " + str(i))
 

@@ -5,6 +5,7 @@
 #BSUB -n 1
 #BSUB -R "span[ptile=32]"
 #BSUB -gpu "num=1"
-#BSUB -W 48:00
+#BSUB -W 12:00
 
-python check_reconstruction.py > output.txt
+python convert_to_SingleChannel.py  > output.txt
+#python check_reconstruction.py > output.txt

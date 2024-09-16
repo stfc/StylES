@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -41,24 +41,36 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 5
+SEED_RESTART = 1
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
 
-TESTCASE          = 'HIT_2D' 
-DATASET           = './LES_Solvers/fields/'
+TESTCASE          = 'HW' 
+DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
 CONVERTTOTFRECORD = False
 USE_GPU           = True
+DEVICE_TYPE       = 'GPU'
 AUTOTUNE          = tf.data.experimental.AUTOTUNE
 READ_NUMPY_ARRAYS = True
 SAVE_NUMPY_ARRAYS = False
 
+if DEVICE_TYPE in ('CPU', 'IPU'):
+    data_format = 'NHWC'
+    TRANSPOSE_FOR_CONV2D = [0,2,3,1]
+    TRANSPOSE_FROM_CONV2D= [0,3,1,2]
+elif DEVICE_TYPE == 'GPU':
+    data_format = 'NCHW'
+    TRANSPOSE_FOR_CONV2D = [0,1,2,3]
+    TRANSPOSE_FROM_CONV2D = [0,1,2,3]
+
 # Network hyper-parameters
-OUTPUT_DIM        = 256
+OUTPUT_DIM        = 1024
+BATCH_SIZE        = 8  # remember this shoudl NOT be bigger than dataset length!
+DIMS_3D           = True
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -67,31 +79,37 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-FIL               = 3  # number of layers below the DNS  
-RES_LOG2_FIL      = RES_LOG2-4    # fix filter layer
-C_LAYERS          = 2  # end of coarse layers 
-M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
-
-NUM_CHANNELS      = 3                # Number of input color channels. Overridden based on dataset.
+FIL               = 3 # number of layers below the DNS  
+IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
-G_LAYERS_FIL      = RES_LOG2_FIL*2 - 2   # Numer of layers for the filter
+G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
+M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
+C_LAYERS          = 2  # end of coarse layers 
+NUM_CHANNELS      = 1      # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
 BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-NEXAMPLES         = 1 
-AMP_NOISE         = 1.0
-NC_NOISE          = 200
+AMP_NOISE_MAX     = 1.0
+NC_NOISE          = 50
 NC2_NOISE         = int(NC_NOISE/2)
-RANDOMIZE_NOISE   = True
+USE_VORTICITY     = True
+LOAD_DNS          = False
+RANDOMIZE_NOISE   = False
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 1000
-SAVE_EVERY     = 100000
-BATCH_SIZE     = NEXAMPLES
+IMAGES_EVERY   = 10000
+SAVE_EVERY     = 50000
 IRESTART       = False
+
+# others
+if (NUM_CHANNELS==1):
+    DPI = 200*max(1,int(OUTPUT_DIM/256))
+else:
+    DPI = 100*max(1,int(OUTPUT_DIM/256))
+
 
 # learning rates
 LR_GEN           = 7.5e-4
@@ -116,13 +134,37 @@ BETA1_DIS        = 0.0
 BETA2_DIS        = 0.99
 
 
-# Reconstruction hyper-parameters
+# Reconstruction parameters
+N_DNS           = int(2**RES_LOG2)
+N_LES           = int(2**(RES_LOG2-FIL))
+N_DNS2          = int(N_DNS/2)
+N_LES2          = int(N_LES/2)
+NY2             = max(1,int(BATCH_SIZE/2))
+RS              = int(2**FIL)
+RS2             = int(RS/2)
+N2L             = N_LES2-RS2
+N2R             = N_LES2+RS2+1
+LEN_DOMAIN      = 50.176  # for 2D HWLEN_DOMAIN
+DELX            = LEN_DOMAIN/N_DNS
+DELY            = LEN_DOMAIN/N_DNS
+DELX_LES        = LEN_DOMAIN/N_LES
+DELY_LES        = LEN_DOMAIN/N_LES
+INIT_SCA        = 2.0
+NC_NOISE_IN     = 1000
+NC2_NOISE_IN    = int(NC_NOISE_IN/2)
+GAUSSIAN_FILTER = True
+FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
+FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_run0_time298.npz"
+FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
+FILE_DNS_N256_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run6_time400.npz"
+FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run1_time300.npz"
 
-# learning rate for DNS optimizer
-lr_DNS_maxIt  = 1000000
+
+# learning rate for latent space optimizer
+lr_DNS_maxIt  = 100000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
-lr_DNS        = 1.0e-4   # exponential policy initial learning rate
+lr_DNS        = 1.0e-3   # exponential policy initial learning rate
 lr_DNS_RATE   = 1.0       # exponential policy decay rate
 lr_DNS_STEP   = lr_DNS_maxIt     # exponential policy decay step
 lr_DNS_EXP_ST = False      # exponential policy staircase
@@ -131,15 +173,3 @@ lr_DNS_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
 lr_DNS_BETA1  = 0.0
 lr_DNS_BETA2  = 0.99
 
-# learning rate for LES optimizer
-lr_LES_maxIt  = 1000000
-lr_LES_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
-lr_LES_STAIR  = False
-lr_LES        = 1.0e-4    # exponential policy initial learning rate
-lr_LES_RATE   = 1.0       # exponential policy decay rate
-lr_LES_STEP   = lr_LES_maxIt     # exponential policy decay step
-lr_LES_EXP_ST = False      # exponential policy staircase
-lr_LES_BOUNDS = [100, 200, 300]             # piecewise policy bounds
-lr_LES_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
-lr_LES_BETA1  = 0.0
-lr_LES_BETA2  = 0.99
