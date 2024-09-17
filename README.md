@@ -58,7 +58,7 @@ From paraview, the vts files in the **/StylES/bout_interfaces/results/fields/** 
 
 **Animation vorticity field**
 
-<img src="./bout_interfaces/results/animation_plots.gif" width="1000"/>
+<img src="./bout_interfaces/results_StylES/animation_plots.gif" width="1000"/>
 
 To make a comparison with the DNS data:
 - 6) go to **/BOUT-dev/examples/hasegawa-wakatani/** and set *int pStepStart = 1000000*
