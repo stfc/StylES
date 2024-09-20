@@ -38,10 +38,14 @@ and the following steps:
     - *cmake -S . -B build_release -DBOUT_BUILD_EXAMPLES=ON*
     - *cmake --build /path_to_BOUT/BOUT-dev/build_release -j 16*
     - *cmake --build build_release --target hw3d*
-3. download the 1024x1024 weights from the link above and save in the folder **/StylES/checkpoints/**
-4. generate the restart point using *python create_restart.py* in the **/StylES/bout_interfaces/** folder
-5. run the hasegawa-wakatani-3d test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani-3d/** as *./hw3d*
-6. generate the results below using the *python convert_netCDF2png.py* from **/StylES/bout_interfaces/**
+3. set the following paths:
+    - export PATH_StylES=*path_to_StylES_directory*
+    - export PYTHONPATH=$PATH_StylES:$PATH_StylES/LES_Solvers/:$PATH_StylES/LES_Solvers/testcases/HIT_2D:$PATH_StylES/utilities/
+    - export PYTHONPATH=/leonardo_work/FUAL8_UKAEA_ML/jcastagn/projects/Turbulence_with_Style/PhaseIV_FARSCAPE4/codes/TurboGenPY/:$PYTHONPATH    
+4. download the 1024x1024 weights from the link above and save in the folder **/StylES/checkpoints/**
+5. generate the restart point using *python create_restart.py* in the **/StylES/bout_interfaces/** folder
+6. run the hasegawa-wakatani-3d test case in the folder **/BOUT-dev/build_release/examples/hasegawa-wakatani-3d/** as *./hw3d*
+7. generate the results below using the *python convert_netCDF2png.py* from **/StylES/bout_interfaces/**
 
 Using Paraview and the *.vts* files in the **/StylES/bout_interfaces/results/fields/** you can get the following animation of the vorticity field:
 
