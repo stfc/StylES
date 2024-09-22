@@ -13,7 +13,7 @@ The idea is to train StyleGAN on DNS data and then use the GAN generator as deco
 </br>
 
 # Requirements
-We use TensorFlow >= 2.10 installed via pip (see https://www.tensorflow.org/install/pip). We suggest to create a virtual enviroment using the latest list of python module used, available in the **requirements.txt** file.
+We use TensorFlow = 2.10 (latest versions are not supported yet) installed via pip (see https://www.tensorflow.org/install/pip). We suggest to create a virtual enviroment using the latest list of python module used, available in the **requirements.txt** file.
 For the GPU version, make sure you have the following requirements:
 
 cudatoolkit=11.2\
