@@ -29,7 +29,7 @@ You can quickly test StylES with BOUT++ using the weights for an already trained
 
 |    Case     |    NxN      |    alpha    |     k       |   $\nu_n=\nu_\zeta$     |   Weights   |
 | ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     | [mHW_N1024](https://zenodo.org/uploads/13253846)            |
+|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     | [mHW_N1024](https://zenodo.org/records/13253846)            |
 
 and the following steps:
 
