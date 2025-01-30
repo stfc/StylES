@@ -59,7 +59,7 @@ listRUN      = ["DNS",1]
 ITIME_DNS    = 1
 ITIME_StylES = 1
 PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
-FIND_DIFFS   = True
+FIND_DIFFS   = False
 
 
 #----------------------------- initiliaze
@@ -451,6 +451,7 @@ for t,k in listtk:
     _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tStylES[k], dVdx_StylES[k], dVdy_StylES[k], L, L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(int(time_DNS[t])))
 
+    plt.ylim(1e-8, 1e2)
     plt.yscale("log")
     plt.xscale("log")
     plt.xlabel(r'k [$\rho_i^{-1}$]')
