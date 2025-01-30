@@ -19,4 +19,4 @@
 module load profile/deeplrn
 module load cineca-ai/3.0.0
 
-python main.py > output.txt
+python main.py

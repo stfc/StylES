@@ -1,13 +1,35 @@
+#----------------------------------------------------------------------------------------------
+#
+#    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
+#
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams, Josh Williams
+#
+#    Licence: This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#-----------------------------------------------------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 import glob
 import imageio
 import sys
+import vtk
 
 from PIL import Image
 from boututils.datafile import DataFile
 from boutdata.collect import collect
+from pyevtk.hl import gridToVTK
 
 sys.path.insert(0, '../')
 sys.path.insert(0, '../LES_Solvers/')
@@ -22,7 +44,7 @@ sys.path.insert(0, '../../../codes/TurboGenPY/')
 
 from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
-
+from vtk.util.numpy_support import vtk_to_numpy
 
 
 #----------------------------- parameters
@@ -37,16 +59,18 @@ listRUN      = ["DNS",1]
 ITIME_DNS    = 1
 ITIME_StylES = 1
 PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
-FIND_DIFFS   = True
+FIND_DIFFS   = False
 
 
 #----------------------------- initiliaze
+tailDims = str(NDIMS) + "D_"
+
 os.system("rm -rf results_comparison")
 os.system("mkdir results_comparison")
 if (FIND_DIFFS):
     os.system("rm -rf results_comparison/plot_diffs")
     os.system("mkdir results_comparison/plot_diffs")
-    
+
 cst = []
 cst.append(0)
 
@@ -92,6 +116,34 @@ plt.rcParams['mathtext.default'] = 'regular'
 plt.matplotlib.rcParams.update({'font.size': 16})
 plt.matplotlib.rcParams.update({'figure.autolayout': True})
 
+
+file = open(PATH_NETCDF + "/BOUT.inp", 'r')
+for line in file:
+    if "timestep =" in line:
+        DELT = float(line.split()[2])
+    if "nout =" in line:
+        NOUT = int(line.split()[2])
+    if "nx =" in line:
+        NX = int(line.split()[2]) - 4
+    if "ny =" in line:
+        NY = int(line.split()[2])
+    if "nz =" in line:
+        NZ = int(line.split()[2])
+    if "Lx =" in line:
+        LX = float(line.split()[2])
+    if "Ly =" in line:
+        LY = float(line.split()[2])
+    if "Lz =" in line:
+        LZ = float(line.split()[2])
+
+DX  = LX/NX
+DY  = LY/NY
+DZ  = LZ/NZ
+
+print("System sizes are: Lx,Ly,Lz,dx,dy,dz,nx,ny,nz =", LX,LY,LZ,DX,DY,DZ,NX,NY,NZ)
+
+
+
 #----------------------------- functions
 def cr(phi, i, j):
     return np.roll(phi, (-i, -j), axis=(0,1))
@@ -107,7 +159,43 @@ def wrap_rcparams(f, params):
         plt.rcParams.update(backup)
     return _f
 
+def plot_pdf_no_gaussian(variable_to_plot, test_id, label="", filename="", show_plot=False, logy=False):
+    plt.close("all")
+    fig, ax = plt.subplots(figsize=(10, 10))
 
+    COLORS = ["black", "blue"]
+    BINS_NUM = 75
+
+    if type(variable_to_plot) == list:
+        std_dev = variable_to_plot[0].std() # normalise by std-dev of DNS (should be index) [0]
+        for i, (variable_to_plot_i, test_id_i, col_i) in enumerate(
+            zip(variable_to_plot, test_id, COLORS)
+        ):
+            ax.hist(
+                variable_to_plot_i.ravel() / std_dev,
+                histtype="step",
+                density=True,
+                label=test_id_i,
+                bins=BINS_NUM,
+                ls="-",
+                color=col_i,
+                linewidth=1.5,
+            )
+
+    if logy:
+        ax.set_yscale("log")
+
+    # for spine_i in ["top", "right"]:
+    #     ax.spines[spine_i].set_visible(False)
+
+    ax.set_xlabel(label)
+    ax.set_ylabel(r"PDF")
+    ax.legend(frameon=False)
+
+    fig.tight_layout()
+    plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=300)
+    if show_plot:
+        plt.show()
 
 
 #----------------------------- loop over DNS and StylES
@@ -201,7 +289,7 @@ for lrun in listRUN:
 
             # print ("done for file time step ", str(t))
                         
-        os.chdir("../../../../../StylES/bout_interfaces/")
+        os.chdir("../../../../../StylES_2D_new/bout_interfaces/")
         print("number of total files: ", cont_DNS)
 
     else:
@@ -213,12 +301,44 @@ for lrun in listRUN:
         for i,file in enumerate(sorted(files)):
             if (i%ITIME==0):
                 filename = PATH_FILES + file
-                data     = np.load(filename)
-                simtime  = np.cast[DTYPE](data['simtime'])
-                n_StylES = np.cast[DTYPE](data['U'])
-                p_StylES = np.cast[DTYPE](data['V'])
-                v_StylES = np.cast[DTYPE](data['P'])
-                
+
+                if (".npz" in file):
+                    data     = np.load(filename)
+                    simtime  = np.cast[DTYPE](data['simtime'])
+                    n_StylES = np.cast[DTYPE](data['U'])
+                    p_StylES = np.cast[DTYPE](data['V'])
+                    v_StylES = np.cast[DTYPE](data['P'])
+                elif (".vts" in file):
+                    tailf = file.replace("fields_DNS_", "")
+                    tailf = tailf.replace(".vts", "")
+                    tailf = int(tailf)
+                    simtime = i*1.0
+                    
+                    reader = vtk.vtkXMLStructuredGridReader()
+                    reader.SetFileName(filename)
+                    reader.Update()
+
+                    vtk_n_StylES = reader.GetOutput().GetPointData().GetArray(0)
+                    vtk_p_StylES = reader.GetOutput().GetPointData().GetArray(1)
+                    vtk_v_StylES = reader.GetOutput().GetPointData().GetArray(2)
+
+                    n_StylES = vtk_to_numpy(vtk_n_StylES)
+                    p_StylES = vtk_to_numpy(vtk_p_StylES)
+                    v_StylES = vtk_to_numpy(vtk_v_StylES)
+                    
+                    n_StylES = np.reshape(n_StylES, (NX,NY,NZ))
+                    p_StylES = np.reshape(p_StylES, (NX,NY,NZ))
+                    v_StylES = np.reshape(v_StylES, (NX,NY,NZ))
+                    
+                    n_StylES = np.transpose(n_StylES, (2,1,0))
+                    p_StylES = np.transpose(p_StylES, (2,1,0))
+                    v_StylES = np.transpose(v_StylES, (2,1,0))
+                    
+                    n_StylES = n_StylES[:,0,:]
+                    p_StylES = p_StylES[:,0,:]
+                    v_StylES = v_StylES[:,0,:]
+
+
                 nval = n_StylES[N_DNS2, N_DNS2]
                 pval = p_StylES[N_DNS2, N_DNS2]
                 vval = v_StylES[N_DNS2, N_DNS2]
@@ -258,7 +378,7 @@ for lrun in listRUN:
                 # print ("done for file " + filename + " at simtime " + str(simtime))
                 if (FIND_DIFFS and lrun==listRUN[-1]):
                     filename = "./results_comparison/plot_diffs/diff_vort_" + str(i).zfill(4) + ".png"
-                    print("plotting diffrences for " + filename)
+                    print("plotting differences for " + filename)
                     ii = cont_StylES%FTIME
                     print_fields_3(v_tDNS[ii], v_StylES, v_tDNS[ii]-v_StylES, filename=filename, plot='diff', \
                         labels=[r"DNS $\zeta$", r"StylES $\zeta$", r"diff $\zeta$"], \
@@ -295,21 +415,21 @@ k = cst[len(listRUN)-2]
 
 minv = np.min(n_tDNS[kd])
 maxv = np.max(n_tDNS[kd])
-filename = "./results_comparison/ndiff_t0.png"
+filename = "./results_comparison/" + tailDims + "ndiff_t0.png"
 labels = [r'$n_{DNS}$', r'$n_{StylES}$', r'$n_{DNS}$ - $n_{StylES}$']
 print_fields_3new(n_tDNS[kd], n_tStylES[k], n_tDNS[kd]-n_tStylES[k], filename=filename, diff=True, labels=labels, \
     Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
 
 minv = np.min(p_tDNS[kd])
 maxv = np.max(p_tDNS[kd])
-filename = "./results_comparison/pdiff_t0.png"
+filename = "./results_comparison/" + tailDims + "pdiff_t0.png"
 labels = [r'$\phi_{DNS}$', r'$\phi_{StylES}$', r'$\phi_{DNS}$ - $\phi_{StylES}$']
 print_fields_3new(p_tDNS[kd], p_tStylES[k], p_tDNS[kd]-p_tStylES[k], filename=filename, diff=True, labels=labels, \
     Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
 
 minv = np.min(v_tDNS[kd])
 maxv = np.max(v_tDNS[kd])
-filename = "./results_comparison/vdiff_t0.png"
+filename = "./results_comparison/" + tailDims + "vdiff_t0.png"
 labels = [r'$\zeta_{DNS}$', r'$\zeta_{StylES}$', r'$\zeta_{DNS}$ - $\zeta_{StylES}$']
 print_fields_3new(v_tDNS[kd], v_tStylES[k], v_tDNS[kd]-v_tStylES[k], filename=filename, diff=True, labels=labels, \
     Umin=minv, Umax=maxv, Vmin=minv, Vmax=maxv, Pmin=minv, Pmax=maxv)
@@ -334,7 +454,7 @@ for t,k in listtk:
     plt.xlabel(r'k [$\rho_i^{-1}$]')
     plt.ylabel(r'$\mathcal{F}(E)$')
     plt.legend(frameon=False)
-    plt.savefig("./results_comparison/energy_t" + str(t) + ".png", dpi=300)
+    plt.savefig("./results_comparison/" + tailDims + "energy_t" + str(t) + ".png", dpi=300)
     plt.close()
 
     # _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v((n_tDNS[t]-v_DNS[t]), (n_tDNS[t]-v_DNS[t]), L, L, L, True)
@@ -347,7 +467,7 @@ for t,k in listtk:
     # plt.xlabel(r'k [$\rho_i^{-1}$]')
     # plt.ylabel(r'$\mathcal{F}(E)$')
     # plt.legend(frameon=False)
-    # plt.savefig("./results_comparison/enstrophy_t" + str(t) + ".png", dpi=300)
+    # plt.savefig("./results_comparison/" + tailDims + "enstrophy_t" + str(t) + ".png", dpi=300)
     # plt.close()
 
 
@@ -379,16 +499,16 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], Energy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
-        np.savez("./results_comparison/energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
 
-#plt.ylim(1e6,1e8)
+plt.ylim(0,1e7)
 #plt.xlim(0,10)
 #plt.yscale("log")
 #plt.xlabel("time steps [-]")
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("energy")
 plt.legend(fontsize="10", frameon=False)
-plt.savefig('./results_comparison/energy_vs_time.png', dpi=300)
+plt.savefig('./results_comparison/' + tailDims + 'energy_vs_time.png', dpi=300)
 plt.close()
 
 
@@ -421,7 +541,7 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], enstrophy_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
-        np.savez("./results_comparison/enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
         
 #plt.ylim(1e3,1e5)
 #plt.xlim(0,10)
@@ -429,8 +549,9 @@ for lrun in listRUN:
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("enstrophy")
 plt.legend(fontsize="10", frameon=False)
-plt.savefig('./results_comparison/enstrophy_vs_time.png', dpi=300)
+plt.savefig('./results_comparison/' + tailDims + 'enstrophy_vs_time.png', dpi=300)
 plt.close()
+
 
 
 
@@ -458,14 +579,14 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], rflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
         
-        np.savez("./results_comparison/radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
 
 #plt.ylim(0,3)
 #plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("radial flux")
 plt.legend(fontsize="10", frameon=False)
-plt.savefig('./results_comparison/radialFlux_vs_time.png', dpi=300)
+plt.savefig('./results_comparison/' + tailDims + 'radialFlux_vs_time.png', dpi=300)
 plt.close()
 
 
@@ -496,15 +617,32 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], pflux_StylES[i1:i2], color=cl[i], linewidth=0.5, linestyle='dashed', label=label)
         i=i+1
 
-        np.savez("./results_comparison/poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
 
 #plt.ylim(-5,5)
 #plt.xlim(0,10)
 plt.xlabel("time [$\omega_{ci}^{-1}$]")
 plt.ylabel("poloidal flux")
 plt.legend(fontsize="10", frameon=False)
-plt.savefig('./results_comparison/poloidalFlux_vs_time.png', dpi=300)
+plt.savefig('./results_comparison/' + tailDims + 'poloidalFlux_vs_time.png', dpi=300)
 plt.close()
+
+
+#----------------- Higher momentum
+pdf_n = [np.asarray(n_tDNS[NOUT]), np.asarray(n_tStylES[NOUT])]
+test_id = ["DNS", "StylES"]
+filename = './results_comparison/' + tailDims + 'PDF_n.png'
+plot_pdf_no_gaussian(pdf_n, test_id, label=r"$n$ / $\sigma_{n}$ [-]", filename=filename, logy=True)
+
+pdf_n = [np.asarray(p_tDNS[NOUT]), np.asarray(p_tStylES[NOUT])]
+test_id = ["DNS", "StylES"]
+filename = './results_comparison/' + tailDims + 'PDF_p.png'
+plot_pdf_no_gaussian(pdf_n, test_id, label=r"$n$ / $\sigma_{\phi}$ [-]", filename=filename, logy=True)
+
+pdf_n = [np.asarray(v_tDNS[NOUT]), np.asarray(v_tStylES[NOUT])]
+test_id = ["DNS", "StylES"]
+filename = './results_comparison/' + tailDims + 'PDF_v.png'
+plot_pdf_no_gaussian(pdf_n, test_id, label=r"$n$ / $\sigma_{\zeta}$ [-]", filename=filename, logy=True)
 
 
 
@@ -570,11 +708,11 @@ for nf in range(3):
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
     #plt.xlim(0,10)    
     if (nf==0):
-        plt.savefig('./results_comparison/DNS_vs_StylES_n.png', dpi=300)
+        plt.savefig('./results_comparison/' + tailDims + 'DNS_vs_StylES_n.png', dpi=300)
     elif (nf==1):
-        plt.savefig('./results_comparison/DNS_vs_StylES_phi.png', dpi=300)
+        plt.savefig('./results_comparison/' + tailDims + 'DNS_vs_StylES_phi.png', dpi=300)
     elif (nf==2):
-        plt.savefig('./results_comparison/DNS_vs_StylES_vort.png', dpi=300)
+        plt.savefig('./results_comparison/' + tailDims + 'DNS_vs_StylES_vort.png', dpi=300)
     plt.close()
 
 
@@ -684,7 +822,7 @@ for nplot in range(3):
     plt.legend(fontsize="10", loc ="upper left", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]")
     plt.ylabel("MSE")
-    plt.savefig('./results_comparison/MSE_fields_' + str(nplot) + '.png', dpi=300)
+    plt.savefig('./results_comparison/' + tailDims + 'MSE_fields_' + str(nplot) + '.png', dpi=300)
     plt.close()
 
 
@@ -726,7 +864,7 @@ plt.xlabel("N")
 plt.ylabel("time per time step [s]")
 plt.legend(frameon=False)
 #plt.grid(visible=True)
-plt.savefig("./results_comparison/performance_BOUT_vs_StylES.png")
+plt.savefig("./results_comparison/" + tailDims + "performance_BOUT_vs_StylES.png")
 
 
 
@@ -786,7 +924,7 @@ plt.savefig("./results_comparison/performance_BOUT_vs_StylES.png")
 #     plt.legend(fontsize="10", loc ="lower left", frameon=False)
 #     plt.xlabel("time [$\omega_{ci}^{-1}$]")
 #     plt.ylabel(label)
-#     plt.savefig('./results_comparison/DNS_vs_StylES_UVP_' + str(f) + '.png', dpi=300)
+#     plt.savefig('./results_comparison/' + tailDims + 'DNS_vs_StylES_UVP_' + str(f) + '.png', dpi=300)
 #     plt.close()
 
 
@@ -832,5 +970,5 @@ plt.savefig("./results_comparison/performance_BOUT_vs_StylES.png")
 # plt.legend(fontsize="10", loc ="upper right", frameon=False)
 # plt.xlabel("time [$\omega_{ci}^{-1}$]")
 # plt.ylabel("MSE")
-# plt.savefig('./results_comparison/MSE_fields.png', dpi=300)
+# plt.savefig('./results_comparison/' + tailDims + 'MSE_fields.png', dpi=300)
 # plt.close()

@@ -56,7 +56,7 @@ def save_fields(totTime, U, V, P, C=None, B=None, W=None, filename="restart.npz"
 
 
 
-def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e1], useLogSca=True):
+def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, 1e2], useLogSca=True):
     U_cpu = convert(U)
     V_cpu = convert(V)
 
@@ -75,8 +75,8 @@ def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3]
     # xLinLim    = [0.0e0, 600]
     # yLinLim    = [0.0e0, 0.1]
 
-    # plt.xlim(xlim)
-    # plt.ylim(ylim) 
+    #plt.xlim(xlim)
+    plt.ylim(ylim) 
 
     if (label is not None):
         plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
@@ -101,7 +101,7 @@ def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3]
 
 
 
-def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1e-2, 1e3], ylim=[1e-8, None], useLogSca=True):
+def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1.0e-1, 1.0e-3], ylim=[1e-8, 1.e2], useLogSca=True):
     U_cpu = convert(U)
     V_cpu = convert(V)
     Z_cpu = convert(Z)

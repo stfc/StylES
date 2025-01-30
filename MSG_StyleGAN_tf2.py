@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -92,23 +92,24 @@ def make_pre_synthesis_model():
 
     # Noise inputs
     noise_inputs = []
-    for ldx in range(G_LAYERS):
-
-        phi_init = tf.random_uniform_initializer(minval=0.0, maxval=2.0*np.pi, seed=ldx)
-        phi_noise = tf.Variable(
-            initial_value=phi_init([NC2_NOISE,1], dtype=DTYPE),
-            trainable=False,
-            name="input_phi_noise%d" % ldx,
-            )
-
-        noise_inputs.append(phi_noise)
+    for ldx in range(G_LAYERS_FIL):
+        res = 2**(int(ldx/2)+2)
+        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=0.05)
+        noise_inputs.append(rnoise)
 
 
     # Things to do at the end of each layer.
     def layer_epilogue(in_x, ldx):
         if use_noise:
-            in_x = apply_noise(in_x, ldx, noise_inputs[ldx], randomize_noise=randomize_noise)
-
+            if randomize_noise:
+                rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
+                                          dtype=DTYPE,
+                                          mean=0.0,
+                                          stddev=0.05, 
+                                          name="random_noise%d" % ldx)
+            else:
+                rnoise = tf.cast(noise_inputs[ldx], DTYPE)
+            in_x = apply_noise(in_x, ldx, rnoise)
         bias = layer_bias(in_x)
         in_x = bias(in_x)
         in_x = layers.LeakyReLU()(in_x)
@@ -144,11 +145,11 @@ def make_pre_synthesis_model():
 
 
     # Building blocks for remaining layers.
-    def block(in_res, in_x):  # res = 3..RES_LOG2
+    def block_LES(in_res, in_x):  # res = 3..RES_LOG2
         in_x = layer_epilogue(
             blur(
                 upscale2d_conv2d(in_x,
-                    fmaps=nf(in_res - 1),
+                    fmaps=NUM_CHANNELS,
                     kernel=3,
                     gain=GAIN,
                     use_wscale=use_wscale,
@@ -160,7 +161,7 @@ def make_pre_synthesis_model():
         in_x = layer_epilogue(
             conv2d(
                 in_x,
-                fmaps=nf(in_res - 1),
+                fmaps=NUM_CHANNELS,
                 kernel=3,
                 gain=GAIN,
                 use_wscale=use_wscale,
@@ -180,15 +181,15 @@ def make_pre_synthesis_model():
             x  = find_centred_fields(x)
             phi, _ = normalize_max(x)
             rs = OUTPUT_DIM/(2**in_res)
-            x  = find_vorticity_HW(phi, DELX*rs, DELY*rs)
+            x  = apply_filter_NCH(x, size=2, rsca=1, mean=0.0, delta=DELX*rs, type='Vorticity', NCH=1)
             x  = find_centred_fields(x)
             x, _ = normalize_max(x)
             return x, phi
         else:
             x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
             x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-            if (USE_VORTICITY):
-                x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+            if (CALC_VORTICITY):
+                x_B = apply_filter_NCH(x_G, size=2, rsca=1, mean=0.0, delta=LEN_DOMAIN/2**in_res, type='Vorticity', NCH=1)
             else:
                 x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
             x = tf.concat([x_R, x_G, x_B], axis=1)
@@ -203,29 +204,28 @@ def make_pre_synthesis_model():
     if (NUM_CHANNELS==1):
         images_out.append(torgb(2, x)[0])
         for res in range(3, RES_LOG2-FIL):
-            x = block(res, x)
+            x = block_LES(res, x)
             images_out.append(torgb(res, x)[0])
 
         # last block save phi_LES
         res = RES_LOG2-FIL
-        x = block(res, x)
-        vort_LES, phi_LES = torgb(res, x)
-        images_out.append(vort_LES)
-        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, phi_LES])
+        x = block_LES(res, x)
+        nvort_LES, nPhi_LES = torgb(res, x)
+        images_out.append(nvort_LES)
+        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, nPhi_LES])
     else:
         images_out.append(torgb(2, x))
         for res in range(3, RES_LOG2-FIL):
-            x = block(res, x)
+            x = block_LES(res, x)
             images_out.append(torgb(res, x))
-
 
         # LES layer
         res = RES_LOG2-FIL
-        x = block(res, x)
-        x = torgb(res, x)
-        images_out.append(x)
+        x = block_LES(res, x)
+        nUVP_LES = torgb(res, x)
+        images_out.append(nUVP_LES)
 
-        pre_synthesis_model = Model(inputs=dlatents, outputs=images_out)
+        pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, nUVP_LES])
 
 
     return pre_synthesis_model
@@ -257,27 +257,30 @@ def make_synthesis_model():
         images_in.append(tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE))
 
     if (NUM_CHANNELS==1):
-        phi_LES = tf.keras.Input(shape=([1, 2**res, 2**res]), dtype=DTYPE)
+        nPhi_LES = tf.keras.Input(shape=([1, 2**res, 2**res]), dtype=DTYPE)
+    else:
+        nUVP_LES = tf.keras.Input(shape=([NUM_CHANNELS, 2**res, 2**res]), dtype=DTYPE)
 
     # Noise inputs
     noise_inputs = []
-    for ldx in range(G_LAYERS):
-
-        phi_init = tf.random_uniform_initializer(minval=0.0, maxval=2.0*np.pi, seed=ldx)
-        phi_noise = tf.Variable(
-            initial_value=phi_init([NC2_NOISE,1], dtype=DTYPE),
-            trainable=False,
-            name="input_phi_noise%d" % ldx,
-            )
-
-        noise_inputs.append(phi_noise)
+    for ldx in range(G_LAYERS_FIL, G_LAYERS):
+        res = 2**(int(ldx/2)+2)
+        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=0.05)
+        noise_inputs.append(rnoise)
 
 
     # Things to do at the end of each layer.
     def layer_epilogue(in_x, ldx):
         if use_noise:
-            in_x = apply_noise(in_x, ldx, noise_inputs[ldx], randomize_noise=randomize_noise)
-
+            if randomize_noise:
+                rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
+                                          dtype=DTYPE,
+                                          mean=0.0,
+                                          stddev=0.05,
+                                          name="random_noise%d" % ldx)
+            else:
+                rnoise = tf.cast(noise_inputs[ldx-G_LAYERS_FIL], DTYPE)
+            in_x = apply_noise(in_x, ldx, rnoise)
         bias = layer_bias(in_x)
         in_x = bias(in_x)
         in_x = layers.LeakyReLU()(in_x)
@@ -340,15 +343,15 @@ def make_synthesis_model():
             x  = find_centred_fields(x)
             phi, _ = normalize_max(x)
             rs = OUTPUT_DIM/(2**in_res)
-            x  = find_vorticity_HW(phi, DELX*rs, DELY*rs)
+            x = apply_filter_NCH(x, size=2, rsca=1, mean=0.0, delta=DELX*rs, type='Vorticity', NCH=1)
             x  = find_centred_fields(x)
             x, _ = normalize_max(x)
             return x, phi
         else:
             x_R = apply_filter_NCH(x[:,0:1,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
             x_G = apply_filter_NCH(x[:,1:2,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
-            if (USE_VORTICITY):
-                x_B = find_vorticity_HW(x_G, LEN_DOMAIN/2**in_res, LEN_DOMAIN/2**in_res)
+            if (CALC_VORTICITY):
+                x_B = apply_filter_NCH(x_G, size=2, rsca=1, mean=0.0, delta=LEN_DOMAIN/2**in_res, type='Vorticity', NCH=1)
             else:
                 x_B = apply_filter_NCH(x[:,2:3,:,:], size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
             x = tf.concat([x_R, x_G, x_B], axis=1)
@@ -360,7 +363,7 @@ def make_synthesis_model():
     # Finally, arrange the computations for the layers
     if (NUM_CHANNELS==1):
 
-        x = phi_LES
+        x = nPhi_LES
         images_out = []
         for layer in range(2, RES_LOG2-FIL+1):
             images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
@@ -370,16 +373,16 @@ def make_synthesis_model():
             images_out.append(torgb(res, x)[0])
 
         # last block save phi_DNS
-        res = RES_LOG2-FIL
+        res = RES_LOG2
         x = block(res, x)
-        vort_DNS, phi_DNS = torgb(res, x)
-        images_out.append(vort_DNS)
+        nvort_DNS, nphi_DNS = torgb(res, x)
+        images_out.append(nvort_DNS)
 
-        synthesis_model = Model(inputs=[dlatents, images_in, phi_LES], outputs=[images_out, phi_DNS])
+        synthesis_model = Model(inputs=[dlatents, images_in, nPhi_LES], outputs=[images_out, nphi_DNS])
 
     else:
 
-        x = images_in[-1]
+        x = nUVP_LES
         images_out = []
         for layer in range(2, RES_LOG2-FIL+1):
             images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
@@ -388,7 +391,7 @@ def make_synthesis_model():
             x = block(res, x)
             images_out.append(torgb(res, x))
 
-        synthesis_model = Model(inputs=[dlatents, images_in], outputs=images_out)
+        synthesis_model = Model(inputs=[dlatents, images_in, nUVP_LES], outputs=images_out)
 
 
     return synthesis_model
@@ -408,6 +411,7 @@ def make_discriminator_model():
                                         # None = no filtering.
     fused_scale        = False       # True = fused convolution + scaling, 
                                         # False = separate ops, 'auto' = decide automatically.
+    use_instance_noise = False
 
     def blur(in_x):
         if blur_filter:
@@ -423,8 +427,15 @@ def make_discriminator_model():
     images_in = []
 
     for res in range(2, RES_LOG2 + 1):
-        image = tf.keras.Input(shape=([NUM_CHANNELS, (2 ** res), (2 ** res)]), dtype=DTYPE)
-        images_in.append(image)
+        res2 = 2**res
+        image = tf.keras.Input(shape=([NUM_CHANNELS, res2, res2]), dtype=DTYPE)
+
+        if (use_instance_noise):
+            rnoise = tf.random.uniform([tf.shape(image)[0], 1, res2, res2], minval=-AMP_INSTAN_NOISE, maxval=AMP_INSTAN_NOISE, dtype=DTYPE)
+            images_in.append(rnoise + image)
+        else:
+            images_in.append(image)
+
 
     # Building blocks.
     def fromrgb(in_x, in_res, full_maps=False):  # res = 2..RES_LOG2

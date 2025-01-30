@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -97,17 +97,17 @@ def StyleGAN_load_fields(file_path):
         if (TESTCASE=='mHW'):
             U_DNS_org = sc.ndimage.gaussian_filter(U_DNS_org, rsin, mode=['constant','wrap'])
             V_DNS_org = sc.ndimage.gaussian_filter(V_DNS_org, rsin, mode=['constant','wrap'])
-            if (not USE_VORTICITY):
+            if (not CALC_VORTICITY):
                 P_DNS_org = sc.ndimage.gaussian_filter(P_DNS_org, rsin, mode=['constant','wrap'])
         else:
             U_DNS_org = sc.ndimage.gaussian_filter(U_DNS_org, rsin, mode='wrap')
             V_DNS_org = sc.ndimage.gaussian_filter(V_DNS_org, rsin, mode='wrap')
-            if (not USE_VORTICITY):
+            if (not CALC_VORTICITY):
                 P_DNS_org = sc.ndimage.gaussian_filter(P_DNS_org, rsin, mode='wrap')
         
         U_DNS_org = U_DNS_org[::rsin,::rsin]
         V_DNS_org = V_DNS_org[::rsin,::rsin]
-        if (USE_VORTICITY):
+        if (CALC_VORTICITY):
             P_DNS_org = np_find_vorticity_HW(V_DNS_org, DELX*rsin, DELY*rsin)
         else:
             P_DNS_org = P_DNS_org[::rsin,::rsin]
@@ -130,17 +130,17 @@ def StyleGAN_load_fields(file_path):
             if (TESTCASE=='mHW'):
                 fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode=['constant','wrap'])
                 fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode=['constant','wrap'])
-                if (not USE_VORTICITY):
+                if (not CALC_VORTICITY):
                     fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode=['constant','wrap'])
             else:
                 fU_DNS = sc.ndimage.gaussian_filter(fU_DNS, rs, mode='wrap')
                 fV_DNS = sc.ndimage.gaussian_filter(fV_DNS, rs, mode='wrap')
-                if (not USE_VORTICITY):
+                if (not CALC_VORTICITY):
                     fP_DNS = sc.ndimage.gaussian_filter(fP_DNS, rs, mode='wrap')
 
             fU_DNS = fU_DNS[::rs,::rs]
             fV_DNS = fV_DNS[::rs,::rs]
-            if (USE_VORTICITY):
+            if (CALC_VORTICITY):
                 fP_DNS = np_find_vorticity_HW(fV_DNS, DELX*rsin*rs, DELY*rsin*rs)
             else:
                 fP_DNS = fP_DNS[::rs,::rs]                
@@ -278,19 +278,21 @@ def generate_and_save_images(mapping, synthesis, input, iteration):
     # find inference
     dlatents    = mapping(input[0], training=False)
 
-    g_pre_images = pre_synthesis(dlatents, training = False)
-    #g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image
+    g_pre_images, nUVP_LES = pre_synthesis(dlatents, training = False)
+    if (USE_LES_FIELDS):
+        nUVP_LES = input[1]
+        g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], input[1]]  # overwrite with Gaussian filtered image        
 
     if (NUM_CHANNELS==1):
-        g_images, _ = synthesis([dlatents, g_pre_images], training = False)
+        g_images, _ = synthesis([dlatents, g_pre_images, nUVP_LES], training = False)
     else:
-        g_images = synthesis([dlatents, g_pre_images], training = False)
+        g_images = synthesis([dlatents, g_pre_images, nUVP_LES], training = False)
 
     div  = np.zeros(RES_LOG2-1)
     momU = np.zeros(RES_LOG2-1)
     momV = np.zeros(RES_LOG2-1)
 
-    colors = ['Reds_r','Blues','hot','hsv','winter']
+    colors = ['Blues','Reds_r','hot','hsv','winter']
 
     for reslog in range(RES_LOG2-1):
         res = 2**(reslog+2)

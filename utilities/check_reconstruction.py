@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -407,7 +407,7 @@ for tv, tollLES in enumerate(tollLESValues):
         # if (k==0):
 
         #     # find new scaling
-        #     fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo  = find_scaling(imgA, gfilter_sub)
+        #     fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo  = find_scaling(imgA, gfilter_sub)
             
         #     UVP_max = tf.identity(nUVP_amaxo)
 
@@ -417,7 +417,7 @@ for tv, tollLES in enumerate(tollLESValues):
 
         # else:
 
-        #     fnUVP, nfUVP, fUVP_amax, nUVP_amax  = find_scaling(imgA, gfilter_sub)
+        #     fnUVP, nfUVP, nUVP_amax, fUVP_amax  = find_scaling(imgA, gfilter_sub)
 
         #     # find scaling coefficients
         #     kUmax   = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*nUVP_amaxo[0]*fUVP_amax[0]/fUVP_amaxo[0]

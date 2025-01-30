@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -73,13 +73,17 @@ def train_step(input, images):
 
         # find inference
         dlatents = mapping(input, training = True)
-        g_pre_images  = pre_synthesis(dlatents, training = True)
-        # g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], images[RES_LOG2-FIL-2]]  # overwrite with Gaussian filtered image
+        g_pre_images, nUVP_LES  = pre_synthesis(dlatents, training = True)
+        if (USE_LES_FIELDS):
+            nUVP_LES = images[RES_LOG2-FIL-2]
+        else:
+            nUVP_LES = g_pre_images[RES_LOG2-FIL-2:RES_LOG2-FIL-2+1]
+        g_pre_images = [g_pre_images[0:RES_LOG2-FIL-2], nUVP_LES]  # overwrite with Gaussian filtered image
 
         if (NUM_CHANNELS==1):
-            g_images, _ = synthesis([dlatents, g_pre_images], training = True)
+            g_images, _ = synthesis([dlatents, g_pre_images, nUVP_LES], training = True)
         else:
-            g_images = synthesis([dlatents, g_pre_images], training = True)
+            g_images = synthesis([dlatents, g_pre_images, nUVP_LES], training = True)
             
         # find losses
         real_output = discriminator(images,   training=True)
@@ -93,17 +97,20 @@ def train_step(input, images):
 
     #apply gradients
     gradients_of_mapping       = map_tape.gradient(loss_gen, mapping.trainable_variables)
-    gradients_of_pre_synthesis = pre_syn_tape.gradient(loss_gen, pre_synthesis.trainable_variables)
+    if (not USE_LES_FIELDS):
+        gradients_of_pre_synthesis = pre_syn_tape.gradient(loss_gen, pre_synthesis.trainable_variables)
     gradients_of_synthesis     = syn_tape.gradient(loss_gen, synthesis.trainable_variables)
     gradients_of_discriminator = dis_tape.gradient(loss_dis, discriminator.trainable_variables)
 
     gradients_of_mapping       = [g if g is not None else tf.zeros_like(g) for g in gradients_of_mapping]
-    gradients_of_pre_synthesis = [g if g is not None else tf.zeros_like(g) for g in gradients_of_pre_synthesis]
+    if (not USE_LES_FIELDS):
+        gradients_of_pre_synthesis = [g if g is not None else tf.zeros_like(g) for g in gradients_of_pre_synthesis]
     gradients_of_synthesis     = [g if g is not None else tf.zeros_like(g) for g in gradients_of_synthesis]
     gradients_of_discriminator = [g if g is not None else tf.zeros_like(g) for g in gradients_of_discriminator]
 
     generator_optimizer.apply_gradients(zip(gradients_of_mapping,           mapping.trainable_variables))
-    generator_optimizer.apply_gradients(zip(gradients_of_pre_synthesis,     pre_synthesis.trainable_variables))
+    if (not USE_LES_FIELDS):
+        generator_optimizer.apply_gradients(zip(gradients_of_pre_synthesis,     pre_synthesis.trainable_variables))
     generator_optimizer.apply_gradients(zip(gradients_of_synthesis,         synthesis.trainable_variables))
     discriminator_optimizer.apply_gradients(zip(gradients_of_discriminator, discriminator.trainable_variables))
 

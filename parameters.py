@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float64"        # Data type to use for activations and outputs.
+DTYPE = "float32"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -41,13 +41,13 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 1
+SEED_RESTART = 2
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
 
 TESTCASE          = 'HW' 
-DATASET           = '../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/'
+DATASET           = '../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/'
 CHKP_DIR          = './checkpoints/'
 CHKP_PREFIX       = os.path.join(CHKP_DIR, 'ckpt')
 PROFILE           = False
@@ -68,9 +68,12 @@ elif DEVICE_TYPE == 'GPU':
     TRANSPOSE_FROM_CONV2D = [0,1,2,3]
 
 # Network hyper-parameters
-OUTPUT_DIM        = 1024
-BATCH_SIZE        = 8  # remember this shoudl NOT be bigger than dataset length!
-DIMS_3D           = True
+OUTPUT_DIM        = 256
+BATCH_SIZE        = 1  # remember this shoudl NOT be bigger than dataset length!
+if (BATCH_SIZE>1):
+    NDIMS         = 3
+else:
+    NDIMS         = 2
 LATENT_SIZE       = 512            # Size of the lantent space, which is constant in all mapping layers 
 GM_LRMUL          = 0.01           # Learning rate multiplier
 BLUR_FILTER       = [1, 2, 1, ]    # Low-pass filter to apply when resampling activations. None = no filtering.
@@ -85,23 +88,21 @@ G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
 M_LAYERS          = 2*(RES_LOG2 - FIL) - 2  # end of medium layers (ideally equal to the filter...)
 C_LAYERS          = 2  # end of coarse layers 
-NUM_CHANNELS      = 1      # Number of input color channels. Overridden based on dataset.
+NUM_CHANNELS      = 3     # Number of input color channels. Overridden based on dataset.
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
-AMP_NOISE_MAX     = 1.0
-NC_NOISE          = 50
-NC2_NOISE         = int(NC_NOISE/2)
-USE_VORTICITY     = True
-LOAD_DNS          = False
-RANDOMIZE_NOISE   = False
+BUFFER_SIZE       = 1 #same size of the number of images in DATASET
+CALC_VORTICITY    = True
+USE_LES_FIELDS    = False
+RANDOMIZE_NOISE   = False 
+AMP_INSTAN_NOISE  = 0.0
 
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
 IMAGES_EVERY   = 10000
-SAVE_EVERY     = 50000
+SAVE_EVERY     = 100000
 IRESTART       = False
 
 # others
@@ -144,21 +145,22 @@ RS              = int(2**FIL)
 RS2             = int(RS/2)
 N2L             = N_LES2-RS2
 N2R             = N_LES2+RS2+1
-LEN_DOMAIN      = 50.176  # for 2D HWLEN_DOMAIN
+LEN_DOMAIN      = 37.698  # for 2D HWLEN_DOMAIN
 DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES
 DELY_LES        = LEN_DOMAIN/N_LES
-INIT_SCA        = 15.0
+LOAD_DNS        = True 
+INIT_SCA        = 5.0   # N=256=>5, N=512=>10, N=1024=>15
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
-FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_run0_time501.npz"
-FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_run0_time298.npz"
-FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_run0_time440.npz"
+FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_HW_run0_time501.npz"
+FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_HW_run0_time298.npz"
+FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_HW_run0_time440.npz"
 FILE_DNS_N256_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run6_time400.npz"
 FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run1_time300.npz"
-
+FILE_DNS_N1024_3D = "../../../data/BOUT_runs/HW_3D/HW_Biskamp/fields_npz_3D_1img/fields_run0_time1001.npz"
 
 # learning rate for latent space optimizer
 lr_DNS_maxIt  = 100000

@@ -16,7 +16,4 @@
 #SBATCH --account=FUAL8_UKAEA_ML
 #SBATCH --gres=gpu:1
 
-module load profile/deeplrn
-module load cineca-ai/3.0.0
-
-mpiexec -np 1 ./hw3d
+python create_restart.py

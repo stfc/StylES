@@ -1,9 +1,30 @@
+#----------------------------------------------------------------------------------------------
+#
+#    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
+#
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams, Josh Williams
+#
+#    Licence: This program is free software: you can redistribute it and/or modify
+#    it under the terms of the GNU General Public License as published by
+#    the Free Software Foundation, either version 3 of the License, or
+#    (at your option) any later version.
+
+#    This program is distributed in the hope that it will be useful,
+#    but WITHOUT ANY WARRANTY; without even the implied warranty of
+#    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+#    GNU General Public License for more details.
+
+#    You should have received a copy of the GNU General Public License
+#    along with this program.  If not, see <https://www.gnu.org/licenses/>.
+#
+#-----------------------------------------------------------------------------------------------
 import numpy as np
 import matplotlib.pyplot as plt
 import os
 import glob
 import imageio
 import sys
+import vtk
 
 from PIL import Image
 from boututils.datafile import DataFile
@@ -23,10 +44,11 @@ sys.path.insert(0, '../../../codes/TurboGenPY/')
 
 from tkespec import compute_tke_spectrum2d_3v
 from isoturb import generate_isotropic_turbulence_2d
+from vtk.util.numpy_support import vtk_to_numpy
 
 #----------------------------- parameters
-MODE        = 'READ_NETCDF'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
-PATH        = "../../BOUT-dev/build_release/examples/hasegawa-wakatani-3d/"
+MODE        = 'READ_NUMPY'   # 'READ_NETCDF', 'READ_NUMPY', 'MAKE_ANIMATION'
+PATH        = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
 PATH_NUMPY  = PATH + "results_StylES/fields/"
 # PATH_NUMPY  = "../utilities/results_checkStyles/fields/"
 PATH_NETCDF = PATH + "data/"
@@ -35,13 +57,12 @@ PATH_ANIMAT_PLOTS = "./results/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_checkStyles/plots/"
 # PATH_ANIMAT_PLOTS = "../utilities/results_reconstruction/plots/"
 # PATH_ANIMAT_PLOTS = "../../StylES/utilities/results_reconstruction/plots/"
-FIND_MIXMAX = 1   # " 0) yes, 1) use INIT_SCA, 2) use None "
-DTYPE       = 'float32'
+FIND_MIXMAX = 0   # " 0) yes, 1) use INIT_SCA, 2) use None "
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 1 # skip between STIME, FTIME, ITIME
+ITIME       = 10 # skip between STIME, FTIME, ITIME
 PLOT_2D     = True
-PLOT_VTK    = True
+PLOT_VTK    = False
 SAVE_FIELDS = False
 
 useLogSca   = True
@@ -133,21 +154,7 @@ if (MODE=='READ_NUMPY' or MODE=='READ_NETCDF'):
 
 
 #----------------------------- functions
-def convert(x):
-    return x
-
-
-def cr(phi, i, j):
-    return np.roll(phi, (-i, -j), axis=(0,1))
-
-
-def save_fields(totTime, U, V, P, filename="restart.npz"):
-
-    # save restart file
-    np.savez(filename, t=totTime, U=U, V=V, P=P)
-
-
-if (DIMS_3D):
+if (NDIMS==3):
     x = np.linspace(0,LX,NX)
     y = np.linspace(0,LY,NY)
     z = np.linspace(0,LZ,NZ)
@@ -246,7 +253,7 @@ if (MODE=='READ_NETCDF'):
         # plot
         if (PLOT_2D):
             filename = dest + "/plots/plots_time" + tail + ".png"
-            print_fields_3(n, phi, vort, filename=filename, transpose=True, \
+            print_fields_3(n, phi, vort, filename=filename, transpose=False, \
                 Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
 
         # energy
@@ -288,10 +295,38 @@ elif (MODE=='READ_NUMPY'):
         for t,file in enumerate(sorted(files)):
             if (t%ITIME==0):
                 filename = PATH_NUMPY + file
-                data     = np.load(filename)
-                Img_n    = np.cast[DTYPE](data['U'])
-                Img_phi    = np.cast[DTYPE](data['V'])
-                Img_vort    = np.cast[DTYPE](data['P'])
+                if (".npz" in file):
+                    data     = np.load(filename)
+                    simtime  = np.cast[DTYPE](data['simtime'])
+                    Img_n    = np.cast[DTYPE](data['U'])
+                    Img_phi  = np.cast[DTYPE](data['V'])
+                    Img_vort = np.cast[DTYPE](data['P'])
+                elif (".vts" in file):
+                    filename = PATH_NUMPY + file
+                    tailf = file.replace("fields_DNS_", "")
+                    tailf = tailf.replace(".vts", "")
+                    tailf = int(tailf)
+                    simtime = 2.5e-5*tailf
+                    
+                    reader = vtk.vtkXMLStructuredGridReader()
+                    reader.SetFileName(filename)
+                    reader.Update()
+
+                    vtk_n_StylES = reader.GetOutput().GetPointData().GetArray(0)
+                    vtk_p_StylES = reader.GetOutput().GetPointData().GetArray(1)
+                    vtk_v_StylES = reader.GetOutput().GetPointData().GetArray(2)
+
+                    Img_n    = vtk_to_numpy(vtk_n_StylES)
+                    Img_phi  = vtk_to_numpy(vtk_p_StylES)
+                    Img_vort = vtk_to_numpy(vtk_v_StylES)
+                    
+                    Img_n    = np.reshape(Img_n, (NX,NY,NZ))
+                    Img_phi  = np.reshape(Img_phi, (NX,NY,NZ))
+                    Img_vort = np.reshape(Img_vort, (NX,NY,NZ))
+                    
+                    Img_n    = np.transpose(Img_n, (2,1,0))
+                    Img_phi  = np.transpose(Img_phi, (2,1,0))
+                    Img_vort = np.transpose(Img_vort, (2,1,0))
                 
                 min_U = min(np.min(Img_n), min_U)
                 max_U = max(np.max(Img_n), max_U)
@@ -309,15 +344,41 @@ elif (MODE=='READ_NUMPY'):
     closePlot=False
     for t,file in enumerate(sorted(files)):
         if (t%ITIME==0):
-            filename  = PATH_NUMPY + file
-            data      = np.load(filename)
-            simtime   = np.cast[DTYPE](data['simtime'])
-            n    = np.cast[DTYPE](data['U'])
-            phi  = np.cast[DTYPE](data['V'])
-            vort = np.cast[DTYPE](data['P'])
+            if (".npz" in file):
+                data     = np.load(filename)
+                simtime  = np.cast[DTYPE](data['simtime'])
+                n    = np.cast[DTYPE](data['U'])
+                phi  = np.cast[DTYPE](data['V'])
+                vort = np.cast[DTYPE](data['P'])
+            elif (".vts" in file):
+                filename = PATH_NUMPY + file
+                tailf = file.replace("fields_DNS_", "")
+                tailf = tailf.replace(".vts", "")
+                tailf = int(tailf)
+                simtime = 2.5e-5*tailf
+                
+                reader = vtk.vtkXMLStructuredGridReader()
+                reader.SetFileName(filename)
+                reader.Update()
 
+                vtk_n_StylES = reader.GetOutput().GetPointData().GetArray(0)
+                vtk_p_StylES = reader.GetOutput().GetPointData().GetArray(1)
+                vtk_v_StylES = reader.GetOutput().GetPointData().GetArray(2)
+
+                n    = vtk_to_numpy(vtk_n_StylES)
+                phi  = vtk_to_numpy(vtk_p_StylES)
+                vort = vtk_to_numpy(vtk_v_StylES)
+                
+                n    = np.reshape(n, (NX,NY,NZ))
+                phi  = np.reshape(phi, (NX,NY,NZ))
+                vort = np.reshape(vort, (NX,NY,NZ))
+                
+                n    = np.transpose(n, (2,1,0))
+                phi  = np.transpose(phi, (2,1,0))
+                vort = np.transpose(vort, (2,1,0))
+                                
             # adjust this is due to the use of BATCH_SIZE for y dimension...
-            if (DIMS_3D):
+            if (NDIMS==3):
                 n    = np.transpose(n, (1,0,2))
                 phi  = np.transpose(phi, (1,0,2))
                 vort = np.transpose(vort, (1,0,2))
@@ -333,15 +394,23 @@ elif (MODE=='READ_NUMPY'):
                 gridToVTK(filename, X, Y, Z, pointData={"n": n, "phi": phi, "vort": vort})
 
             # plot, energy and spectra
-            n = n[:,0,:]
-            phi = phi[:,0,:]
-            vort = vort[:,0,:]
-        
+            if (NDIMS==3):
+                n = n[0,:,:]
+                phi = phi[0,:,:]
+                vort = vort[0,:,:]
+            else:
+                n = n[:,0,:]
+                phi = phi[:,0,:]
+                vort = vort[:,0,:]
+
             # plot
             if (PLOT_2D):
-                file_dest = file.replace(".npz",".png")
+                if (".npz" in file):
+                    file_dest = file.replace(".npz",".png")
+                elif (".vts" in file):
+                    file_dest = file.replace(".vts",".png")
                 filename  = "./results/plots/" + file_dest
-                print_fields_3(n, phi, vort, filename=filename, transpose=True, \
+                print_fields_3(n, phi, vort, filename=filename, transpose=False, \
                     Umin=min_U, Umax=max_U, Vmin=min_V, Vmax=max_V, Pmin=min_P, Pmax=max_P)
 
             # energy
