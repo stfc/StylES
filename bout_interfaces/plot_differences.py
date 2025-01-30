@@ -59,7 +59,7 @@ listRUN      = ["DNS",1]
 ITIME_DNS    = 1
 ITIME_StylES = 1
 PATH_BOUTHW  = "../../BOUT-dev/build_release/examples/hasegawa-wakatani/"
-FIND_DIFFS   = False
+FIND_DIFFS   = True
 
 
 #----------------------------- initiliaze
@@ -159,7 +159,7 @@ def wrap_rcparams(f, params):
         plt.rcParams.update(backup)
     return _f
 
-def plot_pdf_no_gaussian(variable_to_plot, test_id, label="", filename="", show_plot=False, logy=False):
+def plot_pdf_no_gaussian(variable_to_plot, test_id, label="", filename="", show_plot=False, logy=False, closePlot=True):
     plt.close("all")
     fig, ax = plt.subplots(figsize=(10, 10))
 
@@ -196,6 +196,8 @@ def plot_pdf_no_gaussian(variable_to_plot, test_id, label="", filename="", show_
     plt.savefig(filename, bbox_inches="tight", pad_inches=0, dpi=300)
     if show_plot:
         plt.show()
+    if (closePlot):
+        plt.close()
 
 
 #----------------------------- loop over DNS and StylES
@@ -289,7 +291,7 @@ for lrun in listRUN:
 
             # print ("done for file time step ", str(t))
                         
-        os.chdir("../../../../../StylES_2D_new/bout_interfaces/")
+        os.chdir("../../../../../StylES/bout_interfaces/")
         print("number of total files: ", cont_DNS)
 
     else:

@@ -35,7 +35,7 @@ RUN_TEST = False
 if (RUN_TEST):
     PATH_StylES = "../"
 else:
-    PATH_StylES = "../../../../StylES_2D_new/"
+    PATH_StylES = "../../../../StylES/"
 
 sys.path.insert(0, PATH_StylES + './')
 sys.path.insert(0, PATH_StylES + './LES_Solvers/')
@@ -538,7 +538,8 @@ def findLESTerms(pLES):
 
     #--------------------------- save field values
     if (simtime>=pPrint):
-        pPrint = pPrint + pPrintFreq
+        pPrinto = pPrint
+        pPrint  = pPrint + pPrintFreq
 
         # find DNS fields
         U_DNS = UVP_DNS[:,0,:,:].numpy()
@@ -554,7 +555,7 @@ def findLESTerms(pLES):
         P_DNS = np.ascontiguousarray(P_DNS)
 
         # save as vts
-        filename = "./results_StylES/fields/fields_DNS_" + str(pStep).zfill(7)
+        filename = "./results_StylES/fields/fields_DNS_" + str(pPrinto).zfill(4)
         gridToVTK(filename, X, Y, Z, pointData={"n": U_DNS, "phi": V_DNS, "vort": P_DNS})
 
         # save DNS Poisson terms
