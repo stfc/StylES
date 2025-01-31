@@ -166,15 +166,15 @@ if (RESTART_WL):
     z0         = data["z0"]
     dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
-    UVP_amaxo  = data["UVP_amaxo"]
+    nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
-    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
-    print("UVP_amaxo",   UVP_amaxo.shape, np.min(UVP_amaxo),  np.max(UVP_amaxo))
+    print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
 
     # assign variables
@@ -220,9 +220,9 @@ U_DNS = UVP_DNS[0,0,:,:].numpy()
 V_DNS = UVP_DNS[0,1,:,:].numpy()
 P_DNS = UVP_DNS[0,2,:,:].numpy()
 
-Umax = abs(tf.reduce_max(UVP_amaxo[:,0,:,:]).numpy())
-Vmax = abs(tf.reduce_max(UVP_amaxo[:,1,:,:]).numpy())
-Pmax = abs(tf.reduce_max(UVP_amaxo[:,2,:,:]).numpy())
+Umax = abs(tf.reduce_max(nUVP_amaxo[:,0,:,:]).numpy())
+Vmax = abs(tf.reduce_max(nUVP_amaxo[:,1,:,:]).numpy())
+Pmax = abs(tf.reduce_max(nUVP_amaxo[:,2,:,:]).numpy())
 Umin = -Umax
 Vmin = -Vmax
 Pmin = -Pmax
@@ -246,8 +246,8 @@ else:
 
 
 # # set old scaling coefficients
-# fnUVPo, nfUVPo, UVP_amaxo, fUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub)
-# UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub, findNewValues=False)
+UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 # prepare old LES_in values
 if (USE_DIFF_LES):
@@ -362,13 +362,10 @@ def initFlow(npv):
 @nvtx.annotate("findLESTerms", color="blue")
 def findLESTerms(pLES):
 
-    # global pPrint, rLES, z0, simtimeo, pStepo
-    # global UVP_max, tollDNS
-    # global nfUVPo, fnUVPo
-    # global UVP_amaxo, fUVP_amaxo
-    # global LES_in0o, nfimgAo
-
+    global UVP_DNS
+    global fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo
     global pPrint, simtimeo, pStepo
+    # global LES_in0o, nfimgAo
 
 
 
@@ -446,9 +443,9 @@ def findLESTerms(pLES):
             LES_in0o    = tf.identity(LES_in0)
             nfimgAo     = tf.identity(nfimgA)
 
-        # # find new scaling
-        # fnUVPo, nfUVPo, fUVP_amaxo, UVP_amaxo, kUVP_max = find_scaling_new(UVP_DNS, fnUVPo, nfUVPo, UVP_amaxo, fUVP_amaxo, gfilter_sub)
-        # UVP_max = [kUVP_max*UVP_amaxo] + [fUVP_amaxo]
+        # find new scaling
+        fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub, fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo)
+        UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
         # end prepare phase
         if (PROFILE_BOUT):
@@ -538,7 +535,10 @@ def findLESTerms(pLES):
 
     #--------------------------- save field values
     if (simtime>=pPrint):
-        pPrinto = pPrint
+        if (int(pPrintFreq)>=1):
+            pPrinto = int(pPrint)
+        else:
+            pPrinto = pStep
         pPrint  = pPrint + pPrintFreq
 
         # find DNS fields

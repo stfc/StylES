@@ -230,8 +230,8 @@ if (LOAD_DNS):
     # save LES_in0
     LES_in0 = tf.identity(fUVP_DNS)
 
-    fnUVPo, nfUVPo, UVP_amaxo, fUVP_amaxo = find_scaling(UVP_DNS_org, gfilter_1ch)
-    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+    fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS_org, gfilter_1ch, subSection=False, findNewValues=False)
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
 else:
 
@@ -265,16 +265,16 @@ else:
 
     UVP_DNS, _, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
     
-    fnUVPo, nfUVPo, UVP_amaxo, fUVP_amaxo = find_scaling(UVP_DNS, gfilter_1ch)
-    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+    fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_1ch, subSection=False, findNewValues=False)
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
         
     UVP_DNS_org, UVP_LES_org, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
 
 
 # find min/max values
-Umax = abs(tf.reduce_max(UVP_amaxo[:,0,:,:]).numpy())
-Vmax = abs(tf.reduce_max(UVP_amaxo[:,1,:,:]).numpy())
-Pmax = abs(tf.reduce_max(UVP_amaxo[:,2,:,:]).numpy())
+Umax = abs(tf.reduce_max(nUVP_amaxo[:,0,:,:]).numpy())
+Vmax = abs(tf.reduce_max(nUVP_amaxo[:,1,:,:]).numpy())
+Pmax = abs(tf.reduce_max(nUVP_amaxo[:,2,:,:]).numpy())
 Umin = -Umax
 Vmin = -Vmax
 Pmin = -Pmax
@@ -325,15 +325,15 @@ if (RESTART_WL):
     z0         = data["z0"]
     dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
-    UVP_amaxo = data["UVP_amaxo"]
+    nUVP_amaxo = data["nUVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
-    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
-    print("UVP_amaxo", UVP_amaxo.shape, np.min(UVP_amaxo), np.max(UVP_amaxo))
+    print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
 
     # assign variables
@@ -482,16 +482,16 @@ if (not RESTART_WL):
                 z0         = z0, \
                 dlatents   = dlatents, \
                 LES_in0    = LES_all[-1], \
-                UVP_amaxo = UVP_amaxo, \
+                nUVP_amaxo = nUVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo, \
-                noise_DNS = noise_DNS)
+                noise_DNS  = noise_DNS)
     else:
         filename =  Z0_DIR_WL + "z0.npz"
         np.savez(filename,
-                z0       = z0, \
+                z0         = z0, \
                 dlatents   = dlatents, \
-                LES_in0  = LES_all[-1], \
-                UVP_amaxo = UVP_amaxo, \
+                LES_in0    = LES_all[-1], \
+                nUVP_amaxo = nUVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo)
 
 

@@ -1032,8 +1032,10 @@ def find_bracket(F, G, filter, spacingFactor):
     return fpPhi_DNS, pPhi_DNS
 
 
+    
+
 @tf.function
-def find_scaling(UVP, gfilter):
+def find_scaling(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, nUVP_amaxo=None, subSection=True, findNewValues=True):
     
         U = UVP[:,0:1,:,:]
         V = UVP[:,1:2,:,:]
@@ -1051,9 +1053,14 @@ def find_scaling(UVP, gfilter):
         nV_amax = tf.maximum(V_min, V_max)
         nP_amax = tf.maximum(P_min, P_max)
 
-        nU = U/nU_amax
-        nV = V/nV_amax
-        nP = P/nP_amax
+        if (subSection):
+            nU = U[:,:,N2L:N2R,N2L:N2R]/nU_amax
+            nV = V[:,:,N2L:N2R,N2L:N2R]/nV_amax
+            nP = P[:,:,N2L:N2R,N2L:N2R]/nP_amax
+        else:
+            nU = U/nU_amax
+            nV = V/nV_amax
+            nP = P/nP_amax
 
         fnU = gfilter(nU)
         fnV = gfilter(nV)
@@ -1061,67 +1068,14 @@ def find_scaling(UVP, gfilter):
 
 
         # find normalized filtered field
-        fU = gfilter(U, training=False)
-        fV = gfilter(V, training=False)
-        fP = gfilter(P, training=False)
-
-        U_min = tf.abs(tf.reduce_min(fU, axis=(1,2,3), keepdims=True))
-        U_max = tf.abs(tf.reduce_max(fU, axis=(1,2,3), keepdims=True))
-        V_min = tf.abs(tf.reduce_min(fV, axis=(1,2,3), keepdims=True))
-        V_max = tf.abs(tf.reduce_max(fV, axis=(1,2,3), keepdims=True))
-        P_min = tf.abs(tf.reduce_min(fP, axis=(1,2,3), keepdims=True))
-        P_max = tf.abs(tf.reduce_max(fP, axis=(1,2,3), keepdims=True))
-
-        fU_amax = tf.maximum(U_min, U_max)
-        fV_amax = tf.maximum(V_min, V_max)
-        fP_amax = tf.maximum(P_min, P_max)
-
-        nfU = fU/fU_amax
-        nfV = fV/fV_amax
-        nfP = fP/fP_amax
-        
-        # concatenate all values
-        fnUVP     = [fnU, fnV, fnP]
-        nfUVP     = [nfU, nfV, nfP]
-        nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
-        fUVP_amax = tf.concat([fU_amax, fV_amax, fP_amax], axis=1)
-        
-        return fnUVP, nfUVP, nUVP_amax, fUVP_amax
-
-
-
-@tf.function
-def find_scaling_new(UVP, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter):
-    
-        U = UVP[:,0:1,:,:]
-        V = UVP[:,1:2,:,:]
-        P = UVP[:,2:3,:,:]
-    
-        # find filter of normalized fields
-        U_min = tf.abs(tf.reduce_min(U, axis=(1,2,3), keepdims=True))
-        U_max = tf.abs(tf.reduce_max(U, axis=(1,2,3), keepdims=True))
-        V_min = tf.abs(tf.reduce_min(V, axis=(1,2,3), keepdims=True))
-        V_max = tf.abs(tf.reduce_max(V, axis=(1,2,3), keepdims=True))
-        P_min = tf.abs(tf.reduce_min(P, axis=(1,2,3), keepdims=True))
-        P_max = tf.abs(tf.reduce_max(P, axis=(1,2,3), keepdims=True))
-
-        nU_amax = tf.maximum(U_min, U_max)
-        nV_amax = tf.maximum(V_min, V_max)
-        nP_amax = tf.maximum(P_min, P_max)
-
-        nU = U[:,:,N2L:N2R,N2L:N2R]/nU_amax
-        nV = V[:,:,N2L:N2R,N2L:N2R]/nV_amax
-        nP = P[:,:,N2L:N2R,N2L:N2R]/nP_amax
-
-        fnU = gfilter(nU)
-        fnV = gfilter(nV)
-        fnP = gfilter(nP)
-
-
-        # find normalized filtered field
-        fU = gfilter(U[:,:,N2L:N2R,N2L:N2R], training=False)
-        fV = gfilter(V[:,:,N2L:N2R,N2L:N2R], training=False)
-        fP = gfilter(P[:,:,N2L:N2R,N2L:N2R], training=False)
+        if (subSection):        
+            fU = gfilter(U[:,:,N2L:N2R,N2L:N2R], training=False)
+            fV = gfilter(V[:,:,N2L:N2R,N2L:N2R], training=False)
+            fP = gfilter(P[:,:,N2L:N2R,N2L:N2R], training=False)
+        else:
+            fU = gfilter(U, training=False)
+            fV = gfilter(V, training=False)
+            fP = gfilter(P, training=False)
 
         U_min = tf.abs(tf.reduce_min(fU, axis=(1,2,3), keepdims=True))
         U_max = tf.abs(tf.reduce_max(fU, axis=(1,2,3), keepdims=True))
@@ -1142,15 +1096,17 @@ def find_scaling_new(UVP, fnUVPo, nfUVPo, nUVP_amaxo, fUVP_amaxo, gfilter):
         fnUVP     = [fnU, fnV, fnP]
         nfUVP     = [nfU, nfV, nfP]
         fUVP_amax = tf.concat([fU_amax, fV_amax, fP_amax], axis=1)
-        nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
         
-        kUmax = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*nUVP_amaxo[0]*fUVP_amax[0]/fUVP_amaxo[0]
-        kVmax = (fnUVPo[1]*nfUVP[1])/(fnUVP[1]*nfUVPo[1])*nUVP_amaxo[1]*fUVP_amax[1]/fUVP_amaxo[1]
-        kPmax = (fnUVPo[2]*nfUVP[2])/(fnUVP[2]*nfUVPo[2])*nUVP_amaxo[2]*fUVP_amax[2]/fUVP_amaxo[2]
-        
-        kUVP_max = [kUmax, kVmax, kPmax]
-        
-        return fnUVP, nfUVP, fUVP_amax, nUVP_amax, kUVP_max
+        if (findNewValues):
+            nU_amax = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*nUVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
+            nV_amax = (fnUVPo[1]*nfUVP[1])/(fnUVP[1]*nfUVPo[1])*nUVP_amaxo[0,1,0,0]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
+            nP_amax = (fnUVPo[2]*nfUVP[2])/(fnUVP[2]*nfUVPo[2])*nUVP_amaxo[0,2,0,0]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
+            nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
+        else:
+            nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
+
+        return fnUVP, nfUVP, fUVP_amax, nUVP_amax
+                        
     
     
 class layer_wlatent_mLES(layers.Layer):
