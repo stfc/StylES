@@ -56,7 +56,7 @@ if (TESTCASE=='HIT_2D'):
     os.system("mkdir -p ../LES_Solvers/restart_fromGAN/")
     Z0_DIR_WL = "../LES_Solvers/restart_fromGAN/"
 elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-    L = 50.176
+    L = LEN_DOMAIN
     os.system("mkdir -p ../bout_interfaces/restart_fromGAN/logs/")
     os.system("rm ../bout_interfaces/restart_fromGAN/*.png")
     os.system("rm ../bout_interfaces/restart_fromGAN/*.txt")
@@ -367,8 +367,6 @@ else:
         LES_all.append(LES_in0[:,:,::rs,::rs])
 
 
-zAll = [dlatents, LES_all, LES_in0]
-
 print("Shape of dlatents, LES_all, LES_in0: ", dlatents.shape, len(LES_all), LES_in0.shape)
 print ("============================Completed setup!\n\n")
 
@@ -378,6 +376,7 @@ print ("============================Completed setup!\n\n")
 #------------------------------------------------------ find initial residuals
 if (LOAD_DNS):
     # find inference...
+    zAll = [dlatents, LES_all, LES_in0]
     UVP_DNS, UVP_LES, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
 else:
     # UVP_DNS  = UVP_DNS_org
@@ -390,7 +389,7 @@ else:
 
 
 # find residuals
-resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS_org, UVP_LES, typeRes=1)
+resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS_org, UVP_LES_org, typeRes=0)
 print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1:3e}  resDNS {2:3e} loss_fil {3:3e} " \
         .format(resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil.numpy()))
 

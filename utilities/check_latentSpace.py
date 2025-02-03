@@ -54,7 +54,7 @@ if (TESTCASE=='HIT_2D'):
     FILE_REAL_PATH = "../LES_Solvers/fields/"
     Z0_DIR_WL      = "../LES_Solvers/restart_fromGAN/"
 elif (TESTCASE=='HW' or TESTCASE=='mHW'):
-    L              = 50.176
+    L              = LEN_DOMAIN
     Z0_DIR_WL      = "../bout_interfaces/restart_fromGAN/"
     FILE_REAL_PATH = "../bout_interfaces/results/fields/"
 

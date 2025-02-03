@@ -981,6 +981,83 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
 
 
+
+
+@tf.function
+def wl_find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
+
+    if (NUM_CHANNELS==1):
+
+        # find predictions
+        LES_U = z[3][:,0:1,:,:]
+        LES_V = z[3][:,1:2,:,:]
+
+        _, U_DNS = synthesis([z[0], z[1], z[2], LES_U], training=False)
+        _, V_DNS = synthesis([z[0], z[1], z[2], LES_V], training=False)
+
+        # rescale
+        U_DNS = U_DNS*UVP_max[0][:,0:1,:,:]
+        V_DNS = V_DNS*UVP_max[0][:,1:2,:,:]
+
+        # find vorticity
+        P_DNS = find_vorticity_HW(V_DNS, DELX, DELY)
+        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+
+        # find filtered fields
+        if (find_fDNS):
+            U_LES = z[3][:,0:1,:,:]*UVP_max[1][:,0:1,:,:]
+            V_LES = z[3][:,1:2,:,:]*UVP_max[1][:,1:2,:,:]
+            P_LES = find_vorticity_HW(V_LES, DELX_LES, DELY_LES)
+            UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
+
+            fU_DNS = filter(U_DNS)
+            fV_DNS = filter(V_DNS)
+            fP_DNS = find_vorticity_HW(fV_DNS, DELX_LES, DELY_LES)
+            fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+
+            return UVP_DNS, UVP_LES, fUVP_DNS
+        else:
+            return UVP_DNS
+
+    else:
+
+        # find predictions
+        predictions = synthesis(z, training=False)
+        UVP_DNS = predictions[RES_LOG2-2]
+
+        # rescale
+        UVP_DNS = rescale_max(UVP_DNS, UVP_max[0])
+        U_DNS   = UVP_DNS[:,0:1,:,:]
+        V_DNS   = UVP_DNS[:,1:2,:,:]
+        
+        # find vorticity
+        if (CALC_VORTICITY):
+            P_DNS = find_vorticity_HW(V_DNS, DELX, DELY)
+        else:
+            P_DNS = UVP_DNS[:,2:3,:,:]
+        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)        
+
+        # find filtered fields
+        if (find_fDNS):
+            U_LES = z[2][-1][:,0:1,:,:]*UVP_max[1][:,0:1,:,:]
+            V_LES = z[2][-1][:,1:2,:,:]*UVP_max[1][:,1:2,:,:]
+            P_LES = find_vorticity_HW(V_LES, DELX_LES, DELY_LES)
+            UVP_LES = tf.concat([U_LES, V_LES, P_LES], axis=1)
+
+            fUVP_DNS = filter(UVP_DNS)
+            fU_DNS   = fUVP_DNS[:,0:1,:,:]
+            fV_DNS   = fUVP_DNS[:,1:2,:,:]
+            if (CALC_VORTICITY):
+                fP_DNS   = find_vorticity_HW(fV_DNS, DELX_LES, DELY_LES)
+            else:
+                fP_DNS   = fUVP_DNS[:,2:3,:,:]
+            fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
+
+            return UVP_DNS, UVP_LES, fUVP_DNS
+        else:
+            return UVP_DNS
+
+
 @tf.function
 def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
 
@@ -991,8 +1068,8 @@ def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
         loss_fil = resDNS
     elif (typeRes==1):
         resLES   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES)) # remember to use fUVP_DNS rather than UVP_LES
-        resDNS   = 0.0*resLES
-        resREC   = resDNS + resLES                                                                       # otherwise the gradients will be zero!!  
+        resDNS   = 0.0*resLES                                                                   # otherwise the gradients will be zero!!
+        resREC   = resDNS + resLES
         loss_fil = resLES
         
     return resREC, resLES, resDNS, loss_fil
@@ -1126,4 +1203,24 @@ class layer_wlatent_mLES(layers.Layer):
         wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
         wa = wa[:,0:M_LAYERS,:]
         w  = tf.concat([wa,wb], axis=1)
-        return w    
+        return w
+
+
+@tf.function
+def step_find_dlatents_mDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max, typeRes):
+    with tf.GradientTape() as tape_LES:
+        
+        # find predictions
+        UVP_DNS, UVP_LES, fUVP_DNS = wl_find_predictions(synthesis, filter, z, UVP_max)
+    
+        # find residuals
+        resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=typeRes)
+        
+        # apply gradients
+        gradients_LES = tape_LES.gradient(resREC, ltv)
+        opt.apply_gradients(zip(gradients_LES, ltv))
+
+        
+    return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil
+
+    

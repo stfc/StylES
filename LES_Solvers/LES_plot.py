@@ -459,7 +459,7 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
 
 
 
-def print_fields_3new(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
+def print_fields_5(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HIT_2D', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, diff=False, labels=None):
 
     if (labels==None):
@@ -509,7 +509,7 @@ def print_fields_3new(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None,
     if (diff):
         cmap1 = 'hot'
         cmap2 = 'hot'
-        cmap3 = 'jet'
+        cmap3 = 'bwr'
 
     if (geomR is not None):
         velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)

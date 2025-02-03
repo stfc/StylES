@@ -71,7 +71,7 @@ elif (TESTCASE=='HW' or TESTCASE=='mHW'):
     NL              = 101     # number of different latent vectors randomly selected
     t0_label        = r'0 $\omega^{-1}_{ci}$'
     tf_label        = r'100 $\omega^{-1}_{ci}$'
-    L               = 50.176
+    L               = LEN_DOMAIN
     Z0_DIR_WL      = "../bout_interfaces/restart_fromGAN/"
     CHKP_DIR_WL    = "../bout_interfaces/restart_fromGAN/checkpoints_wl/"
 

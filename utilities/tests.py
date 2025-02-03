@@ -101,7 +101,7 @@ exit(0)
 
 
 # #--------------------------- plot filtered quantities for IO
-# L        = 50.176
+# L        = LEN_DOMAIN
 # RS       = 16 # overwrite RS from parameters...
 # RS2      = 16  # overwrite RS2 from parameters...
 # DELX_LES = L/N_DNS*RS  # overwrite DELX_LES from parameters...
@@ -186,7 +186,7 @@ exit(0)
 
 #--------------------------- compare filters
 FILE_DNS = FILE_DNS_N512
-L        = 50.176
+L        = LEN_DOMAIN
 RS       = 8 # overwrite RS from parameters...
 RSCA     = 4
 DELX_LES = L/N_DNS*RS  # overwrite DELX_LES from parameters...

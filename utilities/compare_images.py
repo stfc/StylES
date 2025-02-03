@@ -261,8 +261,8 @@ def load_images(file_real, file_Style):
         # # calc grad phi
         # V_DNS_org = orig[:,:,1]
                 
-        # DELX = 50.176/1024
-        # DELY = 50.176/1024
+        # DELX = LEN_DOMAIN/1024
+        # DELY = LEN_DOMAIN/1024
         # orig[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
         #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 
@@ -304,8 +304,8 @@ def load_images(file_real, file_Style):
         # # calc grad phi
         # V_DNS_org = style[:,:,1]
                 
-        # DELX = 50.176/1024
-        # DELY = 50.176/1024
+        # DELX = LEN_DOMAIN/1024
+        # DELY = LEN_DOMAIN/1024
         # style[:,:,1] = np.sqrt(((cr(V_DNS_org, 1, 0) - cr(V_DNS_org, -1, 0))/(2.0*DELX))**2 \
         #             + ((cr(V_DNS_org, 0, 1) - cr(V_DNS_org, 0, -1))/(2.0*DELY))**2)
 

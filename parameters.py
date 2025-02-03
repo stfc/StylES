@@ -24,7 +24,7 @@ import os
 
 
 # General parameters
-DTYPE = "float32"        # Data type to use for activations and outputs.
+DTYPE = "float64"        # Data type to use for activations and outputs.
 if (DTYPE=="float64"):
     SMALL = 1.0e-8
     tf.keras.backend.set_floatx('float64')
@@ -92,7 +92,7 @@ NUM_CHANNELS      = 3     # Number of input color channels. Overridden based on 
 SCALING_UP        = tf.math.exp( tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 SCALING_DOWN      = tf.math.exp(-tf.cast(64.0, DTYPE) * tf.cast(tf.math.log(2.0), DTYPE))
 R1_GAMMA          = 10  # Gradient penalty coefficient
-BUFFER_SIZE       = 1 #same size of the number of images in DATASET
+BUFFER_SIZE       = 5000 #same size of the number of images in DATASET
 CALC_VORTICITY    = True
 USE_LES_FIELDS    = False
 RANDOMIZE_NOISE   = False 
@@ -145,7 +145,13 @@ RS              = int(2**FIL)
 RS2             = int(RS/2)
 N2L             = N_LES2-RS2
 N2R             = N_LES2+RS2+1
-LEN_DOMAIN      = 37.698  # for 2D HWLEN_DOMAIN
+
+if (TESTCASE=="HW"):
+    if (NDIMS==2):
+        LEN_DOMAIN = 50.176  # for 2D HWLEN_DOMAIN
+    elif (NDIMS==3):
+        LEN_DOMAIN = 37.698  # for 2D HWLEN_DOMAIN
+
 DELX            = LEN_DOMAIN/N_DNS
 DELY            = LEN_DOMAIN/N_DNS
 DELX_LES        = LEN_DOMAIN/N_LES

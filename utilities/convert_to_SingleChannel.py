@@ -35,7 +35,7 @@ from LES_plot import *
 from LES_functions  import *
 
 N    = 512
-L    = 50.176
+L    = LEN_DOMAIN
 sca  = 1
 PATH = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/"
 DEST = "./results_convertion_from_npz/"

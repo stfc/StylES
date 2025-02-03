@@ -2,7 +2,7 @@
 #
 #    Copyright (C): 2022 UKRI-STFC (Hartree Centre)
 #
-#    Author: Jony Castagna, Francesca Schiavello, Josh Williams, Josh Williams
+#    Author: Jony Castagna, Francesca Schiavello, Josh Williams
 #
 #    Licence: This program is free software: you can redistribute it and/or modify
 #    it under the terms of the GNU General Public License as published by
@@ -60,7 +60,7 @@ PATH_ANIMAT_PLOTS = "./results/plots/"
 FIND_MIXMAX = 0   # " 0) yes, 1) use INIT_SCA, 2) use None "
 DIR         = 0  # orientation plot (0=> x==horizontal; 1=> z==horizontal). In BOUT++ z is always periodic!
 STIME       = 0  # starting time to take as first image
-ITIME       = 10 # skip between STIME, FTIME, ITIME
+ITIME       = 1 # skip between STIME, FTIME, ITIME
 PLOT_2D     = True
 PLOT_VTK    = False
 SAVE_FIELDS = False
@@ -72,7 +72,7 @@ xLinLim     = [0.0e0, 600]
 yLinLim     = [0.0e0, 1.0]
 time        = []
 Energy      = []
-L           = 50.176 
+L           = LEN_DOMAIN 
 N           = OUTPUT_DIM
 delx        = L/N
 dely        = L/N
