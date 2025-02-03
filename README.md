@@ -27,9 +27,10 @@ You will also need to download the TurboGenPY repo from https://github.com/saadg
 # Quick start
 You can quickly test StylES with BOUT++ using the weights for an already trained StyleGAN according to the following database:
 
-|    Case     |    NxN      |    alpha    |     k       |   $\nu_n=\nu_\zeta$     |   Weights   |
-| ----------- | ----------- | ----------- | ----------- | ----------- | ----------- |
-|    HW       |1024x1024    |     1.0     |    1.0      |    10-6     | [mHW_N1024](https://zenodo.org/uploads/13253846)            |
+|    Case     |    NxN      |    alpha    |     k       |   $\nu_n=\nu_\zeta$       |                           Weights   |
+| ----------- | ----------- | ----------- | ----------- | ----------- | ------------------------------------------------- |
+|    HW       |  256x256    |     1.0     |    0.5      |    10-3     | [HW_N256]   (https://zenodo.org/records/14795506) |
+|   mHW       |1024x1024    |     1.0     |    1.0      |    10-6     | [mHW_N1024] (https://zenodo.org/uploads/13253846) |
 
 and the following steps:
 
