@@ -41,7 +41,7 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 2
+SEED_RESTART = 3
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
@@ -161,6 +161,7 @@ INIT_SCA        = 5.0   # N=256=>5, N=512=>10, N=1024=>15
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
 GAUSSIAN_FILTER = True
+
 FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_HW_run0_time501.npz"
 FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_HW_run0_time298.npz"
 FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_HW_run0_time440.npz"

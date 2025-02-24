@@ -555,7 +555,7 @@ def findLESTerms(pLES):
         P_DNS = np.ascontiguousarray(P_DNS)
 
         # save as vts
-        filename = "./results_StylES/fields/fields_DNS_" + str(pPrinto).zfill(4)
+        filename = "./results_StylES/fields/fields_DNS_" + str(pPrinto).zfill(7)
         gridToVTK(filename, X, Y, Z, pointData={"n": U_DNS, "phi": V_DNS, "vort": P_DNS})
 
         # save DNS Poisson terms

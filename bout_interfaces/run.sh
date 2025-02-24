@@ -16,4 +16,5 @@
 #SBATCH --account=FUAL8_UKAEA_ML
 #SBATCH --gres=gpu:1
 
-python create_restart.py
+python convert_netCDF2png.py
+#python create_restart.py

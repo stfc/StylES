@@ -38,7 +38,10 @@ tf.random.set_seed(seed=SEED_RESTART)
 
 
 #------------------------------------------------------ parameters
-FILE_DNS    = FILE_DNS_N256
+if (NDIMS==2):
+    FILE_DNS = FILE_DNS_N256
+elif (NDIMS==3):
+    FILE_DNS = FILE_DNS_N1024_3D
 TUNE        = False 
 TUNE_NOISE  = False 
 tollDNS     = 1e-3

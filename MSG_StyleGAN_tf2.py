@@ -94,7 +94,7 @@ def make_pre_synthesis_model():
     noise_inputs = []
     for ldx in range(G_LAYERS_FIL):
         res = 2**(int(ldx/2)+2)
-        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=0.05)
+        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=1.0)
         noise_inputs.append(rnoise)
 
 
@@ -105,7 +105,7 @@ def make_pre_synthesis_model():
                 rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
                                           dtype=DTYPE,
                                           mean=0.0,
-                                          stddev=0.05, 
+                                          stddev=1.0, 
                                           name="random_noise%d" % ldx)
             else:
                 rnoise = tf.cast(noise_inputs[ldx], DTYPE)
@@ -145,11 +145,11 @@ def make_pre_synthesis_model():
 
 
     # Building blocks for remaining layers.
-    def block_LES(in_res, in_x):  # res = 3..RES_LOG2
+    def block(in_res, in_x):  # res = 3..RES_LOG2
         in_x = layer_epilogue(
             blur(
                 upscale2d_conv2d(in_x,
-                    fmaps=NUM_CHANNELS,
+                    fmaps=nf(in_res - 1),
                     kernel=3,
                     gain=GAIN,
                     use_wscale=use_wscale,
@@ -161,7 +161,7 @@ def make_pre_synthesis_model():
         in_x = layer_epilogue(
             conv2d(
                 in_x,
-                fmaps=NUM_CHANNELS,
+                fmaps=nf(in_res - 1),
                 kernel=3,
                 gain=GAIN,
                 use_wscale=use_wscale,
@@ -204,24 +204,24 @@ def make_pre_synthesis_model():
     if (NUM_CHANNELS==1):
         images_out.append(torgb(2, x)[0])
         for res in range(3, RES_LOG2-FIL):
-            x = block_LES(res, x)
+            x = block(res, x)
             images_out.append(torgb(res, x)[0])
 
         # last block save phi_LES
         res = RES_LOG2-FIL
-        x = block_LES(res, x)
+        x = block(res, x)
         nvort_LES, nPhi_LES = torgb(res, x)
         images_out.append(nvort_LES)
         pre_synthesis_model = Model(inputs=dlatents, outputs=[images_out, nPhi_LES])
     else:
         images_out.append(torgb(2, x))
         for res in range(3, RES_LOG2-FIL):
-            x = block_LES(res, x)
+            x = block(res, x)
             images_out.append(torgb(res, x))
 
         # LES layer
         res = RES_LOG2-FIL
-        x = block_LES(res, x)
+        x = block(res, x)
         nUVP_LES = torgb(res, x)
         images_out.append(nUVP_LES)
 
@@ -265,7 +265,7 @@ def make_synthesis_model():
     noise_inputs = []
     for ldx in range(G_LAYERS_FIL, G_LAYERS):
         res = 2**(int(ldx/2)+2)
-        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=0.05)
+        rnoise = tf.random.normal([BATCH_SIZE, 1, res, res],  dtype=DTYPE, mean=0.0, stddev=1.0)
         noise_inputs.append(rnoise)
 
 
@@ -276,7 +276,7 @@ def make_synthesis_model():
                 rnoise = tf.random.normal([tf.shape(in_x)[0], 1, in_x.shape[2], in_x.shape[3]],
                                           dtype=DTYPE,
                                           mean=0.0,
-                                          stddev=0.05,
+                                          stddev=1.0,
                                           name="random_noise%d" % ldx)
             else:
                 rnoise = tf.cast(noise_inputs[ldx-G_LAYERS_FIL], DTYPE)
@@ -360,6 +360,34 @@ def make_synthesis_model():
             return x
 
 
+    # convert to RGB
+    def torgb_final(in_res, in_x):  # res = 2 -> RES_LOG2-FIL
+        in_lod = RES_LOG2 - in_res
+        x = conv2d(in_x, fmaps=NUM_CHANNELS, kernel=1, gain=1, use_wscale=use_wscale, name ="ToRGB_lod%d" % in_lod)
+        bias = layer_bias(x, name ="ToRGB_bias_lod%d" % in_lod)
+        x  = bias(x)
+        if (NUM_CHANNELS==1):
+            x = apply_filter_NCH(x, size=4, rsca=1, mean=0.0, delta=1.0, type='Gaussian', NCH=1)
+            x  = find_centred_fields(x)
+            phi, _ = normalize_max(x)
+            rs = OUTPUT_DIM/(2**in_res)
+            x = apply_filter_NCH(x, size=2, rsca=1, mean=0.0, delta=DELX*rs, type='Vorticity', NCH=1)
+            x  = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x, phi
+        else:
+            x_R = x[:,0:1,:,:]
+            x_G = x[:,1:2,:,:]
+            if (CALC_VORTICITY):
+                x_B = apply_filter_NCH(x_G, size=2, rsca=1, mean=0.0, delta=LEN_DOMAIN/2**in_res, type='Vorticity', NCH=1)
+            else:
+                x_B = x[:,2:3,:,:]
+            x = tf.concat([x_R, x_G, x_B], axis=1)
+            x = find_centred_fields(x)
+            x, _ = normalize_max(x)
+            return x
+
+
     # Finally, arrange the computations for the layers
     if (NUM_CHANNELS==1):
 
@@ -375,7 +403,7 @@ def make_synthesis_model():
         # last block save phi_DNS
         res = RES_LOG2
         x = block(res, x)
-        nvort_DNS, nphi_DNS = torgb(res, x)
+        nvort_DNS, nphi_DNS = torgb_final(res, x)
         images_out.append(nvort_DNS)
 
         synthesis_model = Model(inputs=[dlatents, images_in, nPhi_LES], outputs=[images_out, nphi_DNS])
@@ -387,9 +415,13 @@ def make_synthesis_model():
         for layer in range(2, RES_LOG2-FIL+1):
             images_out.append(images_in[layer-2])  # list will contain the output images at different resolutions
 
-        for res in range(RES_LOG2-FIL+1, RES_LOG2+1):
+        for res in range(RES_LOG2-FIL+1, RES_LOG2):
             x = block(res, x)
             images_out.append(torgb(res, x))
+
+        res = RES_LOG2
+        x = block(res, x)
+        images_out.append(torgb_final(res, x))
 
         synthesis_model = Model(inputs=[dlatents, images_in, nUVP_LES], outputs=images_out)
 

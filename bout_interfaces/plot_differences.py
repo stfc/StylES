@@ -71,7 +71,9 @@ COLORS       = ['black', 'green', 'blue', 'red']
 LINE_STYLE   = ['solid', 'dashed', 'dotted', 'dashdot']
 LINE_WIDTH   = 1.5
 
-
+if (NDIMS==3):
+    print("Carefull: need to add DELZ...")
+    exit()
 
 #----------------------------- initiliaze
 tailDims = str(NDIMS) + "D_"
@@ -88,10 +90,10 @@ cst.append(0)
 time_DNS    = []
 time_StylES = []
 
-dVdx_DNS         = []
-dVdy_DNS         = []
-dVdx_StylES      = []
-dVdy_StylES      = []
+dPhidx_DNS       = []
+dPhidy_DNS       = []
+dPhidx_StylES    = []
+dPhidy_StylES    = []
 Energy_DNS       = []
 Energy_StylES    = []
 rflux_DNS        = []
@@ -270,11 +272,11 @@ for lrun in listRUN:
             v_tDNS.append(v_DNS)
             
             # find energy spectra
-            dVdx = (-cr(p_DNS, 2, 0) + 8*cr(p_DNS, 1, 0) - 8*cr(p_DNS, -1,  0) + cr(p_DNS, -2,  0))/(12.0*DELX_LES)
-            dVdy = (-cr(p_DNS, 0, 2) + 8*cr(p_DNS, 0, 1) - 8*cr(p_DNS,  0, -1) + cr(p_DNS,  0, -2))/(12.0*DELY_LES)
-            E = 0.5*L**2*np.sum(n_DNS**2 + dVdx**2 + dVdy**2)*DELX*DELY
-            dVdx_DNS.append(dVdx)
-            dVdy_DNS.append(dVdy)
+            dPhidx = (-cr(p_DNS, 2, 0) + 8*cr(p_DNS, 1, 0) - 8*cr(p_DNS, -1,  0) + cr(p_DNS, -2,  0))/(12.0*DELX_LES)
+            dPhidy = (-cr(p_DNS, 0, 2) + 8*cr(p_DNS, 0, 1) - 8*cr(p_DNS,  0, -1) + cr(p_DNS,  0, -2))/(12.0*DELY_LES)
+            E = 0.5*np.sum(n_DNS**2 + dPhidx**2 + dPhidy**2)*DELX*DELY
+            dPhidx_DNS.append(dPhidx)
+            dPhidy_DNS.append(dPhidy)
             Energy_DNS.append(E)
 
             # find enstrophy
@@ -284,8 +286,8 @@ for lrun in listRUN:
             # find flux
             Vx_DNS = -((cr(p_DNS, 0, 1) - cr(p_DNS, 0,-1))/(2.0*DELY))  # vx = -dpdy
             Vy_DNS =  ((cr(p_DNS, 1, 0) - cr(p_DNS,-1, 0))/(2.0*DELX))  # vy =  dpdx
-            rflux = np.sum(n_DNS[N1,:]*Vx_DNS[N1,:])/L
-            pflux = np.sum(n_DNS[:,N1]*Vy_DNS[:,N1])/L
+            rflux = np.sum(n_DNS[N1,:]*Vx_DNS[N1,:]*DELY)/L
+            pflux = np.sum(n_DNS[:,N1]*Vy_DNS[:,N1]*DELX)/L
             rflux_DNS.append(rflux)
             pflux_DNS.append(pflux)
 
@@ -359,11 +361,11 @@ for lrun in listRUN:
                 v_tStylES.append(v_StylES)
 
                 # find energy spectra
-                dVdx = (-cr(p_StylES, 2, 0) + 8*cr(p_StylES, 1, 0) - 8*cr(p_StylES, -1,  0) + cr(p_StylES, -2,  0))/(12.0*DELX_LES)
-                dVdy = (-cr(p_StylES, 0, 2) + 8*cr(p_StylES, 0, 1) - 8*cr(p_StylES,  0, -1) + cr(p_StylES,  0, -2))/(12.0*DELY_LES)
-                E = 0.5*L**2*np.sum(n_StylES**2 + dVdx**2 + dVdy**2)*DELX*DELY
-                dVdx_StylES.append(dVdx)
-                dVdy_StylES.append(dVdy)
+                dPhidx = (-cr(p_StylES, 2, 0) + 8*cr(p_StylES, 1, 0) - 8*cr(p_StylES, -1,  0) + cr(p_StylES, -2,  0))/(12.0*DELX_LES)
+                dPhidy = (-cr(p_StylES, 0, 2) + 8*cr(p_StylES, 0, 1) - 8*cr(p_StylES,  0, -1) + cr(p_StylES,  0, -2))/(12.0*DELY_LES)
+                E = 0.5*np.sum(n_StylES**2 + dPhidx**2 + dPhidy**2)*DELX*DELY
+                dPhidx_StylES.append(dPhidx)
+                dPhidy_StylES.append(dPhidy)
                 Energy_StylES.append(E)
 
                 # find enstrophy
@@ -373,8 +375,8 @@ for lrun in listRUN:
                 # find flux
                 Vx_StylES = -((cr(p_StylES, 0, 1) - cr(p_StylES, 0,-1))/(2.0*DELY))  # vx = -dpdy
                 Vy_StylES =  ((cr(p_StylES, 1, 0) - cr(p_StylES,-1, 0))/(2.0*DELX))  # vy =  dpdx
-                rflux = np.sum(n_StylES[N1,:]*Vx_StylES[N1,:])/L
-                pflux = np.sum(n_StylES[:,N1]*Vy_StylES[:,N1])/L
+                rflux = np.sum(n_StylES[N1,:]*Vx_StylES[N1,:]*DELY)/L
+                pflux = np.sum(n_StylES[:,N1]*Vy_StylES[:,N1]*DELX)/L
 
                 rflux_StylES.append(rflux)
                 pflux_StylES.append(pflux)
@@ -411,7 +413,6 @@ if (FIND_DIFFS):
 
     import tensorflow_docs.vis.embed as embed
     embed.embed_file(anim_file)
-
 
 
 
@@ -458,9 +459,9 @@ listtk = [(kd, cst[len(listRUN)-2]),(FTIME-1, cst[len(listRUN)-1]-1)]
 
 # verify DNS and StylES have same amount of data
 for t,k in listtk:
-    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tDNS[t], dVdx_DNS[t], dVdy_DNS[t], L, L, L, True)
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tDNS[t], dPhidx_DNS[t], dPhidy_DNS[t], L, L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='DNS at t=' + str(int(time_DNS[t])), linestyle = LINE_STYLE[0], color = COLORS[0], linewidth=LINE_WIDTH)
-    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tStylES[k], dVdx_StylES[k], dVdy_StylES[k], L, L, L, True)
+    _, wave_numbers, tke_spectrum = compute_tke_spectrum2d_3v(n_tStylES[k], dPhidx_StylES[k], dPhidy_StylES[k], L, L, L, True)
     plt.plot(wave_numbers, tke_spectrum, label='StylES at t=' + str(int(time_DNS[t])), linestyle = LINE_STYLE[1], color = COLORS[1], linewidth=LINE_WIDTH)
 
     plt.ylim(1e-8, 1e2)
@@ -518,10 +519,22 @@ for lrun in listRUN:
         sumEnStylES = np.mean(Energy_StylES[i1:i2])
         print("Average energy StylES with toll " +  str(lrun) + " is: ", sumEnStylES)
 
-        # np.savez("./results_comparison/" + tailDims + "energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "energy_vs_time", tD=time_DNS, eD=Energy_DNS, tS=time_StylES[i1:i2], eS=Energy_StylES[i1:i2])
 
-plt.ylim(0,1e7)
-#plt.xlim(0,10)
+
+# dataLES_32 = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/centorimodelLES_pvode-256-32-cd0.05/timeseries/hw2d_32_cd0.05_energy_vs_time.txt")
+# plt.plot(dataLES_32[:,0], dataLES_32[:,1], label="LES_32 Centori")
+
+# dataLES_64 = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/rerun_centorimodelLES_pvode-256-64-cd0.01/timeseries/hw2d_64_cd0.01_energy_vs_time.txt")
+# plt.plot(dataLES_64[:,0], dataLES_64[:,1], label="LES_64 Centori")
+
+# print(np.mean(Energy_DNS))
+# print(np.mean(dataLES_32[:,1]))
+# print(np.mean(dataLES_64[:,1]))
+# print(np.mean(Energy_StylES[cst[0]:cst[1]]))
+
+#plt.ylim(0,1e7)
+#plt.xlim(0,100)
 #plt.yscale("log")
 #plt.xlabel("time steps [-]")
 plt.xlabel("time [$\omega_{ci}^{-1}$]", fontsize=XLSIZE)
@@ -560,13 +573,21 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], enstrophy_StylES[i1:i2], color=COLORS[i+1], linewidth=LINE_WIDTH, linestyle=LINE_STYLE[i+1], label=label)
         i=i+1
 
-        # np.savez("./results_comparison/" + tailDims + "enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
-        
+        np.savez("./results_comparison/" + tailDims + "enstrophy_vs_time", tD=time_DNS, eD=enstrophy_DNS, tS=time_StylES[i1:i2], eS=enstrophy_StylES[i1:i2])
+
+
+# dataLES_32 = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/centorimodelLES_pvode-256-32-cd0.05/timeseries/hw2d_32_cd0.05_enstrophy_vs_time.txt")
+# plt.plot(dataLES_32[:,0], dataLES_32[:,1], label="LES_32 Centori")
+
+# dataLES_64 = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/rerun_centorimodelLES_pvode-256-64-cd0.01/timeseries/hw2d_64_cd0.1_enstrophy_vs_time.txt")
+# plt.plot(dataLES_64[:,0], dataLES_64[:,1], label="LES_64 Centori")
+
+
 #plt.ylim(1e3,1e5)
-#plt.xlim(0,10)
+#plt.xlim(0,100)
 #plt.yscale("log")
 plt.xlabel("time [$\omega_{ci}^{-1}$]", fontsize=XLSIZE)
-plt.ylabel("enstrophy", fontsize=YLSIZE)
+#plt.ylabel("enstrophy", fontsize=YLSIZE)
 plt.legend(fontsize=LEGFSIZE, frameon=False)
 plt.savefig('./results_comparison/' + tailDims + 'enstrophy_vs_time.png', dpi=DPI)
 plt.close()
@@ -598,10 +619,13 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], rflux_StylES[i1:i2], color=COLORS[i+1], linewidth=LINE_WIDTH, linestyle=LINE_STYLE[i+1], label=label)
         i=i+1
         
-        # np.savez("./results_comparison/" + tailDims + "radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "radialFlux_vs_time", tD=time_DNS, eD=rflux_DNS, tS=time_StylES[i1:i2], eS=rflux_StylES[i1:i2])
+
+# dataLES = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/centorimodelLES_pvode-256-32-cd0.05/timeseries/hw2d_32_cd0.05_radial_flux_vs_time.txt")
+# plt.plot(dataLES[:,0], dataLES[:,1], label="LES Centori")
 
 #plt.ylim(0,3)
-#plt.xlim(0,10)
+#plt.xlim(0,100)
 plt.xlabel("time [$\omega_{ci}^{-1}$]", fontsize=XLSIZE)
 plt.ylabel("radial flux", fontsize=YLSIZE)
 plt.legend(fontsize=LEGFSIZE, frameon=False)
@@ -636,10 +660,14 @@ for lrun in listRUN:
         plt.plot(time_StylES[i1:i2], pflux_StylES[i1:i2], color=COLORS[i+1], linewidth=LINE_WIDTH, linestyle=LINE_STYLE[i+1], label=label)
         i=i+1
 
-        # np.savez("./results_comparison/" + tailDims + "poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
+        np.savez("./results_comparison/" + tailDims + "poloidalFlux_vs_time", tD=time_DNS, eD=pflux_DNS, tS=time_StylES[i1:i2], eS=pflux_StylES[i1:i2])
+
+
+# dataLES = np.loadtxt("/leonardo_work/FUAL8_UKAEA_ML/jwillia1/project/hw-pt/hw_256/centorimodelLES_pvode-256-32-cd0.05/timeseries/hw2d_32_cd0.05_poloidal_flux_vs_time.txt")
+# plt.plot(dataLES[:,0], dataLES[:,1], label="LES Centori")
 
 #plt.ylim(-5,5)
-#plt.xlim(0,10)
+#plt.xlim(0,100)
 plt.xlabel("time [$\omega_{ci}^{-1}$]", fontsize=XLSIZE)
 plt.ylabel("poloidal flux", fontsize=YLSIZE)
 plt.legend(fontsize=LEGFSIZE, frameon=False)
@@ -725,7 +753,7 @@ for nf in range(3):
 
     plt.legend(fontsize="15", frameon=False)
     plt.xlabel("time [$\omega_{ci}^{-1}$]", fontsize=XLSIZE)
-    #plt.xlim(0,10)    
+    #plt.xlim(0,10)
     if (nf==0):
         plt.savefig('./results_comparison/' + tailDims + 'DNS_vs_StylES_n.png', dpi=DPI)
     elif (nf==1):

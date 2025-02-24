@@ -451,7 +451,7 @@ if (PLOT_2D):
     filenames = glob.glob(PATH_ANIMAT_PLOTS + "/*.png")
     filenames = sorted(filenames)
 
-    with imageio.get_writer(anim_file, mode='I', fps=2) as writer:
+    with imageio.get_writer(anim_file, mode='I', fps=10) as writer:
         for filename in filenames:
             print(filename)
             image = imageio.v2.imread(filename)
