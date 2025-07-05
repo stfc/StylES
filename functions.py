@@ -393,37 +393,56 @@ def apply_filter(field, size=1, rsca=1, mean=0.0, delta=1.0, type='Gaussian', su
 def apply_filter_NCH(field, size=1, rsca=1, mean=0.0, delta=1.0, type='Gaussian', subsection=False, NCH=NUM_CHANNELS):
 
     # prepare differential Kernel
-    if (type=='Top-hat'):
-        filter_kernel = make_tophat_kernel(size=size, mean=mean, delta=delta)
-    elif (type=='Gaussian'):
-        filter_kernel = make_gaussian_kernel(size=size, mean=mean, delta=delta)
-    elif (type=='Spectral'):
-        filter_kernel = make_spectral_kernel(size=size, mean=mean, delta=delta)
-    elif (type=='Differential'):
-        filter_kernel = make_differential_kernel(size=size, mean=mean, delta=delta)
-    elif (type=='Vorticity'):
-        filter_kernel = make_vorticity_kernel(delta=delta)
-    filter_kernel = filter_kernel[:, :, tf.newaxis, tf.newaxis]
-    filter_kernel = tf.tile(filter_kernel, [1,1,1,NCH])
-    filter_kernel = tf.cast(filter_kernel, dtype=field.dtype)
+    if (type=='Differential'):
 
-    # add padding
-    if (subsection):
-        field = tf.nn.conv2d(field, filter_kernel, strides=[1, 1, rsca, rsca], padding="SAME", data_format=data_format)
-        N2 = int(field.shape[-1]/2)
-        return field[:,:,N2:N2+1,N2:N2+1]
-    else:
-        pleft   = size
-        pright  = size
-        ptop    = size
-        pbottom = size
+        # Build filter kernel in spectral space
+        denom = 1.0 + delta**2 * (KX2 + KY2)
 
-        field = periodic_padding_flexible(field, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
+        # Forward FFT
+        u_hat = tf.signal.fft2d(tf.cast(field, tf.complex128))
 
-        # convolve
-        field = tf.nn.conv2d(field, filter_kernel, strides=[1, 1, rsca, rsca], padding="VALID", data_format=data_format)
+        # Apply filter
+        u_hat_filtered = u_hat / tf.cast(denom, tf.complex128)
 
+        # Inverse FFT
+        u_les = tf.math.real(tf.signal.ifft2d(u_hat_filtered))
+
+        # downsmaple
+        field = u_les[:,:,::rsca,::rsca]
+        
         return field
+
+    else:
+
+        if (type=='Top-hat'):
+            filter_kernel = make_tophat_kernel(size=size, mean=mean, delta=delta)
+        elif (type=='Gaussian'):
+            filter_kernel = make_gaussian_kernel(size=size, mean=mean, delta=delta)
+        elif (type=='Spectral'):
+            filter_kernel = make_spectral_kernel(size=size, mean=mean, delta=delta)
+        elif (type=='Vorticity'):
+            filter_kernel = make_vorticity_kernel(delta=delta)
+        filter_kernel = filter_kernel[:, :, tf.newaxis, tf.newaxis]
+        filter_kernel = tf.tile(filter_kernel, [1,1,1,NCH])
+        filter_kernel = tf.cast(filter_kernel, dtype=field.dtype)
+
+        # add padding
+        if (subsection):
+            field = tf.nn.conv2d(field, filter_kernel, strides=[1, 1, rsca, rsca], padding="SAME", data_format=data_format)
+            N2 = int(field.shape[-1]/2)
+            return field[:,:,N2:N2+1,N2:N2+1]
+        else:
+            pleft   = size
+            pright  = size
+            ptop    = size
+            pbottom = size
+
+            field = periodic_padding_flexible(field, axis=(2,3), padding=([pleft, pright], [ptop, pbottom]))
+
+            # convolve
+            field = tf.nn.conv2d(field, filter_kernel, strides=[1, 1, rsca, rsca], padding="VALID", data_format=data_format)
+
+            return field
     
 
 
@@ -906,7 +925,7 @@ def find_centred_fields(UVP):
 
 
 @tf.function
-def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
+def find_predictions(synthesis, filter, z, UVP_max, nfUVP=None, fUVP_amax=None, fnUVPo=None, nfUVPo=None, find_fDNS=True, rescale=False):
 
     if (NUM_CHANNELS==1):
 
@@ -914,16 +933,23 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
         LES_U = z[2][:,0:1,:,:]
         LES_V = z[2][:,1:2,:,:]
 
-        _, U_DNS = synthesis([z[0], z[1], LES_U], training=False)
-        _, V_DNS = synthesis([z[0], z[1], LES_V], training=False)
+        _, nU_DNS = synthesis([z[0], z[1], LES_U], training=False)
+        _, nV_DNS = synthesis([z[0], z[1], LES_V], training=False)
+        nP_DNS    = find_vorticity_HW(nV_DNS, DELX_LES, DELY_LES)  # to be fixed for rescaling...
+        nUVP_DNS  = tf.concat([nU_DNS, nV_DNS, nP_DNS], axis=1)
+
+        # to be fixed for rescaling...
 
         # rescale
-        U_DNS = U_DNS*UVP_max[0][:,0:1,:,:]
-        V_DNS = V_DNS*UVP_max[0][:,1:2,:,:]
+        U_DNS = nU_DNS*UVP_max[0][:,0:1,:,:]
+        V_DNS = nV_DNS*UVP_max[0][:,1:2,:,:]
 
         # find vorticity
-        P_DNS = find_vorticity_HW(V_DNS, DELX, DELY)
-        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+        P_DNS  = find_vorticity_HW(V_DNS,  DELX, DELY)
+        nP_DNS = find_vorticity_HW(nV_DNS, DELX, DELY)
+
+        UVP_DNS  = tf.concat([U_DNS,   V_DNS,  P_DNS], axis=1)
+        nUVP_DNS = tf.concat([nU_DNS, nV_DNS, nP_DNS], axis=1)
 
         # find filtered fields
         if (find_fDNS):
@@ -937,7 +963,7 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
             fP_DNS = find_vorticity_HW(fV_DNS, DELX_LES, DELY_LES)
             fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-            return UVP_DNS, UVP_LES, fUVP_DNS
+            return UVP_DNS, UVP_LES, fUVP_DNS, nUVP_DNS
         else:
             return UVP_DNS
 
@@ -945,10 +971,16 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
 
         # find predictions
         predictions = synthesis(z, training=False)
-        UVP_DNS = predictions[RES_LOG2-2]
+        nUVP_DNS = predictions[RES_LOG2-2]
+
+        # find scaling
+        if (rescale):
+            fnUVP = filter(nUVP_DNS)[:,:,N2R:N2R+1,N2R:N2R+1]
+            UVP_amax = find_scaling(nfUVP, fnUVP, fnUVPo, nfUVPo, fUVP_amax, UVP_max[0], UVP_max[1])
+            UVP_max = [UVP_amax] + [fUVP_amax] 
 
         # rescale
-        UVP_DNS = rescale_max(UVP_DNS, UVP_max[0])
+        UVP_DNS = rescale_max(nUVP_DNS, UVP_max[0])
         U_DNS   = UVP_DNS[:,0:1,:,:]
         V_DNS   = UVP_DNS[:,1:2,:,:]
         
@@ -975,10 +1007,15 @@ def find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
                 fP_DNS   = fUVP_DNS[:,2:3,:,:]
             fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-            return UVP_DNS, UVP_LES, fUVP_DNS
+            if (rescale):
+                return UVP_DNS, UVP_LES, fUVP_DNS, fnUVP, nfUVP, UVP_max, UVP_max
+            else:
+                return UVP_DNS, UVP_LES, fUVP_DNS
         else:
-            return UVP_DNS
-
+            if (rescale):
+                return UVP_DNS, fnUVP, nfUVP, UVP_max
+            else:
+                return UVP_DNS
 
 
 
@@ -992,16 +1029,18 @@ def wl_find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
         LES_U = z[3][:,0:1,:,:]
         LES_V = z[3][:,1:2,:,:]
 
-        _, U_DNS = synthesis([z[0], z[1], z[2], LES_U], training=False)
-        _, V_DNS = synthesis([z[0], z[1], z[2], LES_V], training=False)
+        _, nU_DNS = synthesis([z[0], z[1], z[2], LES_U], training=False)
+        _, nV_DNS = synthesis([z[0], z[1], z[2], LES_V], training=False)
 
         # rescale
-        U_DNS = U_DNS*UVP_max[0][:,0:1,:,:]
-        V_DNS = V_DNS*UVP_max[0][:,1:2,:,:]
+        U_DNS = nU_DNS*UVP_max[0][:,0:1,:,:]
+        V_DNS = nV_DNS*UVP_max[0][:,1:2,:,:]
 
         # find vorticity
-        P_DNS = find_vorticity_HW(V_DNS, DELX, DELY)
-        UVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+        P_DNS  = find_vorticity_HW(V_DNS, DELX, DELY)
+        nP_DNS = find_vorticity_HW(nV_DNS, DELX, DELY)
+        UVP_DNS  = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+        nUVP_DNS = tf.concat([nU_DNS, nV_DNS, nP_DNS], axis=1)
 
         # find filtered fields
         if (find_fDNS):
@@ -1015,18 +1054,18 @@ def wl_find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
             fP_DNS = find_vorticity_HW(fV_DNS, DELX_LES, DELY_LES)
             fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-            return UVP_DNS, UVP_LES, fUVP_DNS
+            return UVP_DNS, UVP_LES, fUVP_DNS, nUVP_DNS
         else:
-            return UVP_DNS
+            return UVP_DNS, nUVP_DNS
 
     else:
 
         # find predictions
         predictions = synthesis(z, training=False)
-        UVP_DNS = predictions[RES_LOG2-2]
+        nUVP_DNS = predictions[RES_LOG2-2]
 
         # rescale
-        UVP_DNS = rescale_max(UVP_DNS, UVP_max[0])
+        UVP_DNS = rescale_max(nUVP_DNS, UVP_max[0])
         U_DNS   = UVP_DNS[:,0:1,:,:]
         V_DNS   = UVP_DNS[:,1:2,:,:]
         
@@ -1053,9 +1092,9 @@ def wl_find_predictions(synthesis, filter, z, UVP_max, find_fDNS=True):
                 fP_DNS   = fUVP_DNS[:,2:3,:,:]
             fUVP_DNS = tf.concat([fU_DNS, fV_DNS, fP_DNS], axis=1)
 
-            return UVP_DNS, UVP_LES, fUVP_DNS
+            return UVP_DNS, UVP_LES, fUVP_DNS, nUVP_DNS
         else:
-            return UVP_DNS
+            return UVP_DNS, nUVP_DNS
 
 
 @tf.function
@@ -1065,12 +1104,17 @@ def find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, tDNS, tLES, typeRes=0):
         resDNS   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
         resLES   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(UVP_LES,  tLES))
         resREC   = resDNS + resLES
-        loss_fil = resDNS
+        loss_fil = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
     elif (typeRes==1):
-        resLES   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES)) # remember to use fUVP_DNS rather than UVP_LES
-        resDNS   = 0.0*resLES                                                                   # otherwise the gradients will be zero!!
+        resDNS   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES)) # remember to use fUVP_DNS rather than UVP_LES
+        resLES   = 0.0*resDNS                                                                   # otherwise the gradients will be zero!!
         resREC   = resDNS + resLES
-        loss_fil = resLES
+        loss_fil = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
+    elif (typeRes==2):
+        resDNS   = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(UVP_DNS, tDNS)) # remember to use fUVP_DNS rather than UVP_LES
+        resLES   = 0.0*resDNS                                                                   # otherwise the gradients will be zero!!
+        resREC   = resDNS + resLES
+        loss_fil = 1.0/INIT_SCA*tf.math.reduce_mean(tf.math.squared_difference(fUVP_DNS, tLES))
         
     return resREC, resLES, resDNS, loss_fil
 
@@ -1112,7 +1156,7 @@ def find_bracket(F, G, filter, spacingFactor):
     
 
 @tf.function
-def find_scaling(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, nUVP_amaxo=None, subSection=True, findNewValues=True):
+def find_scaling_sub(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, UVP_amaxo=None, subSection=True, findNewValues=True):
     
         U = UVP[:,0:1,:,:]
         V = UVP[:,1:2,:,:]
@@ -1126,18 +1170,18 @@ def find_scaling(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, nUVP_a
         P_min = tf.abs(tf.reduce_min(P, axis=(1,2,3), keepdims=True))
         P_max = tf.abs(tf.reduce_max(P, axis=(1,2,3), keepdims=True))
 
-        nU_amax = tf.maximum(U_min, U_max)
-        nV_amax = tf.maximum(V_min, V_max)
-        nP_amax = tf.maximum(P_min, P_max)
+        U_amax = tf.maximum(U_min, U_max)
+        V_amax = tf.maximum(V_min, V_max)
+        P_amax = tf.maximum(P_min, P_max)
 
         if (subSection):
-            nU = U[:,:,N2L:N2R,N2L:N2R]/nU_amax
-            nV = V[:,:,N2L:N2R,N2L:N2R]/nV_amax
-            nP = P[:,:,N2L:N2R,N2L:N2R]/nP_amax
+            nU = U[:,:,N2L:N2R,N2L:N2R]/U_amax
+            nV = V[:,:,N2L:N2R,N2L:N2R]/V_amax
+            nP = P[:,:,N2L:N2R,N2L:N2R]/P_amax
         else:
-            nU = U/nU_amax
-            nV = V/nV_amax
-            nP = P/nP_amax
+            nU = U/U_amax
+            nV = V/V_amax
+            nP = P/P_amax
 
         fnU = gfilter(nU)
         fnV = gfilter(nV)
@@ -1175,15 +1219,105 @@ def find_scaling(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, nUVP_a
         fUVP_amax = tf.concat([fU_amax, fV_amax, fP_amax], axis=1)
         
         if (findNewValues):
-            nU_amax = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*nUVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
-            nV_amax = (fnUVPo[1]*nfUVP[1])/(fnUVP[1]*nfUVPo[1])*nUVP_amaxo[0,1,0,0]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
-            nP_amax = (fnUVPo[2]*nfUVP[2])/(fnUVP[2]*nfUVPo[2])*nUVP_amaxo[0,2,0,0]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
-            nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
+            U_amax = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*UVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
+            V_amax = (fnUVPo[1]*nfUVP[1])/(fnUVP[1]*nfUVPo[1])*UVP_amaxo[0,1,0,0]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
+            P_amax = (fnUVPo[2]*nfUVP[2])/(fnUVP[2]*nfUVPo[2])*UVP_amaxo[0,2,0,0]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
+            UVP_amax = tf.concat([U_amax, V_amax, P_amax], axis=1)
         else:
-            nUVP_amax = tf.concat([nU_amax, nV_amax, nP_amax], axis=1)
+            UVP_amax = tf.concat([U_amax, V_amax, P_amax], axis=1)
 
-        return fnUVP, nfUVP, fUVP_amax, nUVP_amax
+        return fnUVP, nfUVP, fUVP_amax, UVP_amax
                         
+   
+                   
+    
+
+@tf.function
+def find_scaling_old(UVP, gfilter, fnUVPo=None, nfUVPo=None, fUVP_amaxo=None, UVP_amaxo=None, findNewValues=True):
+    
+    
+        # find filtered normalized fields
+        U = UVP[:,0:1,:,:]
+        V = UVP[:,1:2,:,:]
+        P = UVP[:,2:3,:,:]
+
+        U_min = tf.abs(tf.reduce_min(U, axis=(1,2,3), keepdims=True))
+        U_max = tf.abs(tf.reduce_max(U, axis=(1,2,3), keepdims=True))
+        V_min = tf.abs(tf.reduce_min(V, axis=(1,2,3), keepdims=True))
+        V_max = tf.abs(tf.reduce_max(V, axis=(1,2,3), keepdims=True))
+        P_min = tf.abs(tf.reduce_min(P, axis=(1,2,3), keepdims=True))
+        P_max = tf.abs(tf.reduce_max(P, axis=(1,2,3), keepdims=True))
+
+        U_amax = tf.maximum(U_min, U_max)
+        V_amax = tf.maximum(V_min, V_max)
+        P_amax = tf.maximum(P_min, P_max)
+
+        nU = U/U_amax
+        nV = V/V_amax
+        nP = P/P_amax
+
+        fnU = gfilter(nU)
+        fnV = gfilter(nV)
+        fnP = gfilter(nP)
+
+
+        # find normalized filtered field
+        fU = gfilter(U, training=False)
+        fV = gfilter(V, training=False)
+        fP = gfilter(P, training=False)
+
+        U_min = tf.abs(tf.reduce_min(fU, axis=(1,2,3), keepdims=True))
+        U_max = tf.abs(tf.reduce_max(fU, axis=(1,2,3), keepdims=True))
+        V_min = tf.abs(tf.reduce_min(fV, axis=(1,2,3), keepdims=True))
+        V_max = tf.abs(tf.reduce_max(fV, axis=(1,2,3), keepdims=True))
+        P_min = tf.abs(tf.reduce_min(fP, axis=(1,2,3), keepdims=True))
+        P_max = tf.abs(tf.reduce_max(fP, axis=(1,2,3), keepdims=True))
+
+        fU_amax = tf.maximum(U_min, U_max)
+        fV_amax = tf.maximum(V_min, V_max)
+        fP_amax = tf.maximum(P_min, P_max)
+
+        nfU = fU/fU_amax
+        nfV = fV/fV_amax
+        nfP = fP/fP_amax
+
+
+        # concatenate all values
+        fnUVP = [fnU[:,:,N2R:N2R+1,N2R:N2R+1], fnV[:,:,N2R:N2R+1,N2R:N2R+1], fnP[:,:,N2R:N2R+1,N2R:N2R+1]]
+        nfUVP = [nfU[:,:,N2R:N2R+1,N2R:N2R+1], nfV[:,:,N2R:N2R+1,N2R:N2R+1], nfP[:,:,N2R:N2R+1,N2R:N2R+1]]
+        fUVP_amax = tf.concat([fU_amax, fV_amax, fP_amax], axis=1)
+        
+
+        # find new scaling factors
+        if (findNewValues):
+            #print((fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0]), UVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0])
+            U_amax = (fnUVPo[0]*nfUVP[0])/(fnUVP[0]*nfUVPo[0])*UVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
+            V_amax = (fnUVPo[1]*nfUVP[1])/(fnUVP[1]*nfUVPo[1])*UVP_amaxo[0,1,0,0]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
+            P_amax = (fnUVPo[2]*nfUVP[2])/(fnUVP[2]*nfUVPo[2])*UVP_amaxo[0,2,0,0]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
+            UVP_amax = tf.concat([U_amax, V_amax, P_amax], axis=1)
+        else:
+            UVP_amax = tf.concat([U_amax, V_amax, P_amax], axis=1)
+
+
+        return fnUVP, nfUVP, fUVP_amax, UVP_amax
+
+
+
+@tf.function
+def find_scaling(nfUVP, fnUVP, fnUVPo, nfUVPo, fUVP_amax, UVP_amaxo, fUVP_amaxo):
+
+    # U_amax = (fnUVPo[:,0:1,:,:]*nfUVP[0,0,0,0])/(fnUVP[0,0,0,0]*nfUVPo[0,0,0,0])*UVP_amaxo[0,0,0,0]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
+    # V_amax = (fnUVPo[:,1:2,:,:]*nfUVP[0,1,0,0])/(fnUVP[0,1,0,0]*nfUVPo[0,1,0,0])*UVP_amaxo[0,1,0,0]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
+    # P_amax = (fnUVPo[:,2:3,:,:]*nfUVP[0,2,0,0])/(fnUVP[0,2,0,0]*nfUVPo[0,2,0,0])*UVP_amaxo[0,2,0,0]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
+
+    U_amax = UVP_amaxo[:,0:1,:,:]*fUVP_amax[0,0,0,0]/fUVP_amaxo[0,0,0,0]
+    V_amax = UVP_amaxo[:,1:2,:,:]*fUVP_amax[0,1,0,0]/fUVP_amaxo[0,1,0,0]
+    P_amax = UVP_amaxo[:,2:3,:,:]*fUVP_amax[0,2,0,0]/fUVP_amaxo[0,2,0,0]
+
+    UVP_amax = tf.concat([U_amax, V_amax, P_amax], axis=1)
+
+    return UVP_amax
+    
     
     
 class layer_wlatent_mLES(layers.Layer):
@@ -1192,17 +1326,14 @@ class layer_wlatent_mLES(layers.Layer):
 
         w_init = tf.random_normal_initializer(mean=0.5, stddev=0.0)
         self.m = tf.Variable(
-            initial_value=w_init(shape=[M_LAYERS, LATENT_SIZE], dtype=DTYPE),
+            initial_value=w_init(shape=[G_LAYERS-M_LAYERS, 1], dtype=DTYPE),
             trainable=True,
             name="latent_mLES"
         )
 
     def call(self, w0, w1):
-        wa = self.m*w0[:,0:M_LAYERS,:] + (1.0-self.m)*w1[:,0:M_LAYERS,:]
-        wb = wa[:,M_LAYERS-1:M_LAYERS,:]
-        wb = tf.tile(wb, [1,G_LAYERS-M_LAYERS,1])
-        wa = wa[:,0:M_LAYERS,:]
-        w  = tf.concat([wa,wb], axis=1)
+        wa = self.m*w0[:,M_LAYERS:G_LAYERS,:] + (1.0-self.m)*w1[:,M_LAYERS:G_LAYERS,:]
+        w  = tf.concat([w0[:,0:M_LAYERS,:],wa], axis=1)
         return w
 
 
@@ -1222,5 +1353,8 @@ def step_find_dlatents_mDNS(synthesis, filter, opt, z, tDNS, tLES, ltv, UVP_max,
 
         
     return UVP_DNS, UVP_LES, fUVP_DNS, resREC, resLES, resDNS, loss_fil
+
+
+
 
     

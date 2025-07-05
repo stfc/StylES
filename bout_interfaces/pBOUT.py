@@ -127,7 +127,7 @@ else:
 
 
 # create filter model
-if (GAUSSIAN_FILTER):
+if (EXTERNAL_FILTER):
     x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
     out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian')
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
@@ -166,15 +166,15 @@ if (RESTART_WL):
     z0         = data["z0"]
     dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
-    nUVP_amaxo = data["nUVP_amaxo"]
+    UVP_amaxo  = data["UVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
-    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
-    print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
+    print("UVP_amaxo",   UVP_amaxo.shape, np.min(UVP_amaxo),  np.max(UVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
 
     # assign variables
@@ -220,9 +220,9 @@ U_DNS = UVP_DNS[0,0,:,:].numpy()
 V_DNS = UVP_DNS[0,1,:,:].numpy()
 P_DNS = UVP_DNS[0,2,:,:].numpy()
 
-Umax = abs(tf.reduce_max(nUVP_amaxo[:,0,:,:]).numpy())
-Vmax = abs(tf.reduce_max(nUVP_amaxo[:,1,:,:]).numpy())
-Pmax = abs(tf.reduce_max(nUVP_amaxo[:,2,:,:]).numpy())
+Umax = abs(tf.reduce_max(UVP_amaxo[:,0,:,:]).numpy())
+Vmax = abs(tf.reduce_max(UVP_amaxo[:,1,:,:]).numpy())
+Pmax = abs(tf.reduce_max(UVP_amaxo[:,2,:,:]).numpy())
 Umin = -Umax
 Vmin = -Vmax
 Pmin = -Pmax
@@ -238,21 +238,26 @@ print("\nInitial residuals ------------------------:     resREC {0:3e} resLES {1
 imgA = tf.identity(UVP_DNS)
 if (USE_DIFF_LES):
     fimgA = tf.identity(fUVP_DNS)
-    nfimgA, _ = normalize_max(fUVP_DNS)
+    nfimgA, fUVP_amax = normalize_max(fUVP_DNS)
 else:
     fimgA = tf.identity(UVP_LES)
-    nfimgA, _ = normalize_max(UVP_LES)
+    nfimgA, fUVP_amax = normalize_max(UVP_LES)
 
 
 
-# # set old scaling coefficients
-fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub, findNewValues=False)
-UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+# set old scaling coefficients
+nUVP_DNS, UVP_amaxo = normalize_max(UVP_DNS)
+fnUVPo              = gfilter(nUVP_DNS)[:,:,N2R:N2R+1,N2R:N2R+1]
+nfUVPo              = nfimgA[:,:,N2R:N2R+1,N2R:N2R+1]
+fUVP_amaxo          = fUVP_amax
+UVP_maxo            = [UVP_amaxo] + [fUVP_amaxo]
+
+print("UVP_max: ", UVP_maxo)
+
 
 # prepare old LES_in values
 if (USE_DIFF_LES):
     LES_in0o = tf.identity(LES_in0)
-    nfimgAo = tf.identity(nfimgA)
 
 file = open("./data/BOUT.inp", 'r')
 for line in file:
@@ -282,6 +287,7 @@ X, Y, Z = np.meshgrid(x, y, z, indexing='ij')
 print("Grid values NX,NY,NZ,LX,LY,LZ", NX,NY,NZ,LX,LY,LZ)
 
 
+minmaxTot = []
 
 #------------------------------------------------------ initialize the flow
 def initFlow(npv):
@@ -363,9 +369,12 @@ def initFlow(npv):
 def findLESTerms(pLES):
 
     global UVP_DNS
-    global fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo
+    global fnUVPo, nfUVPo, fUVP_amaxo, UVP_amaxo, nfimgAo, UVP_maxo
     global pPrint, simtimeo, pStepo
-    # global LES_in0o, nfimgAo
+    global minmaxTot
+    
+    if (USE_DIFF_LES):
+        global LES_in0o
 
 
 
@@ -410,42 +419,24 @@ def findLESTerms(pLES):
         
 
         #--------------------------- prepare LES field in 
-        # normalize
-        U_min = np.min(fU)
-        U_max = np.max(fU)
-        V_min = np.min(fV)
-        V_max = np.max(fV)
-        P_min = np.min(fP)
-        P_max = np.max(fP)
-
-        fU_amax = max(np.absolute(U_min), np.absolute(U_max))
-        fV_amax = max(np.absolute(V_min), np.absolute(V_max))
-        fP_amax = max(np.absolute(P_min), np.absolute(P_max))
-
-        nfU = fU/fU_amax
-        nfV = fV/fV_amax
-        nfP = fP/fP_amax
-        nfU = tf.convert_to_tensor(nfU, dtype=DTYPE)
-        nfV = tf.convert_to_tensor(nfV, dtype=DTYPE)
-        nfP = tf.convert_to_tensor(nfP, dtype=DTYPE)
-        nfU = tf.transpose(nfU, [1,0,2])
-        nfV = tf.transpose(nfV, [1,0,2])
-        nfP = tf.transpose(nfP, [1,0,2])
-        nfU = nfU[:,tf.newaxis,:,:]
-        nfV = nfV[:,tf.newaxis,:,:]
-        nfP = nfP[:,tf.newaxis,:,:]
-        nfimgA = tf.concat([nfU,nfV,nfP], axis=1)
+        fU = tf.convert_to_tensor(fU, dtype=DTYPE)
+        fV = tf.convert_to_tensor(fV, dtype=DTYPE)
+        fP = tf.convert_to_tensor(fP, dtype=DTYPE)
+        fU = tf.transpose(fU, [1,0,2])
+        fV = tf.transpose(fV, [1,0,2])
+        fP = tf.transpose(fP, [1,0,2])
+        fU = fU[:,tf.newaxis,:,:]
+        fV = fV[:,tf.newaxis,:,:]
+        fP = fP[:,tf.newaxis,:,:]
+        fimgA = tf.concat([fU, fV, fP], axis=1)
+        nfimgA, fUVP_amax = normalize_max(fimgA)
+        nfUVP = nfimgA[:,:,N2R:N2R+1,N2R:N2R+1]
 
         # set new LES_in
         if (USE_DIFF_LES):
             LES_in0     = LES_in0o*nfimgA/nfimgAo
             LES_in0, _  = normalize_max(LES_in0)
             LES_in0o    = tf.identity(LES_in0)
-            nfimgAo     = tf.identity(nfimgA)
-
-        # find new scaling
-        fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_sub, fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo)
-        UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
 
         # end prepare phase
         if (PROFILE_BOUT):
@@ -465,10 +456,18 @@ def findLESTerms(pLES):
 
     #--------------------------- find reconstructed field
     with nvtx.annotate("prediction", color="purple"):
-        UVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max, find_fDNS=False)
+        UVP_DNS, fnUVPo, nfUVPo, UVP_maxo = find_predictions(synthesis, gfilter, zAll, UVP_maxo, nfUVP, fUVP_amax, fnUVPo, nfUVPo, find_fDNS=False, rescale=True)
         # resREC, resLES, resDNS, loss_fil = find_residuals(UVP_DNS, UVP_LES, fUVP_DNS, UVP_DNS, UVP_LES, typeRes=0)
         # print("Starting residuals: step {0:6d} simtime {1:3e} resREC {2:3e} resLES {3:3e} resDNS {4:3e} loss_fil {5:3e}" \
         #     .format(pStep, simtime, resREC.numpy(), resLES.numpy(), resDNS.numpy(), loss_fil))
+
+        minmaxTot.append([UVP_maxo[0][0,0,0,0].numpy(), UVP_maxo[0][0,1,0,0].numpy(), UVP_maxo[0][0,2,0,0].numpy()])
+        if (pStep%100==0):
+            plt.plot(minmaxTot)
+            plt.savefig("./results_StylES/minmaxTot.png")
+            plt.close()
+        # filename = "./results_StylES/minmaxTot.txt"
+        # np.savetxt(filename, minmaxTot, fmt='%1.4e')
 
 
     if (PROFILE_BOUT):

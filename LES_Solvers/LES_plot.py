@@ -191,7 +191,7 @@ def print_fields(U_, V_, P_, W_, N, filename, \
 
 def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, testcase='HW', \
     Umin=None, Umax=None, Vmin=None, Vmax=None, Pmin=None, Pmax=None, \
-    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=True):
+    labels=[r'$n$', r'$\phi$', r'$\zeta$'], plot=False, dpi=100, transpose=True, plotCenterlines=True, legend=True, showAxis=True):
 
     if (testcase=='HIT_2D'):
         labelR = labels[0]
@@ -217,15 +217,21 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
     N = len(U[0,:])
 
     #---------------------------------- plot surfaces
-    fig, axs = plt.subplots(2, 3, figsize=(20,10), dpi=dpi)
+    if (plotCenterlines):
+        fig, axs = plt.subplots(2, 3, figsize=(20,10), dpi=dpi)
+        ax1 = axs[0,0]
+        ax2 = axs[1,0]
+        ax3 = axs[0,1]
+        ax4 = axs[1,1]
+        ax5 = axs[0,2]
+        ax6 = axs[1,2]
+    else:
+        fig, axs = plt.subplots(1, 3, figsize=(20,10), dpi=dpi)
+        ax1 = axs[0]
+        ax3 = axs[1]
+        ax5 = axs[2]
     fig.subplots_adjust(hspace=0.25)
 
-    ax1 = axs[0,0]
-    ax2 = axs[1,0]
-    ax3 = axs[0,1]
-    ax4 = axs[1,1]
-    ax5 = axs[0,2]
-    ax6 = axs[1,2]
 
     cmap1 = 'Blues'
     cmap2 = 'Reds_r'
@@ -245,28 +251,40 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
         velx = ax1.pcolormesh(geomR, geomZ, U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
     else:
         velx = ax1.pcolormesh(U, cmap=cmap1, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Umin, vmax=Umax)
-        
-    fig.colorbar(velx, ax=ax1)
-    ax1.title.set_text(labelR)
-    ax1.set_aspect(1)
-
+    
     if (geomR is not None):
         vely = ax3.pcolormesh(geomR, geomZ, V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
     else:
         vely = ax3.pcolormesh(V, cmap=cmap2, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Vmin, vmax=Vmax)
-        
-    fig.colorbar(vely, ax=ax3)
-    ax3.title.set_text(labelG)
-    ax3.set_aspect(1)
 
     if (geomR is not None):
         pres = ax5.pcolormesh(geomR, geomZ, P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
     else:
         pres = ax5.pcolormesh(P, cmap=cmap3, edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Pmin, vmax=Pmax)
+
+    if (legend):
+        fig.colorbar(velx, ax=ax1)
+        fig.colorbar(vely, ax=ax3)
+        fig.colorbar(pres, ax=ax5)
+
+    if (not showAxis):
+        ax1.get_xaxis().set_visible(False)
+        ax3.get_xaxis().set_visible(False)
+        ax5.get_xaxis().set_visible(False)
+        ax1.get_yaxis().set_visible(False)
+        ax3.get_yaxis().set_visible(False)
+        ax5.get_yaxis().set_visible(False)
         
-    fig.colorbar(pres, ax=ax5)
+    ax1.title.set_text(labelR)
+    ax1.set_aspect(1)
+
+    ax3.title.set_text(labelG)
+    ax3.set_aspect(1)
+
     ax5.title.set_text(labelB)
     ax5.set_aspect(1)
+
+
 
 
     colors = plt.cm.jet(np.linspace(10,1,21))
@@ -296,30 +314,31 @@ def print_fields_3(U_, V_, P_, geomR=None, geomZ=None, N=None, filename=None, te
 
 
     #---------------------------------- plot centerlines
-    if (dir==0):    # x-direction
-        x = list(range(N))
-        hdim = N//2
-        yU = U[hdim,:]
-        yV = V[hdim,:]
-        yP = P[hdim,:]
-    elif (dir==1):  # y-direction 
-        x = list(range(N))
-        hdim = N//2
-        yU = U[:,hdim]
-        yV = V[:,hdim]
-        yP = P[:,hdim]
+    if (plotCenterlines):
+        if (dir==0):    # x-direction
+            x = list(range(N))
+            hdim = N//2
+            yU = U[hdim,:]
+            yV = V[hdim,:]
+            yP = P[hdim,:]
+        elif (dir==1):  # y-direction 
+            x = list(range(N))
+            hdim = N//2
+            yU = U[:,hdim]
+            yV = V[:,hdim]
+            yP = P[:,hdim]
 
-    velx = ax2.plot(x, yU, color=lineColor)
-    ax2.set_ylim([Umin, Umax])
-    ax2.title.set_text(labelR)
+        velx = ax2.plot(x, yU, color=lineColor)
+        ax2.set_ylim([Umin, Umax])
+        ax2.title.set_text(labelR)
 
-    vely = ax4.plot(x, yV, color=lineColor)
-    ax4.set_ylim([Vmin, Vmax])
-    ax4.title.set_text(labelG)
+        vely = ax4.plot(x, yV, color=lineColor)
+        ax4.set_ylim([Vmin, Vmax])
+        ax4.title.set_text(labelG)
 
-    pres = ax6.plot(x, yP, color=lineColor)
-    ax6.set_ylim([Pmin, Pmax])
-    ax6.title.set_text(labelB)
+        pres = ax6.plot(x, yP, color=lineColor)
+        ax6.set_ylim([Pmin, Pmax])
+        ax6.title.set_text(labelB)
 
     # save images
     plt.suptitle(filename)
@@ -431,7 +450,7 @@ def print_fields_2(U_, V_, filename, Umin=None, Umax=None, Vmin=None, Vmax=None)
 
 
 
-def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
+def print_fields_1(W_, filename=None, labels=None, Wmin=None, Wmax=None, legend=True):
     
     #---------------------------------- find vorticity
     W = convert(W_)
@@ -443,12 +462,15 @@ def print_fields_1(W_, filename, Wmin=None, Wmax=None, legend=True):
 
     vort = ax1.pcolormesh(W, cmap='hot', edgecolors='k', linewidths=0.1, shading='gouraud', vmin=Wmin, vmax=Wmax)
     ax1.set_aspect(1)
-    if (legend):
-        fig.colorbar(vort, ax=ax1)
-        ax1.title.set_text(r'\omega')
-        plt.suptitle(filename)
-    else:
-        ax1.axis("off")
+    #if (legend):
+        # fig.colorbar(vort, ax=ax1)
+        # if (labels==None):
+        #     ax1.title.set_text(r'$\zeta$')
+        # else:
+        #     ax1.title.set_text(labels)
+        #plt.suptitle(filename)
+
+    ax1.axis("off")
 
     # save images
     plt.savefig(filename, bbox_inches='tight', pad_inches=0)    

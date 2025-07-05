@@ -101,7 +101,7 @@ def plot_spectrum_2d(U, V, L, filename, close=True, label=None, xlim=[1e-2, 1e3]
 
 
 
-def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1.0e-1, 1.0e-3], ylim=[1e-8, 1.e2], useLogSca=True):
+def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1.0e-1, 1.0e-3], ylim=[1e-8, 1.e2], useLogSca=True, original=False):
     U_cpu = convert(U)
     V_cpu = convert(V)
     Z_cpu = convert(Z)
@@ -124,11 +124,18 @@ def plot_spectrum_2d_3v(U, V, Z, L, filename, close=True, label=None, xlim=[1.0e
     # plt.xlim(xlim)
     plt.ylim(ylim) 
 
+    if (original):
+        linestyle = '-'
+        marker = 'None'
+    else:
+        linestyle = 'None'
+        marker = 'o'
+
     if (label is not None):
-        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5, label=label)
+        plt.plot(wave_numbers, tke_spectrum, linestyle=linestyle, marker=marker, markerfacecolor='none', linewidth=0.5, label=label)
         plt.legend()
     else:    
-        plt.plot(wave_numbers, tke_spectrum, '-', linewidth=0.5)
+        plt.plot(wave_numbers, tke_spectrum, linestyle=linestyle, marker=marker, markerfacecolor='none', linewidth=0.5)
    
     plt.xlabel(r'k [$\rho_i^{-1}$]')
     plt.ylabel(r'$\mathcal{F}(E)$')

@@ -41,7 +41,7 @@ else:                                         # INFO = INFO messages are not pri
     tf.get_logger().setLevel("ERROR")
 
 SEED = 0
-SEED_RESTART = 3
+SEED_RESTART = 0
 
 tf.random.set_seed(seed=SEED)  # ideally this should be set on if DEBUG is true...
 
@@ -82,7 +82,7 @@ FMAP_BASE         = 8192    # Overall multiplier for the number of feature maps.
 FMAP_DECAY        = 1.0     # log2 feature map reduction when doubling the resolution.
 FMAP_MAX          = 512     # Maximum number of feature maps in any layer.
 RES_LOG2          = int(np.log2(OUTPUT_DIM))
-FIL               = 3 # number of layers below the DNS  
+FIL               = 1 # number of layers below the DNS  
 IFIL              = FIL-1  # number of layers below the DNS  
 G_LAYERS          = RES_LOG2*2 - 2  # Numer of layers  
 G_LAYERS_FIL      = (RES_LOG2-FIL)*2 - 2   # Numer of layers for the filter
@@ -101,7 +101,7 @@ AMP_INSTAN_NOISE  = 0.0
 # Training hyper-parameters
 TOT_ITERATIONS = 500000
 PRINT_EVERY    = 1000
-IMAGES_EVERY   = 10000
+IMAGES_EVERY   = 1000
 SAVE_EVERY     = 100000
 IRESTART       = False
 
@@ -144,7 +144,7 @@ NY2             = max(1,int(BATCH_SIZE/2))
 RS              = int(2**FIL)
 RS2             = int(RS/2)
 N2L             = N_LES2-RS2
-N2R             = N_LES2+RS2+1
+N2R             = N_LES2+RS2-10
 
 if (TESTCASE=="HW"):
     if (NDIMS==2):
@@ -160,17 +160,24 @@ LOAD_DNS        = True
 INIT_SCA        = 5.0   # N=256=>5, N=512=>10, N=1024=>15
 NC_NOISE_IN     = 1000
 NC2_NOISE_IN    = int(NC_NOISE_IN/2)
-GAUSSIAN_FILTER = True
+EXTERNAL_FILTER = True
+DALPHA          = 0.1
 
-FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_HW_run0_time501.npz"
-FILE_DNS_N512    = "../../../data/BOUT_runs/HW_3D/HW_N512x16x512_perX/fields_npz/fields_HW_run0_time298.npz"
+# Create 2D wavenumber grid
+KX  = tf.constant(np.fft.fftfreq(N_DNS, d=LEN_DOMAIN/N_DNS) * 2 * np.pi, dtype=DTYPE)
+KX2 = tf.reshape(KX**2, [N_DNS, 1])  # shape [N_DNS, 1]
+KY2 = tf.reshape(KX**2, [1, N_DNS])  # shape [1, N_DNS]
+
+
+FILE_DNS_N256    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N256/fields/fields_HW_run0_time501.npz"  #(DNS is 501)
+FILE_DNS_N512    = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N512/fields/fields_HW_run0_time301.npz"
 FILE_DNS_N1024   = "../../../data/BOUT_runs/HW_2D/Papers/PoP23/HW_N1024/fields/fields_HW_run0_time440.npz"
 FILE_DNS_N256_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run6_time400.npz"
 FILE_DNS_N512_3D = "../../../data/BOUT_runs/HW_3D/HW_larger/HW_N256/fields_run1_time300.npz"
 FILE_DNS_N1024_3D = "../../../data/BOUT_runs/HW_3D/HW_Biskamp/fields_npz_3D_1img/fields_run0_time1001.npz"
 
 # learning rate for latent space optimizer
-lr_DNS_maxIt  = 100000
+lr_DNS_maxIt  = 1000000
 lr_DNS_POLICY = "EXPONENTIAL"   # "EXPONENTIAL" or "PIECEWISE"
 lr_DNS_STAIR  = False
 lr_DNS        = 1.0e-3   # exponential policy initial learning rate
@@ -181,4 +188,3 @@ lr_DNS_BOUNDS = [100, 200, 300]             # piecewise policy bounds
 lr_DNS_VALUES = [100.0, 50.0, 20.0, 10.0]   # piecewise policy values
 lr_DNS_BETA1  = 0.0
 lr_DNS_BETA2  = 0.99
-

@@ -99,7 +99,7 @@ time.sleep(3)
 
 
 # create filter model
-if (GAUSSIAN_FILTER):
+if (EXTERNAL_FILTER):
     x_in    = tf.keras.Input(shape=([NUM_CHANNELS, OUTPUT_DIM, OUTPUT_DIM]), dtype=DTYPE)
     out     = apply_filter_NCH(x_in, size=4*RS, rsca=RS, mean=0.0, delta=RS, type='Gaussian', NCH=NUM_CHANNELS)
     gfilter = tf.keras.Model(inputs=x_in, outputs=out)
@@ -209,32 +209,35 @@ if (LOAD_DNS):
         P_DNS = find_vorticity_HW(UVP_LES_org[:,1:2,:,:], DELX_LES, DELY_LES)
         UVP_LES_org = tf.concat([UVP_LES_org[:,0:2,:,:], P_DNS], axis=1)  
         
-    # filter image
-    rs = 2 
-    for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
-        res = 2**reslog
-        if (reslog==RES_LOG2):
-            fUVP_DNS, _ = normalize_max(UVP_DNS_org)
-        else:
-            fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
-            U_DNS    = fUVP_DNS[:,0:1,:,:]
-            V_DNS    = fUVP_DNS[:,1:2,:,:]
-            if (CALC_VORTICITY):        
-                P_DNS  = apply_filter_NCH(V_DNS, size=2, rsca=1, mean=0.0, delta=DELX*OUTPUT_DIM/res, type='Vorticity', NCH=1)
-                fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
-            else:
-                P_DNS    = fUVP_DNS[:,2:3,:,:]
-            fUVP_DNS = find_centred_fields(fUVP_DNS)
-            fUVP_DNS, _ = normalize_max(fUVP_DNS)
+    # # filter image
+    # rs = 2 
+    # for reslog in range(RES_LOG2, RES_LOG2-FIL-1, -1):
+    #     res = 2**reslog
+    #     if (reslog==RES_LOG2):
+    #         fUVP_DNS, _ = normalize_max(UVP_DNS_org)
+    #     else:
+    #         fUVP_DNS = apply_filter_NCH(fUVP_DNS, size=4, rsca=rs, mean=0.0, delta=1.0, type='Gaussian', NCH=3)
+    #         U_DNS    = fUVP_DNS[:,0:1,:,:]
+    #         V_DNS    = fUVP_DNS[:,1:2,:,:]
+    #         if (CALC_VORTICITY):        
+    #             P_DNS  = apply_filter_NCH(V_DNS, size=2, rsca=1, mean=0.0, delta=DELX*OUTPUT_DIM/res, type='Vorticity', NCH=1)
+    #             fUVP_DNS = tf.concat([U_DNS, V_DNS, P_DNS], axis=1)
+    #         else:
+    #             P_DNS    = fUVP_DNS[:,2:3,:,:]
+    #         fUVP_DNS = find_centred_fields(fUVP_DNS)
+    #         fUVP_DNS, _ = normalize_max(fUVP_DNS)
 
-        # normalize the data
-        fUVP_DNS, _ = normalize_max(fUVP_DNS)
+    #     # normalize the data
+    #     fUVP_DNS, _ = normalize_max(fUVP_DNS)
         
     # save LES_in0
-    LES_in0 = tf.identity(fUVP_DNS)
+    # LES_in0 = tf.identity(fUVP_DNS)
+    LES_in0, _ = normalize_max(UVP_LES_org)
 
-    fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS_org, gfilter_1ch, subSection=False, findNewValues=False)
-    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+    # find min/max for DNS and LES
+    _, UVP_amaxo  = normalize_max(UVP_DNS_org)
+    _, fUVP_amaxo = normalize_max(UVP_LES_org)
+    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
 
 else:
 
@@ -266,18 +269,21 @@ else:
             sinDNS = sinLES*RS
             LES_in0 = tf.concat([LES_in0, tr(LES_in0_init, 0, sinLES)], axis=0)
 
-    UVP_DNS, _, _ = find_predictions(synthesis, gfilter, zAll, UVP_max)
-    
-    fnUVPo, nfUVPo, fUVP_amaxo, nUVP_amaxo = find_scaling(UVP_DNS, gfilter_1ch, subSection=False, findNewValues=False)
-    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
-        
-    UVP_DNS_org, UVP_LES_org, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
+    UVP_DNS, UVP_LES, fUVP_DNS = find_predictions(synthesis, gfilter, zAll, UVP_max)
+
+    # find min/max for DNS and LES
+    _, UVP_amaxo  = normalize_max(UVP_DNS)
+    _, fUVP_amaxo = normalize_max(UVP_LES)
+    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
+
+print("UVP_max: ", UVP_max)
+
 
 
 # find min/max values
-Umax = abs(tf.reduce_max(nUVP_amaxo[:,0,:,:]).numpy())
-Vmax = abs(tf.reduce_max(nUVP_amaxo[:,1,:,:]).numpy())
-Pmax = abs(tf.reduce_max(nUVP_amaxo[:,2,:,:]).numpy())
+Umax = abs(tf.reduce_max(UVP_amaxo[:,0,:,:]).numpy())
+Vmax = abs(tf.reduce_max(UVP_amaxo[:,1,:,:]).numpy())
+Pmax = abs(tf.reduce_max(UVP_amaxo[:,2,:,:]).numpy())
 Umin = -Umax
 Vmin = -Vmax
 Pmin = -Pmax
@@ -303,11 +309,11 @@ print_fields_3(U_LES, V_LES, P_LES, filename=filename, testcase=TESTCASE, \
 
 dVdx = (-cr(V_DNS, 2, 0) + 8*cr(V_DNS, 1, 0) - 8*cr(V_DNS, -1,  0) + cr(V_DNS, -2,  0))/(12.0*DELX)
 dVdy = (-cr(V_DNS, 0, 2) + 8*cr(V_DNS, 0, 1) - 8*cr(V_DNS,  0, -1) + cr(V_DNS,  0, -2))/(12.0*DELY)
-plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename_spectra, label="DNS(org)", close=False)
+plot_spectrum_2d_3v(U_DNS, dVdx, dVdy, L, filename_spectra, label="DNS(org)", close=False, original=True)
 
 dVdx = (-cr(V_LES, 2, 0) + 8*cr(V_LES, 1, 0) - 8*cr(V_LES, -1,  0) + cr(V_LES, -2,  0))/(12.0*DELX_LES)
 dVdy = (-cr(V_LES, 0, 2) + 8*cr(V_LES, 0, 1) - 8*cr(V_LES,  0, -1) + cr(V_LES,  0, -2))/(12.0*DELY_LES)
-plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename_spectra, label="LES(org)", close=False)
+plot_spectrum_2d_3v(U_LES, dVdx, dVdy, L, filename_spectra, label="LES(org)", close=False, original=True)
 
 
 print("============================Set reference DNS and LES")
@@ -328,15 +334,15 @@ if (RESTART_WL):
     z0         = data["z0"]
     dlatents   = data["dlatents"]
     LES_in0    = data["LES_in0"]
-    nUVP_amaxo = data["nUVP_amaxo"]
+    UVP_amaxo  = data["UVP_amaxo"]
     fUVP_amaxo = data["fUVP_amaxo"]
     
-    UVP_max = [nUVP_amaxo] + [fUVP_amaxo]
+    UVP_max = [UVP_amaxo] + [fUVP_amaxo]
     
     print("z0",                 z0.shape, np.min(z0),         np.max(z0))
     print("dlatents",     dlatents.shape, np.min(dlatents),   np.max(dlatents))
     print("LES_in0",       LES_in0.shape, np.min(LES_in0),    np.max(LES_in0))
-    print("nUVP_amaxo", nUVP_amaxo.shape, np.min(nUVP_amaxo), np.max(nUVP_amaxo))
+    print("UVP_amaxo",   UVP_amaxo.shape, np.min(UVP_amaxo),  np.max(UVP_amaxo))
     print("fUVP_amaxo", fUVP_amaxo.shape, np.min(fUVP_amaxo), np.max(fUVP_amaxo))        
 
     # assign variables
@@ -484,7 +490,7 @@ if (not RESTART_WL):
                 z0         = z0, \
                 dlatents   = dlatents, \
                 LES_in0    = LES_all[-1], \
-                nUVP_amaxo = nUVP_amaxo, \
+                UVP_amaxo  = UVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo, \
                 noise_DNS  = noise_DNS)
     else:
@@ -493,7 +499,7 @@ if (not RESTART_WL):
                 z0         = z0, \
                 dlatents   = dlatents, \
                 LES_in0    = LES_all[-1], \
-                nUVP_amaxo = nUVP_amaxo, \
+                UVP_amaxo  = UVP_amaxo, \
                 fUVP_amaxo = fUVP_amaxo)
 
 
@@ -618,7 +624,7 @@ df_DNS = (gfilter_1ch(df_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]
 
 c_LES = 10.0*fU_DNS
 l_LES = fU_DNS + fV_DNS
-if (GAUSSIAN_FILTER):
+if (EXTERNAL_FILTER):
     fP_DNS_noSca = (gfilter_noScaling(P_DNS[tf.newaxis,tf.newaxis,:,:]))[0,0,:,:]   # the downscaling must happens after the filtering!!
     d_LES = ((cr(fP_DNS_noSca, 1, 0) - cr(fP_DNS_noSca,-1, 0))/(2*DELX)) + ((cr(fP_DNS_noSca, 0, 1) - cr(fP_DNS_noSca, 0,-1))/(2*DELY))
     d_LES = d_LES[::RS,::RS]
